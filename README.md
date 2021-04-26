@@ -1,11 +1,8 @@
 # ParseAndC #
-=================================================================================================================================
-=================================================================================================================================
+
   
                                          R E A D      M E
   
-=================================================================================================================================
-=================================================================================================================================
   
        This tool has 3 BIG main vertical windows in the middle and a 4th horizontal one at the bottom.
   
@@ -244,9 +241,7 @@
     There is a roundabout way of circumventing this, where you may be able to re-arrange the original code so that your intended global variables are contiguous, 
     but there is no guarantee that you can always do that. For example, if you are continuously defining newer structs using older structs, it may not be possible.
   
-==========================================================================================================================================
-       CROSS-PLATFORM STATUS:
-==========================================================================================================================================
+##       CROSS-PLATFORM STATUS: ##
   
     This tool is designed to be cross-platform. It is supposed to work anywhere. Since it has minimal dependency, it is not supposed to break.
     
@@ -273,17 +268,13 @@
   
   
   
-==========================================================================================================================================
-       CURRENTLY WORK-IN-PROGRESS:
-==========================================================================================================================================
+##       CURRENTLY WORK-IN-PROGRESS:  ##
     
     I am currently working on a few items. These items are not fully ready yet:
     - sizeof()
     - bitfield alignemnt for Big-Endian (cannot find a processor to test it).
   
-==========================================================================================================================================
-       KNOWN ISSUES:
-==========================================================================================================================================
+##       KNOWN ISSUES:  ##
     
     This tool is first for me in many ways. 
   
@@ -301,9 +292,7 @@
     I know of an issue. For example, currently it does not handle the const/volatile/static etc. storage qualifier keywords very well.
     However, these storage qualifiers have absolutely no relevance for this too. So, feel free to delete them from your code and rerun it.
   
-==========================================================================================================================================
-       HOW  TO  REPORT  A  BUG:
-==========================================================================================================================================
+##       HOW  TO  REPORT  A  BUG:    ##
   
     Please email to Parbati.K.Manna@intel.com with a subject line of "ParseAndC bug" along with the following information/attachments:
   
@@ -314,9 +303,7 @@
        whole lot of debug messages on the background console. This is the most useful debugging information, so please capture that and attach it.
   
   
-==========================================================================================================================================
-       FEEDBACK PLEASE!!!!
-==========================================================================================================================================
+##       FEEDBACK PLEASE!!!!      ##
   
     if you like this tool, I want to hear about it.
     If you feel that this tool sucks, I still want to hear about it.
@@ -324,5 +311,3 @@
   
     Please email me with any feedback: Parbati.K.Manna@intel.com
   
-=================================================================================================================================
-=================================================================================================================================
