@@ -1,4 +1,4 @@
-# ParseAndC
+# ParseAndC #
 =================================================================================================================================
 =================================================================================================================================
   
@@ -244,9 +244,9 @@
     There is a roundabout way of circumventing this, where you may be able to re-arrange the original code so that your intended global variables are contiguous, 
     but there is no guarantee that you can always do that. For example, if you are continuously defining newer structs using older structs, it may not be possible.
   
-==========================================================================================================================================#
+==========================================================================================================================================
        CROSS-PLATFORM STATUS:
-==========================================================================================================================================#
+==========================================================================================================================================
   
     This tool is designed to be cross-platform. It is supposed to work anywhere. Since it has minimal dependency, it is not supposed to break.
     
