@@ -321,7 +321,7 @@
 ##  If you feel that this tool sucks, I still want to hear about it.
 ##  If you have some feature in mind that you feel would make the tool better, I want to hear about it.
 ##
-##  Please email me with any feedback: Parbati.K.Manna@intel.com
+##  Please email me with any feedback: pkmanna AT gmail DOT com
 ##
 ##################################################################################################################################
 ##################################################################################################################################
