@@ -337,9 +337,23 @@ demoCode = ['enum { Sun, Mon, Tue};\n',
 '#define if_less_then_add(x,y) (x<y?x:ADD_ONE(y))\n',
 '#define BLANK\n',
 '#define QUOTE "qu\\"ote"\n',
-'#define SUM_UP( i, j ) (i+j)\n',
+'#define SUM_UP( i,j) (i+j)\n',
 '\n',
 'int school[2];\n',
+'//This example shows the interaction of \n',
+'//various attributes and #pragma pack(n)\n',
+'//The short s is extended to 8 bytes first, \n',
+'//but then again brought down to 4 bytes \n',
+'//due to #pragma pack(4)\n',
+'// Hence we will have the following pads:\n',
+'// 3 bytes after char c, 2 bytes after short s\n',
+'\n',
+'#pragma pack(4)\n',
+'\n',
+'struct __attribute__((packed)) N2 {\n',
+'           char c;\n',
+'           short s __attribute__((aligned(8)));\n',
+'  } newVar;\n',
 '\n',
 '/* Thanos did nothing wrong */\n',
 '\n',
@@ -353,8 +367,10 @@ demoCode = ['enum { Sun, Mon, Tue};\n',
 'struct student\n',
 '{\n',
 '    int roll[SUM_UP(BLANK 0,2+3 BLANK )];\n',
+'    //weird is a pointer\n',
 '    void **(*(*weird)[6])(char, int);\n',
 '    float marks;\n',
+'    //weirder is a function, no storage allocated\n',
 '    int (*Weirder(const char code)) (int, int) ;\n',
 '    int INT[2][3][Tue];\n',
 '} st;\n',
@@ -9614,7 +9630,7 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 			return False
 		
 		PRINT ("datatype =",datatype)
-		if DISPLAY_INTEGRAL_VALUES_IN_HEX and (datatype in integralDataTypes):
+		if DISPLAY_INTEGRAL_VALUES_IN_HEX and (datatype == "pointer" or datatype in integralDataTypes):
 			return HEX(returnValue)
 		else:
 			return returnValue
