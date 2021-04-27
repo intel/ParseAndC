@@ -256,13 +256,14 @@
 ##  Window 10 Python 3.8
 ##  Window 7 Python 3.8
 ##  Linux Python 2.7
+##
 ##  For Mac, I could only test it for a few seconds on a colleague's work laptop. For proper testing, I need access to a Mac server. Can any kind soul grant me access?
 ##  Also, access to any Linux testing environment with Python 3 would be appreciated.
 ##
 ##  The look and feel of the tool changes as per the OS, but the main tool functionality remains the same.
 ##
-##  It was a royal pain in the ummm... neck porting it from Python 2 to Python 3. You see, at Intel the predominant Python version is 2.7,
-##  probably due to prevalence of PythonSV. I googled for changes between Python 2 and Python 3, and it seems reasonable. How wrong I was!!
+##  It was a royal pain in the ummm... neck porting it from Python 2 to Python 3. You see, at my workplace the predominant Python version is 2.7,
+##  though it is slowly changing. I googled for changes between Python 2 and Python 3, and it seems reasonable. How wrong I was!!
 ##
 ##  There are many, many subtle changes in Python 3 that will break your program written in Python 2. Some examples:
 ##  - Your print used to be a statement, now it is a proper function
@@ -292,7 +293,7 @@
 ##
 ##  And, I tested with it with EXACTLY ONE input file that contains some C declarations (that input is pasted right below README). Horrified enough?
 ##
-##  So, for a program that contains 8K lines of code, and has been tested for ONE test case, you can imagine the number of bugs it has!!!
+##  So, for a program that contains 12K lines of code, and has been tested for ONE test case, you can imagine the number of bugs it has!!!
 ##
 ##  But, it is the age of outsourcing. So, ALL of you - the potential users - are my testers. I coded this FREE for you, you test this FREE for me. Win-Win!!
 ##  Use it with your own test structures, and report to me anytime anything breaks (see below on how to report a bug).
@@ -304,7 +305,7 @@
 ##     HOW  TO  REPORT  A  BUG:
 ###########################################################################################################################################
 ##
-##  Please email to Parbati.K.Manna@intel.com with a subject line of "ParseAndC bug" along with the following information/attachments:
+##  Please email to pkmanna AT gmail DOT com with a subject line of "ParseAndC bug" along with the following information/attachments:
 ##
 ##  1. Your running environment (Windows / Unix / Mac), Python version.
 ##  2. The input files you used for code and data. If the Data file is large, at least send the Code file. If you typed in the code, copy what you typed.
@@ -321,7 +322,7 @@
 ##  If you feel that this tool sucks, I still want to hear about it.
 ##  If you have some feature in mind that you feel would make the tool better, I want to hear about it.
 ##
-##  Please email me with any feedback: Parbati.K.Manna@intel.com
+##  Please email me with any feedback: pkmanna AT gmail DOT com
 ##
 ##################################################################################################################################
 ##################################################################################################################################
