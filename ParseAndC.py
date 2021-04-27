@@ -341,6 +341,7 @@ demoCode = ['enum { Sun, Mon, Tue};\n',
 '#define SUM_UP( i,j) (i+j)\n',
 '\n',
 'int school[2];\n',
+'\n',
 '//This example shows the interaction of \n',
 '//various attributes and #pragma pack(n)\n',
 '//The short s is extended to 8 bytes first, \n',
@@ -375,6 +376,37 @@ demoCode = ['enum { Sun, Mon, Tue};\n',
 '    int (*Weirder(const char code)) (int, int) ;\n',
 '    int INT[2][3][Tue];\n',
 '} st;\n',
+'\n',
+'//Observe that right now we are also \n',
+'//mapping the typedef (can be turned off\n',
+'//by clicking on button at the bottom.\n',
+'typedef struct \n',
+'{\n',
+'    uint32_t HDDsize;\n',
+'    uint32_t sectors;\n',
+'\n',
+'    union\n',
+'    {\n',
+'        struct\n',
+'        {\n',
+'            uint32_t enabled:1;\n',
+'            uint32_t field24:1;\n',
+'            uint32_t field24_en:1;\n',
+'            uint32_t field25:1;\n',
+'            uint32_t field25_en:1;\n',
+'            uint32_t field26:1;\n',
+'            uint32_t field26_en:1;\n',
+'            uint32_t field27:1;\n',
+'            uint32_t field27_en:1;\n',
+'            uint32_t reserved:22;\n',
+'            uint32_t special_en:1;\n',
+'        };\n',
+'        uint32_t manualCommand;\n',
+'    };\n',
+'    \n',
+'    uint8_t  specialConfiguration[20];\n',
+'} typeOneEntry_t;\n',
+'\n',
 '\n',
 'union U{\n',
 '	char CHAR;\n',
@@ -10022,8 +10054,10 @@ def dumpDetailsForDebug(MUST=False):
 	for item in globalScopes:
 		PRINT (item, variableDeclarations[item[0]][0])
 	PRINT ("\nglobalScopesSelected [variableId, scopeStartVariableId, scopeEndVariableId]) =\n")
-	for item in globalScopesSelected:
-		PRINT (item, variableDeclarations[item[0]][0])
+	if globalScopesSelected:
+		for item in globalScopesSelected:
+			PRINT (item)
+			PRINT (variableDeclarations[item[0]][0])
 	PRINT ("variablesAtGlobalScopeSelected =",variablesAtGlobalScopeSelected)
 	PRINT ("variablesAtGlobalScopeSelected =",[variableDeclarations[item][0] for item in variablesAtGlobalScopeSelected])
 	PRINT ("variableSelectedIndices =",variableSelectedIndices)
