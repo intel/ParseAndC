@@ -12424,6 +12424,10 @@ class MainWindow:
 		warningMessage = "Now that you can see the interpreted code in the middle window, we are going to map the interpreted code to the data. Press OK to continue."
 		warningRoutine(warningMessage)
 		self.mapStructureToData()
+		warningMessage = "We selected ALL the gloabal-level variables for mapping. But, during regular run (not in Demo) you could also select any code segment using your mouse, and all the top-level gloabl variables within that selection will get mapped. Press OK to continue."
+		warningRoutine(warningMessage)
+		warningMessage = "Once all these warning windows go away, take your cursor above various colored items in the interpreted code window and the data window and see how the Description, Address and Values are shown below. Press OK to continue."
+		warningRoutine(warningMessage)
 
 	############################################################################################################################
 	############################################################################################################################
