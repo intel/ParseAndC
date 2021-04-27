@@ -205,14 +205,7 @@
 ##    --------------------------------------------------------------------
 ##  
 ##   There are a few options here.
-##   - Compiler padding on or off - self-explanatory. When you Click this (turn it on or off), it will automatically re-interpret, and you will need to re-select
-##     your variables for mapping and press the "Map" button. Why we need to do this? Because when the compiler padding is turned on or off, ALL the size calculations
-##     go out of the window. The only way to do it properly is to start with a clean slate, by re-compiling.
-##   - Struct-end padding - when you turn on Compiler padding, this gives you a little more fine-grained control over whether you want to padding to apply AFTER the stuct end 
-##     or not. Similar to Compiler padding, we need to re-interpret after we make any changes here.
-##     Why we provide this separately? If two structures were part of the same source code, the compiler will surely add the requisite padding in between. 
-##     However, there might be cases where we are placing two structures from the different source in the final packet, and they are added contiguously 
-##     without any added padding in between.
+##
 ##   - Mapping Typedefs or not - Sometimes, in production there will be big structures that are typedefed. Now, when you just typedef a variable, the compiler does not create
 ##     any storage for it since it is just a type. However, this means that the user will be forced to add a new line of code with a dummy variable name with the create type.
 ##     To prevent that, I provided this option for counting typedefs too for structs.
@@ -222,6 +215,7 @@
 ##       option B. If you are loathe to manually type the typedef statements and would rather do it for once and for all, there is a list inside this tool
 ##       called typedefsBuiltin that already covers a few such cases (like int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t, intptr_t, uintptr_t).
 ##       If your code uses some other typedefs frequently, maybe you can add them to this list.
+##
 ##   - Debug ON or OFF - when you turn the Debug on, it will start printing a massive amount of debug statements on the console. When you turn it off,
 ##     it will invoke the dumpDetailsForDebug() routine that prints the most important lists and dictionaries used in this tool, and then turns it off.
 ##     So, an easy way to see the internals of this tool for the current code is to turn the Debug ON and OFF right one after the other.
