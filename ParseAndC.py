@@ -321,7 +321,7 @@
 ##  If you feel that this tool sucks, I still want to hear about it.
 ##  If you have some feature in mind that you feel would make the tool better, I want to hear about it.
 ##
-##  Please email me with any feedback: pkmanna AT gmail DOT com
+##  Please email me with any feedback: Parbati.K.Manna@intel.com
 ##
 ##################################################################################################################################
 ##################################################################################################################################
@@ -8093,6 +8093,8 @@ def parseStructure(tokenList, i, parentStructName, level):
 			if structuresAndUnionsDictionary[structName]["type"]=="union":
 				structuresAndUnionsDictionary[structName]["components"][N][4]["offsetWithinStruct"] = 0
 			elif structuresAndUnionsDictionary[structName]["type"]=="struct":
+				if N == 0:	# The first member of a struct should always have the offset of 0
+					structuresAndUnionsDictionary[structName]["components"][N][4]["offsetWithinStruct"] = 0
 #				structuresAndUnionsDictionary[structName]["components"][N][4]["offsetWithinStruct"] = structSizeBytes	#Only the first member in a bitfield sequence is getting updated
 				pass	# We will update this later with padding. Padding does not apply to unions since in a union, all members start at offset 0
 			else:
@@ -8280,6 +8282,8 @@ def parseStructure(tokenList, i, parentStructName, level):
 								break
 						PRINT("For struct", structName, "member", structMemberName, "with baseType", structMemberDescription["baseType"],"and bitFieldWidth =",bitFieldWidth,", Current memberAlignmentBits =",memberAlignmentBits)
 						
+						# Not sure what I was trying to do here
+						'''
 						# Find which bit we should start packing this bitfield from
 						if previousMemberEndedAtSizeBits == 0:
 							startPackingFromBit = 0
@@ -8290,6 +8294,9 @@ def parseStructure(tokenList, i, parentStructName, level):
 								if memberAlignmentBits * count - 1 > previousMemberEndedAtSizeBits:
 									startPackingFromBit = memberAlignmentBits * count - 1
 									break
+						'''
+						
+					structSizeBytes += structMemberSizeBytes
 					
 				elif structMemberDescription["isBitField"] == False:
 					# You have to be careful while utilizing the potential possible padding. Recall that a member may use the previous traling padding.
@@ -8410,7 +8417,7 @@ def parseStructure(tokenList, i, parentStructName, level):
 
 # Custom print function for the unraveled list since we do not want to print the whole of variableDescription dictionary, which is the third item in each row
 def printUnraveled():
-	PRINT ("\n\n","=="*100,"\nunraveled\n","=="*100,"\n", )
+	PRINT ("\n\n","=="*100,"\nunraveled (level, variable, datatype, starting offset (inclusive), ending offset+1 (exclusive) \n","=="*100,"\n", )
 	for row in unraveled:
 		rowText = "["+STR(row[0])
 		for N in range(1,len(row)):
@@ -8419,7 +8426,7 @@ def printUnraveled():
 				try:
 					rowText += ", "+item["datatype"]
 				except KeyError:
-					PRINT ("For N=",N," row[N] =",item)
+					OUTPUT ("KeyError in printUnraveled() for N=",N," row[N] =",item)
 			else:
 				rowText += ", "+STR(item)
 		rowText += "]"
@@ -8443,17 +8450,19 @@ def unravelNestedStruct(level, structName, prefix, offset):
 	structSizeBytes = structuresAndUnionsDictionary[structName]["size"]
 	unraveled.append([level,prefix+" is of type "+structOrUnion,structName, offset, offset+structSizeBytes])
 
+	PRINT("Going to iterate over",len(structuresAndUnionsDictionary[structName]["components"]),"components of",structName)
 	N = 0
 	while N < len(structuresAndUnionsDictionary[structName]["components"]):
+		PRINT("Component #",N)
 		structMember = structuresAndUnionsDictionary[structName]["components"][N]
-		PRINT ("Inside unravelNestedStruct(), Processing from structMember =",structMember )
+		PRINT ("\nInside unravelNestedStruct(), Processing from structMember =",structMember )
 		variableName 					= structMember[0]
-		structMemberSizeBytes 				= structMember[1]
+		structMemberSizeBytes 			= structMember[1]
 		structMemberDescription 		= structMember[4]
-		PRINT ("for N =",N,"variableName =",variableName,"structMemberDescription =",structMemberDescription)
 		baseType						= structMemberDescription["baseType"]
 		datatype						= structMemberDescription["datatype"]
 		offsetWithinStruct 				= structMemberDescription["offsetWithinStruct"]
+		PRINT ("\nfor N =",N,"variableName =",variableName,"datatype =",datatype,"structMemberDescription =",structMemberDescription)
 #		PRINT ("passed KeyError")
 		
 		if structMemberDescription["isArray"]:
@@ -8479,8 +8488,10 @@ def unravelNestedStruct(level, structName, prefix, offset):
 				else:
 					unraveled.append([level+2,prefix + "." + arrayElementIndexDescription,structMemberDescription, elementOffset, elementOffset+arrayElementSize])
 		elif datatype in getDictKeyList(structuresAndUnionsDictionary):
+			PRINT("\ndatatype is struct/union - calling unravelNestedStruct() recursively.")
 			unravelNestedStruct(level+1, datatype, prefix+"."+variableName, offset + offsetWithinStruct)
 		else:
+			PRINT("\ndatatype is",datatype," Adding to unraveled.")
 			unraveled.append([level+1, prefix+"."+variableName,structMemberDescription, offset+offsetWithinStruct, offset+offsetWithinStruct+structMemberSizeBytes ])
 		N += 1
 	PRINT ("\n\nJust before returning from unravelNestedStruct(",structName,",",prefix,",",STR(offset),"), unraveled = ")
@@ -9922,10 +9933,10 @@ def prettyPrintUnraveled():
 			treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5],STR(unraveled[N][6]),STR(unraveled[N][7])]
 			treeViewAllRowsValues.append(treeViewSingleRowValues)
 		except IndexError:
-			PRINT ("IndexError in prettyPrintUnraveled(): List index out of range for N = ",N)
-			PRINT ("unraveled[N] =", unraveled[N])
-			PRINT ("treeViewAllRowsValues = ")
-			PRINT (treeViewAllRowsValues)
+			OUTPUT ("IndexError in prettyPrintUnraveled(): List index out of range for N = ",N)
+			OUTPUT ("unraveled[N] =", unraveled[N])
+			OUTPUT ("treeViewAllRowsValues = ")
+			OUTPUT (treeViewAllRowsValues)
 			sys.exit()
 		for c in range(len(treeViewSingleRowValues)):
 			newLength = 0 if treeViewSingleRowValues[c] == None else 5 if type(treeViewSingleRowValues[c]) == bool else len(treeViewSingleRowValues[c])
@@ -10010,7 +10021,7 @@ def dumpDetailsForDebug(MUST=False):
 	for item in globalScopes:
 		PRINT (item, variableDeclarations[item[0]][0])
 	PRINT ("\nglobalScopesSelected [variableId, scopeStartVariableId, scopeEndVariableId]) =\n")
-	for item in globalScopes:
+	for item in globalScopesSelected:
 		PRINT (item, variableDeclarations[item[0]][0])
 	PRINT ("variablesAtGlobalScopeSelected =",variablesAtGlobalScopeSelected)
 	PRINT ("variablesAtGlobalScopeSelected =",[variableDeclarations[item][0] for item in variablesAtGlobalScopeSelected])
@@ -10142,7 +10153,12 @@ def calculateSizeOffsetsBatch():
 	#PRINT("variableDeclarations =",variableDeclarations)
 	dumpDetailsForDebug()
 
-	# Sanity check.
+	hasBitfields = False
+	for item in sizeOffsets:
+		if variableDeclarations[item[0]][4]['isBitField']== True:
+			hasBitfields = True
+	
+	# Sanity check. Remember that this straight-up addition would not work for bitfield, since there many different variables would occupy the same container.
 	min = 10000000000000000000000
 	max = -1
 	for item in sizeOffsets:
@@ -10153,7 +10169,7 @@ def calculateSizeOffsetsBatch():
 	if min != dataLocationOffset:
 		OUTPUT("min (",min,") != dataLocationOffset (",dataLocationOffset,") - exiting")
 		sys.exit()
-	if max != dataLocationOffset+totalBytesToReadFromDataFile:
+	if max != dataLocationOffset+totalBytesToReadFromDataFile and hasBitfields == False:
 		OUTPUT("max (",max,") != dataLocationOffset (",dataLocationOffset,") + totalBytesToReadFromDataFile (",totalBytesToReadFromDataFile,")")
 		sys.exit()
 
@@ -11833,6 +11849,10 @@ class MainWindow:
 		#     If index is greater than or equal to the current number of children, it is inserted at the end. 
 		# iid is the item identifier. If iid is specified, iid must not already exist in the tree. Otherwise, a new unique identifier is generated.
 		
+		PRINT("\n","=="*50,"\n","unraveled (",len(unraveled),"items) =")
+		printUnraveled()
+		PRINT("\n","=="*50,"\n","Now going to populate the treeview")
+		
 		currentLevel = 0
 		hierarchy = [""]	# The last item indicates what is the current parent
 		for N in range(len(unraveled)):
@@ -11866,8 +11886,8 @@ class MainWindow:
 				treeViewRowValues = (levelIndent+unraveled[N][1],dataTypeText,addrStart,addrEnd,unraveled[N][5],unraveled[N][6],unraveled[N][7])
 				id = self.treeView.insert(hierarchy[-1], "end", iid=None, values=treeViewRowValues)
 			except IndexError:
-				PRINT ("IndexError: List index out of range for N = ",N)
-				PRINT (unraveled[N])
+				OUTPUT ("IndexError in populateDataMap(): List index out of range for N = ",N)
+				OUTPUT (unraveled[N])
 				sys.exit()
 			PRINT ("After adding, self.treeView.get_children() =",self.treeView.get_children())
 		
