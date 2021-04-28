@@ -455,6 +455,14 @@ demoCode = ['enum { Sun, Mon, Tue};\n',
 '#define QUOTE "qu\\"ote"\n',
 '#define SUM_UP( i,j) (i+j)\n',
 '\n',
+'//Use if-then-else by preprocessor\n',
+'#define VERSION 1\n',
+'\n',
+'#if VERSION == 1\n',
+'int oldVersion;\n',
+'#else\n',
+'int newVersion;\n',
+'#endif\n',
 'int school[2];\n',
 '\n',
 '//This example shows the interaction of \n',
@@ -630,6 +638,7 @@ from collections import OrderedDict
 # 2021-04-21 - Before renaming the Compiler Padding on to Demo
 # 2021-04-22 - Before adding the Expand/Collapse buttons on the bottom TreeView window
 # 2021-04-26 - After adding code to handle function definitions (not declarations), and removing structure-end-padding button. Before removing extra refernces.
+# 2021-04-28 - Changed the builtin code used for Demo.
 
 # Global settings
 
@@ -1132,7 +1141,7 @@ COLORS_ALL = ['DarkGoldenrod2', 'DarkOrange1', 'DarkOrchid1', 'DeepPink2', 'Deep
 'lemon chiffon', 'light blue', 'light coral', 'light cyan', 'light goldenrod', 'light goldenrod yellow', 'light grey', 'light pink', 'light salmon', 'light sea green', 
 'light sky blue', 'light slate blue', 'light slate gray', 'light steel blue', 'light yellow', 'lime green', 'linen', 'magenta2', 'maroon', 'medium aquamarine', 
 'medium blue', 'medium orchid', 'medium purple', 'medium sea green', 'medium slate blue', 'medium spring green', 'medium turquoise', 'medium violet red', 'midnight blue', 
-'misty rose', 'navajo w,hite', 'navy', 'olive drab', 'orange', 'orange red', 'orchid1', 'pale goldenrod', 'pale green', 'pale turquoise', 'pale violet red', 'papaya whip', 
+'misty rose', 'navajo white', 'navy', 'olive drab', 'orange', 'orange red', 'orchid1', 'pale goldenrod', 'pale green', 'pale turquoise', 'pale violet red', 'papaya whip', 
 'peach puff', 'pink', 'pink1', 'plum1', 'powder blue', 'purple', 'red', 'rosy brown', 'royal blue', 'saddle brown', 'salmon', 'sandy brown', 'sea green', 'seashell2', 
 'sienna1', 'sky blue', 'slate blue', 'slate gray', 'snow', 'spring green', 'steel blue', 'tan1', 'thistle', 'tomato', 'turquoise', 'violet red', 'wheat1', 'yellow', 'yellow green']
 preprocessingDirectives = ('#include', '#if', '#ifdef', '#ifndef', '#else', '#elif', '#endif', '#define', '#undef', '#line', '#error', '#pragma', '...', '__VA_ARGS__','__VA_OPT__')
@@ -11805,7 +11814,7 @@ class MainWindow:
 		self.openCodeFile()
 		
 	def openCodeFile(self, *args):
-		if IN_DEMO == True:
+		if IN_DEMO == True and (codeFileName == None or codeFileName == ""):
 			singleCodeLine = ''.join(demoCode)
 			PRINT ("singleCodeLine =",singleCodeLine )
 			S = tk.StringVar()
