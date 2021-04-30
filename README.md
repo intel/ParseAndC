@@ -161,6 +161,10 @@
   That will reposition the data windows (Hex and ASCII) in such a way that the data corresponding to that variable is displayed
   smack right in the middle of the data window. Neat, huh?
   
+  You can do the same the other way, too. Just click on any colored data item in either the Hex or Ascii data windows.
+  It will immediately scroll the Interpreted code window to the variable corresponding to that data. If multiple variables point to the same data item,
+  it will intelligently scroll in such a way that most number of such variables are displayed. Ain't that cool?
+  
   If you want to display your file from very specific offset, you can also type it in the Text Box to the right of "or".
   Here you can use human-readable expression, like 1MB-20*5KB+0xADE+(1<<10). Once you are done type, press TAB to focusout.
   When the focusout happens, it will populate the Spinbox with the calculated value, so that you know what value it calculated.
@@ -404,4 +408,3 @@
        a. The tool is still in the Beta stage, and it is not feature-complete. Please allow me some time to add all the other features.
 	   b. I have plans to refactor the code.
 	   c. I need some more time for doing unit-testing and bug fixes.
-

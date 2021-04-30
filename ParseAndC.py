@@ -163,6 +163,10 @@
   That will reposition the data windows (Hex and ASCII) in such a way that the data corresponding to that variable is displayed
   smack right in the middle of the data window. Neat, huh?
   
+  You can do the same the other way, too. Just click on any colored data item in either the Hex or Ascii data windows.
+  It will immediately scroll the Interpreted code window to the variable corresponding to that data. If multiple variables point to the same data item,
+  it will intelligently scroll in such a way that most number of such variables are displayed. Ain't that cool?
+  
   If you want to display your file from very specific offset, you can also type it in the Text Box to the right of "or".
   Here you can use human-readable expression, like 1MB-20*5KB+0xADE+(1<<10). Once you are done type, press TAB to focusout.
   When the focusout happens, it will populate the Spinbox with the calculated value, so that you know what value it calculated.
@@ -1198,6 +1202,7 @@ globalScopesSelected = []	# These are the variables that are at the global scope
 variableSelectedIndices = [] # These are the indices of variables that have been selected after the user presses the "Map" button
 variablesAtGlobalScopeSelected = [] # These are the variables that are at the global scope, AND are the top-level parents of variables that have been selected by the user
 sizeOffsets = []	# These tell the beginning offset (absolute, not relative) and length for ALL the variables under variablesAtGlobalScopeSelected[], beginning at dataLocationOffset.
+                    # Each row in sizeOffsets is [variableId,beginOffset,variableSize]
 inputVariables = []	# For batch, the list of the Global variables the user wants to map
 MAINLOOP_STARTED = False
 pragmaPackStack = []
@@ -10970,7 +10975,119 @@ class MainWindow:
 			OUTPUT("ERROR - tried to set the offsetSpinbox to",currentWindowBaseNewValue,"but after the pasting, the value is",self.fileOffsetSpinbox.get())
 		return
 
-	def doubleClick(self, eventOrigin):
+	# Find the line anchor that shows maximum number of variables corresponding to a data item in Hex or Ascii window
+	def findLineAnchorForDoubleClickHexOrAscii(self, eventOrigin, HexOrAscii):
+		if HexOrAscii == "Hex":
+			widthPerByte = 3
+			currentCoordinates = self.viewDataHexText.index(tk.CURRENT)
+		elif HexOrAscii == "Ascii":
+			widthPerByte = 1
+			currentCoordinates = self.viewDataAsciiText.index(tk.CURRENT)
+		else:
+			OUTPUT("Invalid value of HexOrAscii =",STR(HexOrAscii))
+			sys.exit()
+		x = eventOrigin.x
+		y = eventOrigin.y
+		MUST_PRINT ("INFORMATION: Double click happened on", HexOrAscii,"window with pixel coordinates (x=",x,",y=",y,")" )
+		MUST_PRINT ("Line.char currentCoordinates of last Mouse Double click in", HexOrAscii, "data window =",currentCoordinates )
+
+		doubleClickLocationLineNum = int(currentCoordinates.split(".")[0])-1	# Remember that in Text widget the line # starts from 1, not 0
+		doubleClickLocationCharNum = int(currentCoordinates.split(".")[1])
+		
+		if (0 <= doubleClickLocationLineNum < DISPLAY_BLOCK_HEIGHT) and (0 <= doubleClickLocationCharNum < DISPLAY_BLOCK_WIDTH*widthPerByte):
+			MUST_PRINT("The double-click location at line #",doubleClickLocationLineNum,"and char #",doubleClickLocationCharNum,"is valid")
+		else:
+			errorMessage = "The double-click location at line #" + STR(doubleClickLocationLineNum) + "and char # "+ STR(doubleClickLocationCharNum) + " is invalid"
+			errorRoutine(errorMessage)
+			return False
+			
+		# From here, find the file Offset of the click location
+		fileOffsetOfDoubleClickedLocation = fileDisplayOffset + doubleClickLocationLineNum * DISPLAY_BLOCK_WIDTH + integerDivision(doubleClickLocationCharNum,widthPerByte)
+		MUST_PRINT("The double-click location at line #",doubleClickLocationLineNum,"and char #",doubleClickLocationCharNum,"corresponds to file offset of",fileOffsetOfDoubleClickedLocation)
+		if not (fileDisplayOffset <= fileOffsetOfDoubleClickedLocation < fileDisplayOffset+BLOCK_SIZE):
+			errorMessage = "The double-click location at line #" + STR(doubleClickLocationLineNum) + "and char # "+ STR(doubleClickLocationCharNum) + " is invalid because its corresponding file offset ("+STR(fileOffsetOfDoubleClickedLocation)+") is outside the file display range <"+STR(fileDisplayOffset)+","+STR(fileDisplayOffset+BLOCK_SIZE-1)+">"
+			errorRoutine(errorMessage)
+			return False
+		
+		# Now find out which all variables map to this fileOffsetOfDoubleClickedLocation
+		variableIdsForThisDataLocation = []
+		lineNumsForVariablesForThisDataLocation = []
+		for item in sizeOffsets:
+			if item[1] <= fileOffsetOfDoubleClickedLocation < item[1]+item[2]:
+				tokenStartLineNum = tokenLocationLinesChars[variableDeclarations[item[0]][4]["globalTokenListIndex"]][0][0]
+				variableName = variableDeclarations[item[0]][0]
+				MUST_PRINT("variable",variableName,", which starts at line #",tokenStartLineNum,"map to this double-clicked data location")
+				variableIdsForThisDataLocation.append(item[0])
+				lineNumsForVariablesForThisDataLocation.append(tokenStartLineNum)
+
+		lineNumsForVariablesForThisDataLocation.sort()
+		MUST_PRINT("lineNumsForVariablesForThisDataLocation =\n")
+		for item in lineNumsForVariablesForThisDataLocation:
+			MUST_PRINT(item)
+		# Find out the optimum window of displaying the mapped variables
+		if not lineNumsForVariablesForThisDataLocation:
+			return
+		elif len(lineNumsForVariablesForThisDataLocation) == 1:
+			MUST_PRINT("A single variable correspond to the data - no need to find out the optimum location")
+			lineAnchor = lineNumsForVariablesForThisDataLocation[0]
+		else:
+			# Here, when we use the term "variable", we only count those variables that correspond to the data location that has been double-clicked.
+			# Here is the logic that we implement. if there is a single variable, we will show that.
+			# However, if there are multiple variables that point to the same double-clicked data, then We want to maximize the number of such variables.
+			# The problem is that, all these variables may not fit in the Interpreted code window, which can only show DISPLAY_BLOCK_HEIGHT lines at a time.
+			# Hence, for every such variable, we try to find out if we start to show from that variable, how many other such variables we can also show.
+			# Once we get this count, the highest guy wins. 
+			# However, that still leaves the problem that there might be multiple such variables with identical show-count.
+			# In such cases, to break the tie, we use the following criteria. We try to see whichever variable gives us the most "centered" feel.
+			# Basically, we should try to have similar number of non-shown variables both BEFORE and AFTER the shown Interpreted window.
+			MUST_PRINT("Many variables correspond to the double-clicked data - need to find out the optimum location")
+			tab = []	# This table holds 4 entries < baseLine#, # non-visible variables before this window, # variables shown, # non-visible variables after this window>
+			for i in range(len(lineNumsForVariablesForThisDataLocation)):
+				baseLineNum = lineNumsForVariablesForThisDataLocation[i]
+				#i is the number of variables missed before the window if we are starting to show from ith row of lineNumsForVariablesForThisDataLocation
+				nonVisibleCountBeforeWindow = i
+				visibleCount = 0
+				nonVisibleCountAfterWindow = 0
+				lastVisibleVariableLineNumForThisBaseLineNum = baseLineNum
+				for j in range(len(lineNumsForVariablesForThisDataLocation[i+1:])):
+					lineNum = lineNumsForVariablesForThisDataLocation[i+1+j]
+					if lineNum < baseLineNum + DISPLAY_BLOCK_HEIGHT:
+						visibleCount += 1
+						lastVisibleVariableLineNumForThisBaseLineNum = lineNum
+					else:
+						nonVisibleCountAfterWindow += 1
+				tab.append([baseLineNum, lastVisibleVariableLineNumForThisBaseLineNum, nonVisibleCountBeforeWindow, visibleCount, nonVisibleCountAfterWindow]) 
+			# The -abs(x[2]-x[4]) term represents the assymetry between the before and after missed
+			sortedTab = sorted(tab, key=lambda x: (x[3],-abs(x[2]-x[4])), reverse=True)
+			MUST_PRINT("Unsorted tab = ",tab)
+			MUST_PRINT("Sorted tab = ",sortedTab)
+			lineToAnchor = integerDivision(sortedTab[0][0]+sortedTab[0][1],2)
+			
+		MUST_PRINT("Going to anchor line #",lineToAnchor)
+		self.interpretedCodeText.see(STR(lineToAnchor+1)+".0")		# Here the screen line # starts from 1, not 0
+
+	# When someone double-clicks on a colored data item, scroll the Interpreted code window to the place that maximizes the variables that correspond to that data
+	def doubleClickAscii(self, eventOrigin):
+		# If no variables have been mapped to some data, no use of this routine
+		if not variableSelectedIndices or not sizeOffsets:
+			return
+		if not dataFileName or not dataFileSizeInBytes:
+			return
+		
+		self.findLineAnchorForDoubleClickHexOrAscii(eventOrigin, "Ascii")
+
+
+	# When someone double-clicks on a colored data item, scroll the Interpreted code window to the place that maximizes the variables that correspond to that data
+	def doubleClickHex(self, eventOrigin):
+		# If no variables have been mapped to some data, no use of this routine
+		if not variableSelectedIndices or not sizeOffsets:
+			return
+		if not dataFileName or not dataFileSizeInBytes:
+			return
+		
+		self.findLineAnchorForDoubleClickHexOrAscii(eventOrigin, "Hex")
+		
+	def doubleClickInterpreted(self, eventOrigin):
 		# If no variables have been mapped to some data, no use of this routine
 		if not variableSelectedIndices or not sizeOffsets:
 			return
@@ -10981,7 +11098,7 @@ class MainWindow:
 		y = eventOrigin.y
 		PRINT ("INFORMATION: Double click happened on Interpreted code window with pixel coordinates (x=",x,",y=",y,")" )
 		currentCoordinates = self.interpretedCodeText.index(tk.CURRENT)
-		PRINT ("Line.char currentCoordinates of last Mouse Double click =",currentCoordinates )
+		PRINT ("Line.char currentCoordinates of last Mouse Double click in the Interpreted code window =",currentCoordinates )
 
 		doubleClickLocationLineNum = int(currentCoordinates.split(".")[0])-1	# Remember that in Text widget the line # starts from 1, not 0
 		doubleClickLocationCharNum = int(currentCoordinates.split(".")[1])
@@ -11151,8 +11268,11 @@ class MainWindow:
 			self.parent.bind(keypress, self.quit)
 		self.parent.bind("<Alt-f>", lambda *args: self.fileOffsetSpinbox.focus())
 		self.interpretedCodeText.bind("<Button 1>",self.printCoordinates)
-		self.interpretedCodeText.bind("<Double 1>",self.doubleClick)	 
-
+		
+		self.interpretedCodeText.bind("<Double 1>",self.doubleClickInterpreted)	 
+		self.viewDataHexText.bind("<Double 1>",self.doubleClickHex)	 
+		self.viewDataAsciiText.bind("<Double 1>",self.doubleClickAscii)	 
+		
 		# When the data offset changes, the unraveled data should also change
 		for variable in (self.dataOffset,):
 			variable.trace_variable("w", self.dataOffsetChange)
@@ -12572,8 +12692,10 @@ class MainWindow:
 		warningMessage = "Now that you can see the interpreted code in the middle window, we are going to map the interpreted code to the data. Press OK to continue."
 		warningRoutine(warningMessage)
 		self.mapStructureToData()
-		warningMessage = "We selected ALL the gloabal-level variables for mapping. But, during regular run (not in Demo) you could also select any code segment using your mouse, and all the top-level gloabl variables within that selection will get mapped. Press OK to continue."
+		warningMessage = "We selected ALL the gloabal-level variables for mapping. But, during regular run (not in Demo) you could also select any code segment using your mouse, and all the top-level global variables within that selection will get mapped. Press OK to continue (ONE PAGE DOWN)."
 		warningRoutine(warningMessage)
+		self.interpretedCodeText.see("1000.0")
+		self.interpretedCodeText.see("65.0")
 		warningMessage = "Once all these warning windows go away, take your cursor above various colored items in the interpreted code window and the data window and see how the Description, Address and Values are shown below. Press OK to continue."
 		warningRoutine(warningMessage)
 
