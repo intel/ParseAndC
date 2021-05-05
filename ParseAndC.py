@@ -253,7 +253,7 @@
 					uint32_t reserved:22;   
 					uint32_t special_en:1; 
 				};
-				uint32_t manualCommand;
+				uint64_t manualCommand;
 			};
 			
 			uint8_t  specialConfiguration[20]; 
@@ -445,7 +445,7 @@ demoCode = ['enum { Sun, Mon, Tue};\n',
 '            uint32_t reserved:22;\n',
 '            uint32_t special_en:1;\n',
 '        };\n',
-'        uint32_t manualCommand;\n',
+'        uint64_t manualCommand;\n',
 '    };\n',
 '    \n',
 '    uint8_t  specialConfiguration[20];\n',
@@ -11156,7 +11156,7 @@ class MainWindow:
 			return
 		elif len(lineNumsForVariablesForThisDataLocation) == 1:
 			PRINT("A single variable correspond to the data - no need to find out the optimum location")
-			lineAnchor = lineNumsForVariablesForThisDataLocation[0]
+			lineToAnchor = lineNumsForVariablesForThisDataLocation[0]
 		else:
 			# Here, when we use the term "variable", we only count those variables that correspond to the data location that has been double-clicked.
 			# Here is the logic that we implement. if there is a single variable, we will show that.
@@ -12819,11 +12819,18 @@ class MainWindow:
 		warningMessage = "Now that you can see the interpreted code in the middle window, we are going to map the interpreted code to the data. Press OK to continue."
 		warningRoutine(warningMessage)
 		self.mapStructureToData()
-		warningMessage = "We selected ALL the gloabal-level variables for mapping. But, during regular run (not in Demo) you could also select any code segment using your mouse, and all the top-level global variables within that selection will get mapped. Press OK to continue (ONE PAGE DOWN)."
+		warningMessage = "We map the data format from the offset of 0 by default. Of course, we can change that. Let's see what happens when we map it from one-fourth of a Kilobyte. You can specify this in any format, as pure 256, or 0x100, or even 1KB/4, which is very much human readable. Press OK to continue."
+		self.dataOffsetEntry.insert(tk.END,"1KB/4")
+		self.dataOffset.set(256)
+		warningRoutine(warningMessage)
+		self.mapStructureToData()
+		warningMessage = "Now you see, that data mapping is happening from the offset of 0x100. Press OK to continue."
+		warningRoutine(warningMessage)
+		warningMessage = "We selected ALL the gloabal-level variables for mapping. But, during regular run (not in Demo) you could also select any Interpreted code segment using your mouse and click on the Map button, and all the top-level global variables within that selection will get mapped. Press OK to continue (ONE PAGE DOWN)."
 		warningRoutine(warningMessage)
 #		self.interpretedCodeText.see("1000.0")
 #		self.interpretedCodeText.see("65.0")
-		warningMessage = "Once all these warning windows go away, take your cursor above various colored items in the interpreted code window and the data window and see how the Description, Address and Values are shown below. Press OK to continue."
+		warningMessage = "Once all these warning windows go away, take your cursor above various colored items in the interpreted code window and the data window and see how the Description, Address and Values are shown below. To end this Demo, press the \"Clear Demo\" button. Press OK to continue."
 		warningRoutine(warningMessage)
 
 	############################################################################################################################
@@ -12870,6 +12877,7 @@ class MainWindow:
 		displayBlock = []
 
 		# Then delete the code and data windows
+		self.dataOffsetEntry.delete("1.0", "end")
 		self.originalCodeText.delete("1.0", "end")
 		self.interpretedCodeText.delete("1.0", "end")
 		self.addressColumnText.delete("1.0", "end")
@@ -12877,6 +12885,8 @@ class MainWindow:
 		self.viewDataAsciiText.delete("1.0", "end")
 		if fileDisplayOffset != 0:
 			self.fileOffset.set(0)
+		if dataLocationOffset != 0:
+			self.dataOffset.set(0)
 
 
 if __name__ == "__main__":
