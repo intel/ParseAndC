@@ -246,6 +246,7 @@
 					uint32_t field24_en:1;     
 					uint32_t field25:1;        
 					uint32_t field25_en:1;     
+					uint32_t :0;     
 					uint32_t field26:1;        
 					uint32_t field26_en:1;     
 					uint32_t field27:1;        
