@@ -12820,17 +12820,17 @@ class MainWindow:
 		warningRoutine(warningMessage)
 		self.mapStructureToData()
 		warningMessage = "We map the data format from the offset of 0 by default. Of course, we can change that. Let's see what happens when we map it from one-fourth of a Kilobyte. You can specify this in any format, as pure 256, or 0x100, or even 1KB/4, which is very much human readable. Press OK to continue."
+		warningRoutine(warningMessage)
 		self.dataOffsetEntry.insert(tk.END,"1KB/4")
 		self.dataOffset.set(256)
-		warningRoutine(warningMessage)
 		self.mapStructureToData()
 		warningMessage = "Now you see, that data mapping is happening from the offset of 0x100. Press OK to continue."
 		warningRoutine(warningMessage)
-		warningMessage = "We selected ALL the gloabal-level variables for mapping. But, during regular run (not in Demo) you could also select any Interpreted code segment using your mouse and click on the Map button, and all the top-level global variables within that selection will get mapped. Press OK to continue (ONE PAGE DOWN)."
+		warningMessage = "We selected ALL the gloabal-level variables for mapping. But, during regular run (not in Demo) you could also select any Interpreted code segment using your mouse and click on the Map button, and all the top-level global variables within that selection will get mapped. Press OK to continue."
 		warningRoutine(warningMessage)
 #		self.interpretedCodeText.see("1000.0")
 #		self.interpretedCodeText.see("65.0")
-		warningMessage = "Once all these warning windows go away, take your cursor above various colored items in the interpreted code window and the data window and see how the Description, Address and Values are shown below. To end this Demo, press the \"Clear Demo\" button. Press OK to continue."
+		warningMessage = "Once all these warning windows go away, take your cursor above various colored items in the interpreted code window and the data window and see how the Description, Address and Values are shown below. \nAlso, play with the Expand/Collapse buttons to see the internals of the mapped variables.\nTo end this Demo, press the \"Clear Demo\" button. Press OK to continue."
 		warningRoutine(warningMessage)
 
 	############################################################################################################################
@@ -12877,7 +12877,7 @@ class MainWindow:
 		displayBlock = []
 
 		# Then delete the code and data windows
-		self.dataOffsetEntry.delete("1.0", "end")
+		self.dataOffsetEntry.delete(0, tk.END)
 		self.originalCodeText.delete("1.0", "end")
 		self.interpretedCodeText.delete("1.0", "end")
 		self.addressColumnText.delete("1.0", "end")
