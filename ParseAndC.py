@@ -437,6 +437,7 @@ demoCode = ['enum { Sun, Mon, Tue};\n',
 '            uint32_t field24_en:1;\n',
 '            uint32_t field25:1;\n',
 '            uint32_t field25_en:1;\n',
+'            uint32_t  :0;\n',
 '            uint32_t field26:1;\n',
 '            uint32_t field26_en:1;\n',
 '            uint32_t field27:1;\n',
@@ -643,6 +644,8 @@ from collections import OrderedDict
 # 2021-04-22 - Before adding the Expand/Collapse buttons on the bottom TreeView window
 # 2021-04-26 - After adding code to handle function definitions (not declarations), and removing structure-end-padding button. Before removing extra refernces.
 # 2021-04-28 - Changed the builtin code used for Demo.
+# 2021-04-29 - Added Double-click feature for the Hex and Ascii data windows.
+# 2021-05-05 - Added zero-width bitfield variable (alignment reset) handling
 
 # Global settings
 
@@ -658,6 +661,7 @@ MAP_TYPEDEFS_TOO = True	# Usually, we do not create any storage for typedef (so 
 
 anonymousStructPrefix = "Anonymous#"
 dummyVariableNamePrefix = "DummyVar#"
+dummyZeroWidthBitfieldNamePrefix = "DummyZeroWidthBitfieldVar#"
 
 
 CHAR_SIZE = 1
@@ -1196,6 +1200,7 @@ hexCharArray = []
 totalBytesToReadFromDataFile = 0
 window = None
 dummyVariableCount = 0
+dummyZeroWidthBitfieldVariableCount = 0
 totalVariableCount = 0
 globalScopes = []	# These are the variables that are at the global scope, depending on the user selection
 globalScopesSelected = []	# These are the variables that are at the global scope, depending on the user selection and the MAP_TYPEDEFS_TOO
@@ -4310,17 +4315,17 @@ def parseVariableDeclaration(inputList):
 
 		# It should never come here
 	else:
-		PRINT ("\n","==="*50)
-		PRINT ("ERROR in parseVariableDeclaration(): The control should never have come here")
-		PRINT ("typeSpecifierEndIndex =",typeSpecifierEndIndex,", typeSpecifierList =",typeSpecifierList)
-		PRINT ("typedefs.keys() =", getDictKeyList(typedefs))
-		PRINT ("derivedTypesIntypeSpecifierList =", derivedTypesIntypeSpecifierList)
-		PRINT ("structuresAndUnionsDictionary.keys() =", getDictKeyList(structuresAndUnionsDictionary))
-		PRINT ("structUnionTypesIntypeSpecifierList =",structUnionTypesIntypeSpecifierList)
-		PRINT ("enums.keys() =", getDictKeyList(enums))
-		PRINT ("enumTypesIntypeSpecifierList =",enumTypesIntypeSpecifierList)
-		PRINT ("regularTypes =", regularTypes)
-		PRINT ("regularTypesIntypeSpecifierList =",regularTypesIntypeSpecifierList)
+		OUTPUT ("\n","==="*50)
+		OUTPUT ("ERROR in parseVariableDeclaration(): The control should never have come here")
+		OUTPUT ("typeSpecifierEndIndex =",typeSpecifierEndIndex,", typeSpecifierList =",typeSpecifierList)
+		OUTPUT ("typedefs.keys() =", getDictKeyList(typedefs))
+		OUTPUT ("derivedTypesIntypeSpecifierList =", derivedTypesIntypeSpecifierList)
+		OUTPUT ("structuresAndUnionsDictionary.keys() =", getDictKeyList(structuresAndUnionsDictionary))
+		OUTPUT ("structUnionTypesIntypeSpecifierList =",structUnionTypesIntypeSpecifierList)
+		OUTPUT ("enums.keys() =", getDictKeyList(enums))
+		OUTPUT ("enumTypesIntypeSpecifierList =",enumTypesIntypeSpecifierList)
+		OUTPUT ("regularTypes =", regularTypes)
+		OUTPUT ("regularTypesIntypeSpecifierList =",regularTypesIntypeSpecifierList)
 		errorMessage = "ERROR in coding: Cannot resolve type declaration " + STR(typeSpecifierList)
 		errorRoutine(errorMessage)
 		return False
@@ -4415,16 +4420,24 @@ def parseVariableDeclaration(inputList):
 		
 		# TO-DO: No variable name (bitwise alignment)
 		variableNameIndex =  i
+		variableName = inputList[variableNameIndex]
 		
-		if not re.match("^[_a-zA-Z]+[_0-9a-zA-Z]*",inputList[i]):
-			PRINT("inputList =",inputList)
+		if inputList[i] == ':':
+			# Recall that the bitfield width need not be a straightaway number - it could be an arithmatic expression too
+			if i+2 < len(inputList) and ('=' in inputList[i+2:] or ',' in inputList[i+2:] or ';' in inputList[i+2:]):
+				PRINT("Found case of zero-width bitfield specifier (resets the bitfield boundary)");
+				variableName = dummyZeroWidthBitfieldNamePrefix
+			else:
+				errorMessage = "ERROR in parseVariableDeclaration(): Illegal usage of <:> in bitfield specification for inputList =<"+STR(inputList)+">"
+				errorRoutine(errorMessage)
+				return False
+		elif not re.match("^[_a-zA-Z]+[_0-9a-zA-Z]*",inputList[i]):
 			errorMessage = "ERROR in parseVariableDeclaration(): <"+ STR(inputList[i])+"> is not a valid identifier name in inputList =<"+STR(inputList)+">"
 			errorRoutine(errorMessage)
 			return False
-		
-		variableDescription = inputList[variableNameIndex] + " is"
-
-		PRINT ("\n\n=======================================\nvariableNameIndex = ",variableNameIndex," variable name = ", inputList[variableNameIndex],"\n=======================================\n\n" )
+			
+		variableDescription = variableName + " is"
+		PRINT ("\n\n=======================================\nvariableNameIndex = ",variableNameIndex," variable name = ", variableName,"\n=======================================\n\n" )
 
 		
 		# The Q &D is to begin with the variable name, scan rightward until you hit a ")", then go back to the variable name and scan leftward until you hit a "(".
@@ -4452,8 +4465,13 @@ def parseVariableDeclaration(inputList):
 			errorRoutine(errorMessage)
 			return False
 			
+		
+		# Usually, we start scanning both to the left and right from the variableNameIndex. However, for zero-width bitfield, there is no variableNameIndex.
 		leftCounterPrevious = leftCounter = variableNameIndex
-		rightCounterPrevious = rightCounter = variableNameIndex
+		if variableName == dummyZeroWidthBitfieldNamePrefix:
+			rightCounterPrevious = rightCounter = variableNameIndex -1
+		else:
+			rightCounterPrevious = rightCounter = variableNameIndex
 		
 		while (leftCounter>leftBoundary and rightCounter<len(inputList)-1):
 			# First scan to the right
@@ -4507,7 +4525,7 @@ def parseVariableDeclaration(inputList):
 					dimensionCount = dimensionCount + 1
 					if inputList[k]=="[]": # Array size NOT specified
 						matchingBraceIndex = k
-						PRINT ("Array size NOT specified for ARRAY variable",inputList[variableNameIndex] )
+						PRINT ("Array size NOT specified for ARRAY variable",variableName )
 						if dimensionCount > 1:
 							PRINT ("ERROR in parseVariableDeclaration() - array size must be specified for array level",dimensionCount )
 							return False
@@ -4525,7 +4543,7 @@ def parseVariableDeclaration(inputList):
 							variableDescription = variableDescription + " X "
 						# This code block below will never be hit in our current Tokenizer (which considers "[]" a single token), still kept for future-proofing
 						if matchingBraceIndex == k+1: # Array size NOT specified
-							PRINT ("Array size NOT specified for array variable <",inputList[variableNameIndex],">" )
+							PRINT ("Array size NOT specified for array variable <",variableName,">" )
 							if dimensionCount > 1:
 								PRINT ("ERROR in parseVariableDeclaration() - array size must be specified for array level",dimensionCount )
 								return False
@@ -4592,11 +4610,11 @@ def parseVariableDeclaration(inputList):
 					errorRoutine(errorMessage)
 					return False
 				elif "*" in inputList[currentDeclarationSegmentStartIndex:variableNameIndex]:
-					errorMessage = "ERROR: Pointer not allowed for bit field declataion for "+STR(inputList[variableNameIndex])
+					errorMessage = "ERROR: Pointer not allowed for bit field declataion for "+STR(variableName)
 					errorRoutine(errorMessage)
 					return False
 				elif "array of size" in variableDescription:
-					errorMessage = "ERROR: Arrays not allowed for bit field declataion for "+STR(inputList[variableNameIndex])
+					errorMessage = "ERROR: Arrays not allowed for bit field declataion for "+STR(variableName)
 					errorRoutine(errorMessage)
 					return False
 				
@@ -4633,9 +4651,17 @@ def parseVariableDeclaration(inputList):
 							errorMessage = "ERROR: Bitfield width of " + STR(bitFieldWidth) + "cannot be larger than the size (" + STR(primitiveDatatypeLength[baseType]) + ") of the base datatype (" +STR(baseType)+")"
 							errorRoutine(errorMessage)
 							return False
+						elif bitFieldWidth < 0:
+							errorMessage = "ERROR: Bitfield width of " + STR(bitFieldWidth) + "cannot be negative for bit variable " + variableName
+							errorRoutine(errorMessage)
+							return False
+						elif bitFieldWidth == 0 and variableName != dummyZeroWidthBitfieldNamePrefix:
+							errorMessage = "ERROR: Bitfield width of " + STR(bitFieldWidth) + "cannot be 0 for bit variable " + variableName
+							errorRoutine(errorMessage)
+							return False
 						else:
 							isBitField = True
-							PRINT (inputList[variableNameIndex],"is a bitfield,",bitFieldWidth,"bits wide")
+							PRINT (variableName,"is a bitfield,",bitFieldWidth,"bits wide")
 							rightCounterPrevious = rightCounter
 							rightCounter = bitFieldWidthExpressionEndIndexInclusive
 
@@ -4669,9 +4695,9 @@ def parseVariableDeclaration(inputList):
 			###########################################################################
 #			elif inputList[rightCounter]=="{":
 #				MUST_PRINT("variableDescription =",variableDescription)
-#				MUST_PRINT("inputList[variableNameIndex] = inputList[",variableNameIndex,"] =",inputList[variableNameIndex])
+#				MUST_PRINT("variableName = inputList[",variableNameIndex,"] =",variableName)
 #				MUST_PRINT("rest of inputList =",inputList[rightCounter:])
-			elif ((variableDescription.startswith(inputList[variableNameIndex]+" is of type function") and inputList[rightCounter]=="{" and rightCounter<len(inputList)-1 and '}' in inputList[rightCounter+1:]) 
+			elif ((variableDescription.startswith(variableName+" is of type function") and inputList[rightCounter]=="{" and rightCounter<len(inputList)-1 and '}' in inputList[rightCounter+1:]) 
 			     or inputList[rightCounter]==";" or inputList[rightCounter]=="," or inputList[rightCounter]=="="):
 			    
 				if leftBoundary < leftCounter:	# Should always happen
@@ -4682,14 +4708,14 @@ def parseVariableDeclaration(inputList):
 						if inputList[k] == "*":
 							variableDescription = variableDescription + " pointer to "
 						else:
-							PRINT ("ERROR in parseVariableDeclaration() - unexpected token inputList[",k,"] =",inputList[k] )
+							PRINT ("ERROR in parseVariableDeclaration() during end-of-declaration and initialization - unexpected token inputList[",k,"] =",inputList[k] )
 							return False
 							sys.exit
 						k = k - 1
 
 				if inputList[rightCounter] == '=':	# Initialization
 					if "typedef" in inputList[:typeSpecifierEndIndex+1]:
-						errorMessage = "ERROR in parseVariableDeclaration("+STR(inputList)+") - initialization not allowed for TYPEDEF variable "+STR(inputList[variableNameIndex])+" since derived types by themselves hold no storage"
+						errorMessage = "ERROR in parseVariableDeclaration("+STR(inputList)+") - initialization not allowed for TYPEDEF variable "+STR(variableName)+" since derived types by themselves hold no storage"
 						errorRoutine(errorMessage)
 						return False
 					isInitialized = True
@@ -4722,14 +4748,14 @@ def parseVariableDeclaration(inputList):
 					else:
 						initializationEndIndex = nextSemicolonIndex-1;
 					initializationValue = inputList[rightCounter:initializationEndIndex+1]
-#					PRINT ("variableName ",inputList[variableNameIndex],"is initialized to the value",initializationValue )
+#					PRINT ("variableName ",variableName,"is initialized to the value",initializationValue )
 					rightCounter = initializationEndIndex+1
 					if initializationEndIndex == nextSemicolonIndex-1:
 						declarationStatementEndReached = True
 
 				# We do want to keep the function declarations, but we want to ignore actual function implementations. So when we realize that found an implementation,
 				# we just note down its implementation as its initialization value.
-				elif (variableDescription.startswith(inputList[variableNameIndex]+" is of type function") and inputList[rightCounter]=="{" and rightCounter<len(inputList)-1 and '}' in inputList[rightCounter+1:]):
+				elif (variableDescription.startswith(variableName+" is of type function") and inputList[rightCounter]=="{" and rightCounter<len(inputList)-1 and '}' in inputList[rightCounter+1:]):
 					initializationStartIndex = rightCounter
 					currentDeclarationSegmentEndIndexInclusive = rightCounter + matchingBraceDistance(inputList[rightCounter:])
 					rightCounter = currentDeclarationSegmentEndIndexInclusive
@@ -4748,7 +4774,7 @@ def parseVariableDeclaration(inputList):
 		if initializationValue != "":
 			variableDescription = variableDescription + ", which is initialized to the value " + str(initializationValue)
 		
-		PRINT ("For variable <", inputList[variableNameIndex], ">, variableDescription = ",variableDescription )
+		PRINT ("For variable <", variableName, ">, variableDescription = ",variableDescription )
 #		sys.exit()
 
 		# Calculate the size of the variable
@@ -4757,7 +4783,7 @@ def parseVariableDeclaration(inputList):
 		isArray = False		# Default value
 		
 		maxSize = len(variableDescription) + 1	#just an arbitrarily large index that is larger than the possible index value
-		tempStr = variableDescription.strip().split(inputList[variableNameIndex]+" is ")[1].strip()
+		tempStr = variableDescription.strip().split(variableName+" is ")[1].strip()
 		PRINT ("tempStr =", tempStr )
 		
 		size = -1  #just giving a wrong value
@@ -4921,7 +4947,7 @@ def parseVariableDeclaration(inputList):
 		for item in returnListOf5tuples:
 			PRINT (item )
 		returnList = []
-		returnList.append(inputList[variableNameIndex])
+		returnList.append(variableName)
 		returnList.append(size)							# Variable size - for array, total size of ALL array elements combined
 		returnList.append(inputList)
 		returnList.append(variableNameIndex)	# This may look redundant now because we already have the variable name, but it will come handy later locating the variable position for coloring
@@ -7137,7 +7163,7 @@ def parseStructure(tokenList, i, parentStructName, level):
 				# This 6th member now represents the absolute index (within the tokenList) of the variable name.
 				
 				if memberDeclarationStatementAltered == False:
-					if not usingDummyVariable and tokenList[i+item[3]-numFakeEntries]!=item[0]:
+					if not usingDummyVariable and item[0] != dummyZeroWidthBitfieldNamePrefix and tokenList[i+item[3]-numFakeEntries]!=item[0]:
 						PRINT ("ERROR in parseStructure() - for i=",i,"tokenList[i+item[3]-numFakeEntries] = tokenList[",i,"+",item[3],"-",numFakeEntries,"] =",tokenList[i+item[3]-numFakeEntries],"!=item[0]=",item[0] )
 						return False
 					else:
@@ -7155,13 +7181,16 @@ def parseStructure(tokenList, i, parentStructName, level):
 #					if tokenList[i] in getDictKeyList(typedefs):			# MannaManna
 					if tokenList[i+dataTypeIndex] in getDictKeyList(typedefs):
 						PRINT ("We modified the declaration statement, so we know that position index of the declared variable", item[0],"would not match (hence not checking it)" )
-						variableNameIndex = originalMemberDeclarationStatement.index(item[0])
+						if item[0]==dummyZeroWidthBitfieldNamePrefix:
+							variableNameIndex = originalMemberDeclarationStatement.index(':')
+						else:
+							variableNameIndex = originalMemberDeclarationStatement.index(item[0])
 					elif usingDummyVariable:
 						# Since the dummyvariable will be like struct nestedStructName dummyVariable, its position # should be always 2 (remember, typedefs are not allowed)
 						# TO-DO - accommodate the case where other cases like volatile / static / extern etc. qualifiers would precede the nested struct definition.
 						# Int that case, the variableNameIndex might be more than 2.
 						variableNameIndex = 2
-					elif tokenList[variableDeclarationStartIndex+item[3]]!=item[0]:
+					elif item[0] != dummyZeroWidthBitfieldNamePrefix and tokenList[variableDeclarationStartIndex+item[3]]!=item[0]:
 						errorMessage = "ERROR in parseStructure() - for variableDeclarationStartIndex = "+ STR(variableDeclarationStartIndex) + " tokenList[variableDeclarationStartIndex+item[3]] = " + STR(tokenList[variableDeclarationStartIndex+item[3]]) + " !=item[0]=" + STR(item[0])
 						errorRoutine(errorMessage)
 						return False
@@ -7711,14 +7740,14 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#	   But, remember that just because we find this first "eligible" bit does not mean we will be able to pack the current member here - it depends on
 		#      how big (number of bits) the current bitfield member is, and how many bits are left in the current container.
 		#
-		#   2. See if the remaining unfilled bits will be able to fully accommodate the current bits. If yes, fill it. 
+		#   3. See if the remaining unfilled bits will be able to fully accommodate the current bits. If yes, fill it. 
 		#      If not, then you need to check if it is packed.
 		#      A struct can be packed by either at the packed attribute at the member-level, at the struct-level, or by a #pragma pack(n) statement.
 		#      - If the member is not "packed", then go to the next address that supports the current alignment.
 		#        For that, you need to look at the natural size(s), aligned(m), packed, and #pragma pack(n). Use the same ruleset as non-bitfield.
 		#      - If it is packed, start packing from the current bit.
 		#   
-		#   3. The overall alignment of the structure follows the same rule - max of the individual alignments of each member. However,
+		#   4. The overall alignment of the structure follows the same rule - max of the individual alignments of each member. However,
 		#
 		#	We use these notations in the examples below:
 		#	   	m - the power of 2 (1/2/4/8) in any __attribute__((aligned(m))) statement, if one exists
@@ -7986,6 +8015,21 @@ def parseStructure(tokenList, i, parentStructName, level):
 		
 		# This list will be converted into a dictionary later and only the dictionary (bitFieldInfo) then will be plugged back into the 
 		# structuresAndUnionsDictionary[structName]["components"]. So, this list is just an scratchpad variable here.
+		
+		# Technically, we can declare a struct with some of its component being bitfields and some non-bitfields. 
+		# We can mix and match - C does not mandate that all the bitfield components must come contiguously.
+		# For example, this is a valid struct declaration:
+		#
+		# struct weird { 
+		#				 float f; 
+		#				 int i1; 
+		#				 int i2:3;   <== bitfield
+		#				 int i3; 
+		#				 int i4:10;  <== bitfield
+		#				 short s:5;	 <== bitfield
+		#				 int i6;
+		#				};
+		#
 		structMemberIsBitfield = []	# For every struct member, we just fill it up with True/False depending on if it is a bitField or not. Also do some basic sanity checking.
 		
 		for N in range(len(structComponentList)):
@@ -8013,7 +8057,18 @@ def parseStructure(tokenList, i, parentStructName, level):
 			errorRoutine(errorMessage)
 			return False
 
+		# It should print something like [True, basetype, bitfieldwidth]
+		#   {
+		#	 False,
+		#	 False,
+		#	 [True, int,3],
+		#	 False,
+		#	 [True, int,10],
+		#	 [True, short,5],
+		#	 False
+		#	]
 		PRINT ("structMemberIsBitfield =",structMemberIsBitfield)
+		
 
 		bitFieldSequences =[]	# Each member should be of form [startIndex, stopIndex]
 		
@@ -8022,10 +8077,13 @@ def parseStructure(tokenList, i, parentStructName, level):
 		structComponentListBitFieldSequenceEndIndex = None
 		N = 0
 		while (N<len(structMemberIsBitfield)):
-			if structMemberIsBitfield[N] != False: 	# Don't use True, we have a list there instead
-				if N == 0 or (N>0 and structMemberIsBitfield[N-1] == False):
+			# If this component is not a bitfield, we just use False. But, if it is a bitfield, we have a list there instead with first member being True. So, don't check for True.
+			if structMemberIsBitfield[N] != False: 	
+#				if N == 0 or (N>0 and (structMemberIsBitfield[N-1] == False or (structMemberIsBitfield[N-1][2]==0))):
+				if N == 0 or (N>0 and (structMemberIsBitfield[N-1] == False )):
 					structComponentListBitFieldSequenceBeginIndex = N
-				if N == len(structMemberIsBitfield)-1 or (N<len(structMemberIsBitfield)-1  and structMemberIsBitfield[N+1] == False):
+#				if N == len(structMemberIsBitfield)-1 or (N<len(structMemberIsBitfield)-1  and (structMemberIsBitfield[N+1] == False or structMemberIsBitfield[N+1][2]==0)):
+				if N == len(structMemberIsBitfield)-1 or (N<len(structMemberIsBitfield)-1  and (structMemberIsBitfield[N+1] == False )):
 					structComponentListBitFieldSequenceEndIndex = N
 					if structComponentListBitFieldSequenceBeginIndex == None or structComponentListBitFieldSequenceBeginIndex > structComponentListBitFieldSequenceEndIndex:
 						errorMessage = "ERROR in coding: structComponentListBitFieldSequenceBeginIndex (%d) > structComponentListBitFieldSequenceEndIndex (%d) "%(structComponentListBitFieldSequenceBeginIndex,structComponentListBitFieldSequenceEndIndex)
@@ -8043,8 +8101,15 @@ def parseStructure(tokenList, i, parentStructName, level):
 					structComponentListBitFieldSequenceEndIndex = None
 			N += 1
 
+		# For the above example, it will print something like
+		#  bitFieldSequences = [
+		#						[2,2],		<== The first bitfield sequence (int container)
+		#						[4,5]		<== The second bitfield sequence (a mix of int and short containers)
+		#						]
+		#
 		PRINT ( "bitFieldSequences =",bitFieldSequences)
-		
+
+		# Now, just because we have a bitfield sequence does not necessarily mean that ALL the containers within that sequence will be the same.
 		if bitFieldSequences:
 			bitSequenceCount = 0
 			while bitSequenceCount<len(bitFieldSequences):
@@ -8065,6 +8130,16 @@ def parseStructure(tokenList, i, parentStructName, level):
 					structMemberIsBitfield[t].append([largestContainerDatatype, largestContainerSizeInBytes])
 				bitSequenceCount += 1
 		
+		# It should print something like [True, basetype, bitfieldwidth,[bitFieldSequenceStartComponent#,bitFieldSequenceEndComponent#],[largestContainerDatatype, largestContainerSizeInBytes]]
+		#   {
+		#	 False,
+		#	 False,
+		#	 [True, int,3,[2,2],[int,4]],
+		#	 False,
+		#	 [True, int,10,[4,5],[int,4]],
+		#	 [True, short,5,[4,5],[int,4]],
+		#	 False
+		#	]
 		PRINT ("\n"*3,"After updating the bitSequence information and largestContainerSizeInBytes for each bitfield sequence, structMemberIsBitfield =")
 		PRINT ("==="*50)
 		for item in structMemberIsBitfield:
@@ -8089,20 +8164,26 @@ def parseStructure(tokenList, i, parentStructName, level):
 					errorMessage = "ERROR in coding: current struct component # N=%d within bitfield sequence <structComponentListBitFieldSequenceBeginIndex (%d), structComponentListBitFieldSequenceEndIndex (%d)>, item=%s has fieldSizeInBits (%d) > containerSizeInBits (%d)"%(N,structComponentListBitFieldSequenceBeginIndex,structComponentListBitFieldSequenceEndIndex,STR(structMemberIsBitfield[N]), fieldSizeInBits, containerSizeInBits)
 					errorRoutine(errorMessage)
 					return False
-				
+
+				# TO-DO: We need to handle the case where the first one or more items in the sequence have zero-width bitfield
 				if N == structMemberIsBitfield[N][3][0]:	# first item in the sequence, which is the fourth item in structMemberIsBitfield
 					bitStart = 0
-					bitEnd = fieldSizeInBits-1		# inclusive
+					bitEndInclusive = fieldSizeInBits-1		# inclusive
 					bitsLeft = containerSizeInBits - fieldSizeInBits
 				else:
-					if fieldSizeInBits > bitsLeft:
+					if fieldSizeInBits == 0:
 						containerNumber += 1
 						bitStart = 0
-						bitEnd = fieldSizeInBits-1	# inclusive
+						bitEndInclusive = fieldSizeInBits-1	# inclusive
+						bitsLeft = containerSizeInBits - fieldSizeInBits
+					elif fieldSizeInBits > bitsLeft:
+						containerNumber += 1
+						bitStart = 0
+						bitEndInclusive = fieldSizeInBits-1	# inclusive
 						bitsLeft = containerSizeInBits - fieldSizeInBits
 					elif fieldSizeInBits > 0:
-						bitStart = bitEnd + 1
-						bitEnd = bitStart + fieldSizeInBits-1	# inclusive
+						bitStart = bitEndInclusive + 1
+						bitEndInclusive = bitStart + fieldSizeInBits-1	# inclusive
 						bitsLeft = bitsLeft - fieldSizeInBits
 					elif fieldSizeInBits == 0:
 						bitsLeft = 0
@@ -8116,10 +8197,21 @@ def parseStructure(tokenList, i, parentStructName, level):
 					errorRoutine(errorMessage)
 					return False
 			
-				structMemberIsBitfield[N].append([bitStart,bitEnd])
+				structMemberIsBitfield[N].append([bitStart,bitEndInclusive])
 				structMemberIsBitfield[N].append(containerNumber)
 			N += 1		
 
+		# It should print something like [True, basetype, bitfieldwidth,[bitFieldSequenceStartComponent#,bitFieldSequenceEndComponent#],
+		#								  [largestContainerDatatype, largestContainerSizeInBytes], [bitStart,bitEndInclusive], containerNumber]
+		#   {
+		#	 False,
+		#	 False,
+		#	 [True, int  , 3,[2,2],[int,4],[ 0, 2],0],
+		#	 False,
+		#	 [True, int  ,10,[4,5],[int,4],[ 0, 9],0],
+		#	 [True, short, 5,[4,5],[int,4],[10,14],0],
+		#	 False
+		#	]
 		PRINT ("\n"*3,"After updating the actual bitfield packing details, structMemberIsBitfield =")
 		PRINT ("==="*50)
 		for item in structMemberIsBitfield:
@@ -8127,6 +8219,8 @@ def parseStructure(tokenList, i, parentStructName, level):
 		PRINT ("==="*50)
 		PRINT("\n"*3)
 
+		# Recall that a single structure can have MANY bitfield sequences, and each sequence can potentially require multiple containers
+		totalNumContainersForStruct = 0
 		N = 0
 		while (N<len(structMemberIsBitfield)):
 			if structMemberIsBitfield[N] != False: 	# Don't use True, we have a list there instead
@@ -8137,8 +8231,20 @@ def parseStructure(tokenList, i, parentStructName, level):
 						containerNumber = structMemberIsBitfield[t][-1]
 						del structMemberIsBitfield[t][-1]
 						structMemberIsBitfield[t].append([containerNumber,numContainersRequired])
+					totalNumContainersForStruct += numContainersRequired
 			N += 1
 
+		# It should print something like [True, basetype, bitfieldwidth,[bitFieldSequenceStartComponent#,bitFieldSequenceEndComponent#],
+		#								  [largestContainerDatatype, largestContainerSizeInBytes], [bitStart,bitEndInclusive], [containerNumber,numContainersRequired]]
+		#   {
+		#	 False,
+		#	 False,
+		#	 [True, int  , 3,[2,2],[int,4],[ 0, 2],[0,1]],
+		#	 False,
+		#	 [True, int  ,10,[4,5],[int,4],[ 0, 9],[0,1]],
+		#	 [True, short, 5,[4,5],[int,4],[10,14],[0,1]],
+		#	 False
+		#	]
 		PRINT ("\n"*3,"After updating the [container index, total number of containers] details at the end, structMemberIsBitfield =")
 		PRINT ("==="*50)
 		for item in structMemberIsBitfield:
@@ -8226,7 +8332,8 @@ def parseStructure(tokenList, i, parentStructName, level):
 			elif structuresAndUnionsDictionary[structName]["type"]=="struct":
 				if N == 0:	# The first member of a struct should always have the offset of 0
 					structuresAndUnionsDictionary[structName]["components"][N][4]["offsetWithinStruct"] = 0
-#				structuresAndUnionsDictionary[structName]["components"][N][4]["offsetWithinStruct"] = structSizeBytes	#Only the first member in a bitfield sequence is getting updated
+				else:
+					structuresAndUnionsDictionary[structName]["components"][N][4]["offsetWithinStruct"] = structSizeBytes	#Only the first member in a bitfield sequence is getting updated
 				pass	# We will update this later with padding. Padding does not apply to unions since in a union, all members start at offset 0
 			else:
 				PRINT ("Coding ERROR in parseStructure() - Neiher struct nor union!!!!")
@@ -8247,16 +8354,23 @@ def parseStructure(tokenList, i, parentStructName, level):
 					errorRoutine(errorMessage)
 					return False
 				else:
+					# These are the "aggregate" variable that remain constant for a bitfield sequence. Like from which component the bitfield sequence starts/ends,
+					# how many total containers are required etc.
 					structComponentIndexCurrentBitFieldSequenceEndInclusive = bitFieldInfo["structComponentIndexCurrentBitFieldSequenceEndInclusive"]
 					currentBitFieldSequenceTotalNumberOfContainersReqd = bitFieldInfo["currentBitFieldSequenceTotalNumberOfContainersReqd"]
 					currentBitFieldSequenceContainerSizeInBytes = bitFieldInfo["currentBitFieldSequenceContainerSizeInBytes"]
-					currentBitFieldSequenceContainerIndex = bitFieldInfo["currentBitFieldSequenceContainerIndex"]
 					structMemberNameDatatypeSize 	= currentBitFieldSequenceTotalNumberOfContainersReqd * currentBitFieldSequenceContainerSizeInBytes
 					
 					# Update the ["offsetWithinStruct"] for all the subsequent members in the bitfield sequence (recall that the first one is alredy updated)
+					# Observe that currentBitFieldSequenceContainerIndex is not an aggregate variable, so it must be updated individually for each component
 					for bitFieldSequenceIndex in range(N+1, structComponentIndexCurrentBitFieldSequenceEndInclusive+1):
-						bitFieldOffsetWithinStruct = structSizeBytes + currentBitFieldSequenceContainerSizeInBytes * currentBitFieldSequenceContainerIndex
-						structuresAndUnionsDictionary[structName]["components"][bitFieldSequenceIndex][4]["offsetWithinStruct"] = bitFieldOffsetWithinStruct
+						if structuresAndUnionsDictionary[structName]["components"][bitFieldSequenceIndex][0] == dummyZeroWidthBitfieldNamePrefix:
+							pass
+						else:
+#							PRINT(structuresAndUnionsDictionary[structName]["components"][bitFieldSequenceIndex][4])
+							currentBitFieldSequenceContainerIndex = structuresAndUnionsDictionary[structName]["components"][bitFieldSequenceIndex][4]["bitFieldInfo"]["currentBitFieldSequenceContainerIndex"]
+							bitFieldOffsetWithinStruct = structSizeBytes + currentBitFieldSequenceContainerSizeInBytes * currentBitFieldSequenceContainerIndex
+							structuresAndUnionsDictionary[structName]["components"][bitFieldSequenceIndex][4]["offsetWithinStruct"] = bitFieldOffsetWithinStruct
 				# For bitfield, we are NOT going to iterate over each member in a bitfield sequence - we are just going to plug the value for the whole sequence
 				structMemberSizeBytes = bitFieldInfo["currentBitFieldSequenceContainerSizeInBytes"] * bitFieldInfo["currentBitFieldSequenceTotalNumberOfContainersReqd"]
 			else:
@@ -8592,11 +8706,14 @@ def unravelNestedStruct(level, structName, prefix, offset):
 		structMemberDescription 		= structMember[4]
 		baseType						= structMemberDescription["baseType"]
 		datatype						= structMemberDescription["datatype"]
-		offsetWithinStruct 				= structMemberDescription["offsetWithinStruct"]
+		if structMember[0]!=dummyZeroWidthBitfieldNamePrefix:
+			offsetWithinStruct 			= structMemberDescription["offsetWithinStruct"]
 		PRINT ("\nfor N =",N,"variableName =",variableName,"datatype =",datatype,"structMemberDescription =",structMemberDescription)
 #		PRINT ("passed KeyError")
 		
-		if structMemberDescription["isArray"]:
+		if variableName == dummyZeroWidthBitfieldNamePrefix:
+			PRINT("Not adding the dummy variable for resetting the bitfield boundary")
+		elif structMemberDescription["isArray"]:
 			arrayElementSize = structMemberDescription["arrayElementSize"]
 			arrayDimensions = structMemberDescription["arrayDimensions"]
 			totalNumberOfArrayElements = listItemsProduct(arrayDimensions)
@@ -8636,7 +8753,7 @@ def unravelNestedStruct(level, structName, prefix, offset):
 def getOffsetsRecursively(variableId, sizeOffsets, beginOffset):
 	variableName = variableDeclarations[variableId][0]
 	variableSize = variableDeclarations[variableId][1]
-	datatype = variableDeclarations[variableId][4]['datatype']
+	datatype     = variableDeclarations[variableId][4]['datatype']
 	
 	sizeOffsets.append([variableId,beginOffset,variableSize])
 	
@@ -8648,7 +8765,17 @@ def getOffsetsRecursively(variableId, sizeOffsets, beginOffset):
 		else:	
 			structName = datatype
 			for component in structuresAndUnionsDictionary[structName]["components"]:
-				sizeOffsets = getOffsetsRecursively(component[4]["variableId"], sizeOffsets, beginOffset+component[4]['offsetWithinStruct'])
+				if component[0] == dummyZeroWidthBitfieldNamePrefix:
+					PRINT("Zero-width bitfield - ignoring!")
+					PRINT("Component = ", component)
+				elif 'offsetWithinStruct' not in getDictKeyList(component[4]):
+					OUTPUT ("For variableName =",variableName,", variableDeclarations[variableId] =",variableDeclarations[variableId],"\n"*3)
+					OUTPUT ("structuresAndUnionsDictionary[datatype][\"components\"] =",structuresAndUnionsDictionary[datatype]["components"],"\n"*3)	# datatype is same as structName
+					OUTPUT ("component =", component,"\n"*3)
+					errorMessage = "Error - for variableId = " + variableId + " the struct/datatype = " + datatype + " does not have 'offsetWithinStruct' in its component"
+					return False
+				else:
+					sizeOffsets = getOffsetsRecursively(component[4]["variableId"], sizeOffsets, beginOffset+component[4]['offsetWithinStruct'])
 				
 	return sizeOffsets
 
@@ -9501,7 +9628,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 #######################################################################################
 
 def mainWork():	
-	global PRINT_DEBUG_MSG		# MannaManna
+#	global PRINT_DEBUG_MSG		# MannaManna
 	global lines, tokenLocationLinesChars
 
 	# Pre-process (remove comment etc.)
@@ -9513,7 +9640,7 @@ def mainWork():
 		OUTPUT ("ERROR in mainWork after calling preProcess()" )
 		return False
 	PRINT ("After calling preProcess()" )
-	PRINT_DEBUG_MSG = False		# MannaManna
+#	PRINT_DEBUG_MSG = False		# MannaManna
 	
 	# Tokenize and resolve macros
 	
@@ -10988,14 +11115,14 @@ class MainWindow:
 			sys.exit()
 		x = eventOrigin.x
 		y = eventOrigin.y
-		MUST_PRINT ("INFORMATION: Double click happened on", HexOrAscii,"window with pixel coordinates (x=",x,",y=",y,")" )
-		MUST_PRINT ("Line.char currentCoordinates of last Mouse Double click in", HexOrAscii, "data window =",currentCoordinates )
+		PRINT ("INFORMATION: Double click happened on", HexOrAscii,"window with pixel coordinates (x=",x,",y=",y,")" )
+		PRINT ("Line.char currentCoordinates of last Mouse Double click in", HexOrAscii, "data window =",currentCoordinates )
 
 		doubleClickLocationLineNum = int(currentCoordinates.split(".")[0])-1	# Remember that in Text widget the line # starts from 1, not 0
 		doubleClickLocationCharNum = int(currentCoordinates.split(".")[1])
 		
 		if (0 <= doubleClickLocationLineNum < DISPLAY_BLOCK_HEIGHT) and (0 <= doubleClickLocationCharNum < DISPLAY_BLOCK_WIDTH*widthPerByte):
-			MUST_PRINT("The double-click location at line #",doubleClickLocationLineNum,"and char #",doubleClickLocationCharNum,"is valid")
+			PRINT("The double-click location at line #",doubleClickLocationLineNum,"and char #",doubleClickLocationCharNum,"is valid")
 		else:
 			errorMessage = "The double-click location at line #" + STR(doubleClickLocationLineNum) + "and char # "+ STR(doubleClickLocationCharNum) + " is invalid"
 			errorRoutine(errorMessage)
@@ -11003,7 +11130,7 @@ class MainWindow:
 			
 		# From here, find the file Offset of the click location
 		fileOffsetOfDoubleClickedLocation = fileDisplayOffset + doubleClickLocationLineNum * DISPLAY_BLOCK_WIDTH + integerDivision(doubleClickLocationCharNum,widthPerByte)
-		MUST_PRINT("The double-click location at line #",doubleClickLocationLineNum,"and char #",doubleClickLocationCharNum,"corresponds to file offset of",fileOffsetOfDoubleClickedLocation)
+		PRINT("The double-click location at line #",doubleClickLocationLineNum,"and char #",doubleClickLocationCharNum,"corresponds to file offset of",fileOffsetOfDoubleClickedLocation)
 		if not (fileDisplayOffset <= fileOffsetOfDoubleClickedLocation < fileDisplayOffset+BLOCK_SIZE):
 			errorMessage = "The double-click location at line #" + STR(doubleClickLocationLineNum) + "and char # "+ STR(doubleClickLocationCharNum) + " is invalid because its corresponding file offset ("+STR(fileOffsetOfDoubleClickedLocation)+") is outside the file display range <"+STR(fileDisplayOffset)+","+STR(fileDisplayOffset+BLOCK_SIZE-1)+">"
 			errorRoutine(errorMessage)
@@ -11016,19 +11143,19 @@ class MainWindow:
 			if item[1] <= fileOffsetOfDoubleClickedLocation < item[1]+item[2]:
 				tokenStartLineNum = tokenLocationLinesChars[variableDeclarations[item[0]][4]["globalTokenListIndex"]][0][0]
 				variableName = variableDeclarations[item[0]][0]
-				MUST_PRINT("variable",variableName,", which starts at line #",tokenStartLineNum,"map to this double-clicked data location")
+				PRINT("variable",variableName,", which starts at line #",tokenStartLineNum,"map to this double-clicked data location")
 				variableIdsForThisDataLocation.append(item[0])
 				lineNumsForVariablesForThisDataLocation.append(tokenStartLineNum)
 
 		lineNumsForVariablesForThisDataLocation.sort()
-		MUST_PRINT("lineNumsForVariablesForThisDataLocation =\n")
+		PRINT("lineNumsForVariablesForThisDataLocation =\n")
 		for item in lineNumsForVariablesForThisDataLocation:
-			MUST_PRINT(item)
+			PRINT(item)
 		# Find out the optimum window of displaying the mapped variables
 		if not lineNumsForVariablesForThisDataLocation:
 			return
 		elif len(lineNumsForVariablesForThisDataLocation) == 1:
-			MUST_PRINT("A single variable correspond to the data - no need to find out the optimum location")
+			PRINT("A single variable correspond to the data - no need to find out the optimum location")
 			lineAnchor = lineNumsForVariablesForThisDataLocation[0]
 		else:
 			# Here, when we use the term "variable", we only count those variables that correspond to the data location that has been double-clicked.
@@ -11040,7 +11167,7 @@ class MainWindow:
 			# However, that still leaves the problem that there might be multiple such variables with identical show-count.
 			# In such cases, to break the tie, we use the following criteria. We try to see whichever variable gives us the most "centered" feel.
 			# Basically, we should try to have similar number of non-shown variables both BEFORE and AFTER the shown Interpreted window.
-			MUST_PRINT("Many variables correspond to the double-clicked data - need to find out the optimum location")
+			PRINT("Many variables correspond to the double-clicked data - need to find out the optimum location")
 			tab = []	# This table holds 4 entries < baseLine#, # non-visible variables before this window, # variables shown, # non-visible variables after this window>
 			for i in range(len(lineNumsForVariablesForThisDataLocation)):
 				baseLineNum = lineNumsForVariablesForThisDataLocation[i]
@@ -11059,11 +11186,11 @@ class MainWindow:
 				tab.append([baseLineNum, lastVisibleVariableLineNumForThisBaseLineNum, nonVisibleCountBeforeWindow, visibleCount, nonVisibleCountAfterWindow]) 
 			# The -abs(x[2]-x[4]) term represents the assymetry between the before and after missed
 			sortedTab = sorted(tab, key=lambda x: (x[3],-abs(x[2]-x[4])), reverse=True)
-			MUST_PRINT("Unsorted tab = ",tab)
-			MUST_PRINT("Sorted tab = ",sortedTab)
+			PRINT("Unsorted tab = ",tab)
+			PRINT("Sorted tab = ",sortedTab)
 			lineToAnchor = integerDivision(sortedTab[0][0]+sortedTab[0][1],2)
 			
-		MUST_PRINT("Going to anchor line #",lineToAnchor)
+		PRINT("Going to anchor line #",lineToAnchor)
 		self.interpretedCodeText.see(STR(lineToAnchor+1)+".0")		# Here the screen line # starts from 1, not 0
 
 	# When someone double-clicks on a colored data item, scroll the Interpreted code window to the place that maximizes the variables that correspond to that data
@@ -12694,8 +12821,8 @@ class MainWindow:
 		self.mapStructureToData()
 		warningMessage = "We selected ALL the gloabal-level variables for mapping. But, during regular run (not in Demo) you could also select any code segment using your mouse, and all the top-level global variables within that selection will get mapped. Press OK to continue (ONE PAGE DOWN)."
 		warningRoutine(warningMessage)
-		self.interpretedCodeText.see("1000.0")
-		self.interpretedCodeText.see("65.0")
+#		self.interpretedCodeText.see("1000.0")
+#		self.interpretedCodeText.see("65.0")
 		warningMessage = "Once all these warning windows go away, take your cursor above various colored items in the interpreted code window and the data window and see how the Description, Address and Values are shown below. Press OK to continue."
 		warningRoutine(warningMessage)
 
