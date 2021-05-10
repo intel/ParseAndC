@@ -95,10 +95,10 @@
      variable declarations, as if they will create the storage on the stack. This behavior can be modified by clicking on the
      "Mapping typedefs too" button (which will then convert to "Don't map typedefs"), or via the command-line option (-t OFF).
 
-    Also remember that we cannot have typedef statements inside a nested struct definition - it must be at the global level.
+   Also remember that we cannot have typedef statements inside a nested struct definition - it must be at the global level.
 
-    Another thing to remember is that in C, even if we define a named struct within another struct (basically, "nested" declaration),
-    Then even that nested struct defition becomes global. You cannot define 2 nested structs with the same name. 
+   Another thing to remember is that in C, even if we define a named struct within another struct (basically, "nested" declaration),
+   Then even that nested struct defition becomes global. You cannot define 2 nested structs with the same name. 
     _________________________________________________________________________________________________________________
    |                       |                       |                                |                                |
    |  Case 1               |  Case 2               |  Case 3                        |  Case 4  (not possible)        |
