@@ -647,6 +647,7 @@ from collections import OrderedDict
 # 2021-04-28 - Changed the builtin code used for Demo.
 # 2021-04-29 - Added Double-click feature for the Hex and Ascii data windows.
 # 2021-05-05 - Added zero-width bitfield variable (alignment reset) handling
+# 2021-05-09 - Changed the way preProcess() works
 
 # Global settings
 
@@ -1039,7 +1040,6 @@ OUTPUT = MUST_PRINT
 PRINT ("version is " )
 PRINT (sys.version_info )
 
-
 #################################################################################################################################################
 # Python changed they way they output the dict.keys() function. In Python 2, the output type is a list. In Python 3, it is a dict_keys object.
 # So, if you have a statement like "for key in someDict.keys()", that will work in both Python 2 and 3, since the "key" value is same.
@@ -1176,7 +1176,6 @@ ATTRIBUTE_STRING 	= "__attribute__"
 illegalVariableNames = list(preprocessingDirectives) + list(oneCharOperatorList) + list(twoCharOperatorList) + list(threeCharOperatorList) + cDataTypes + cKeywords + integralDataTypes
 
 lines = []
-defsByLines = [] # This tells which all #defines are defined at any line.
 enums = {}		# This is a dictionary that holds yet another dictionary inside {enumDatatype,{enumFields,enumFieldValues}}
 enumFieldValues = {}	# This is a dictionary of ALL enum fields and their values. We can do this because enum field names are globally unique. We keep this separate to cache the enum values
 typedefs = {}
@@ -1185,6 +1184,8 @@ structuresAndUnionsDictionary = {}	# Each value of this dictionary is a dictiona
 # Below is a list of 6-Tuple. Each list item is pretty much same as the structuresAndUnionsDictionary["components"] 5-tuple, plus another item which tells where this var name occurs.
 # [variable1 name, variable size, variable declaration statement, variable name relative index within declaration, Extended variable description, absolute Index of variable name in tokenList]							
 variableDeclarations = []
+macroDefinitions = []		# The ordered dictionary for holding all Macro definitions. This changes over time, as we keep on parsing line by line.
+currentMacroNames = []		# Just a cache of macro names
 # This is just the sizes of the selected variables that would be colored
 tokenLocationLinesChars = []
 unraveled = []
@@ -1216,6 +1217,7 @@ pragmaPackCurrentValue = None
 pragmaPackDefaultValue = ALIGNED_DEFAULT_VALUE
 
 LARGE_NEGATIVE_NUMBER = -9999999999999999999999999999999		# A number usually associated with default (erroneous) value of Index in an array
+LARGE_POSITIVE_NUMBER = -LARGE_NEGATIVE_NUMBER
 
 # This thing should be moved out since there is no need to repeat this for every tokenizeLines() invocations
 keywordsSorted = list(preprocessingDirectives)
@@ -2102,6 +2104,24 @@ def evaluateArithmeticExpression(inputAST):
 				else:
 					result = evaluateArithmeticExpressionOutput0[1]
 					
+			elif inputList[0] == "defined":	
+				PRINT ("Inside defined()" )
+				if isinstance(inputList[1],list):
+					if len(inputList[1])==2 and inputList[1][0]=="()":
+						symbolToCheckIfDefined = inputList[1][1]
+						if symbolToCheckIfDefined in currentMacroNames:
+							return [True, True]
+						else:
+							return [True, False]
+					else:	
+						errorMessage = "ERROR: Finding defined(%s)"%(STR(symbolToCheckIfDefined))
+						errorRoutine(errorMessage)
+						return [False, None]
+				else:
+					errorMessage = "ERROR: Finding defined(%s)"%(STR(symbolToCheckIfDefined))
+					errorRoutine(errorMessage)
+					return [False, None]
+							
 			elif inputList[0] == "sizeof":	# TO-DO: Not sure if the interpreter needs to do anything here
 				PRINT ("Inside sizeof()" )
 				if isinstance(inputList[1],list):
@@ -3292,6 +3312,7 @@ def tokenizeLines(lines):
 # This function takes two inputs.
 # 1) inputLines - list of lines (strings), each delimited by a newline character (MUST)
 # 2) inputList - list of tokens that we want to search in the tokenized version of the inputLines
+# 3) lookFromTokenIndex - An optional token index, which tell NOT took for the inputList before this token. This is useful when you want to exclude some part of the inputLines.
 # Output is a 5-item list, where each item is [tokenStartIndex,startLineNumber,startLineCharNumber,endLineNumber,endLineCharNumber]
 # This means that we can find the inputList stream of tokens at the tokenStartIndex-th position in the tokenized version of the inputLines.
 # Also, we can find it starting from inputLines[startLineNumber][startLineCharNumber] and ending at inputLines[endLineNumber][endLineCharNumber] 
@@ -3299,7 +3320,7 @@ def tokenizeLines(lines):
 # TO-DO: If the inputList contains tokens ending with a newline, how is it to be handled (because inputLines does not capture end-of-line newlines)
 # TO-DO: Not sure if the inputList tokens contain a quoted string literal, how it will be handled
 
-def findTokenListInLines(inputLines, inputList):
+def findTokenListInLines(inputLines, inputList, lookFromTokenIndex = 0):
 #	global PRINT_DEBUG_MSG
 #	PRINT_DEBUG_MSG = True
 	
@@ -3363,10 +3384,19 @@ def findTokenListInLines(inputLines, inputList):
 			inputList = [inputList]
 #			PRINT ("Now the listified inputList = ",inputList )
 		else:
-			PRINT ("Unknown object type - inputList = <",inputList,"> - exiting" )
+			errorMessage = "Unknown object type - inputList = <" + STR(inputList) + "> - exiting"
+			errorRoutine(errorMessage)
 			return False
-			sys.exit()
 	
+	if not checkIfIntegral(lookFromTokenIndex):
+		errorMessage = "ERROR in findTokenListInLines() - lookFromTokenIndex (" + STR(lookFromTokenIndex) + ") is not integral"
+		errorRoutine(errorMessage)
+		return False
+	elif lookFromTokenIndex < 0:
+		errorMessage = "ERROR in findTokenListInLines() - illegal value of lookFromTokenIndex (" + STR(lookFromTokenIndex) + ") - is not positive"
+		errorRoutine(errorMessage)
+		return False
+		
 	
 	tokenizedLinesResult = tokenizeLines(inputLines)
 	if tokenizedLinesResult == False:
@@ -3411,11 +3441,12 @@ def findTokenListInLines(inputLines, inputList):
 	PRINT ("lineCharPositions =",lineCharPositions)
 
 	# Next see if the inputList occurs as a substring of the tokenizedLines
-	if len(tokenizedLines) < len(inputList):
+	if len(tokenizedLines) - lookFromTokenIndex < len(inputList):
 		return [-1000000,-1,-1,-1,-1]
 		
 	matchStartIndex = -1000000	# Invalid value
-	for i in range(len(tokenizedLines)-len(inputList)+1):
+	for k in range(len(tokenizedLines) - lookFromTokenIndex - len(inputList) + 1):
+		i = lookFromTokenIndex + k
 		if tokenizedLines[i] == inputList[0]:
 			matchStartIndex = i
 			mismatchFound = False
@@ -4561,11 +4592,11 @@ def parseVariableDeclaration(inputList):
 								evaluateArithmeticExpressionOutput = evaluateArithmeticExpression(parseArithmeticExpressionOutput)
 								if evaluateArithmeticExpressionOutput[0] != True:
 									PRINT ("ERROR while calculating array dimensions, after calling evaluateArithmeticExpression(parseArithmeticExpressionOutput) for parseArithmeticExpressionOutput =",parseArithmeticExpressionOutput )
-									errorMessage = "ERROR in parseVariableDeclaration() - array dimension <%s> not a proper arithmetic expression"%(STR(inputList[k+1:matchingBraceIndex]))
+									errorMessage = "ERROR in parseVariableDeclaration() - for variable " + variableName + ", array dimension <%s> not a proper arithmetic expression"%(STR(inputList[k+1:matchingBraceIndex]))
 									errorRoutine(errorMessage)
 									return False
 								elif evaluateArithmeticExpressionOutput[1] <1:
-									errorMessage = "ERROR in parseVariableDeclaration() - array dimension <%s> evaluates to %d, which is not allowed"%(list2plaintext(inputList[k+1:matchingBraceIndex]),evaluateArithmeticExpressionOutput[1])
+									errorMessage = "ERROR in parseVariableDeclaration() - for variable " + variableName + ", array dimension <%s> evaluates to %d, which is not allowed"%(list2plaintext(inputList[k+1:matchingBraceIndex]),evaluateArithmeticExpressionOutput[1])
 									errorRoutine(errorMessage)
 									return False
 								
@@ -5244,8 +5275,9 @@ def condenseMultilineMacroIntoOneLine():
 #  since the currLine is always getting updated. Use lines[i] always.      #
 ############################################################################
 def preProcess():
-	global lines, defsByLines, PRINT_DEBUG_MSG
+	global lines, currentMacroNames, macroDefinitions, PRINT_DEBUG_MSG
 	
+#	PRINT_DEBUG_MSG = True
 	
 	if not lines:
 		PRINT ("ERROR in preProcess - the code lines cannot be empty - exiting" )
@@ -5263,21 +5295,35 @@ def preProcess():
 		PRINT ("======================\nGoing to handle preprocessor directives\n======================" )
 		PRINT ("lines =",lines)
 		
-		defsByLines = []
-		# Initialize it to blank TO-DO: We must handle the case of lines expanding due to include statement
-		for row in lines:
-			defsByLines.append([])
+		macroDefinitions = []
+		currentMacroNames = []		# A cache of just the macro names
+		
 
+		# The line pointer
 		i=0
-		# !!!!! DO NOT REMOVE THIS LINE BELOW !!!!!
+		# Every time the line pointer i advances, we need to specifically reset it to True.
+		processCurrentLineAgain = True
+		
+		# !!!!! DO NOT REMOVE THIS COMMENTED OUT LINE BELOW. IT SHOWS A HARD-TO-CATCH BUG !!!!!
+		
 		#while i < len(lines):	#Left for showing bug. since the lines will potentially expand after processing <include "filename"> statement, len(lines) is not constant
 		while True:
+			
+			# This line index i will be advanced only when we are 100% sure there is no preprocessing to be done to that line any more.
+			#
+			# Cases where the pointer will be advanced:
+			#  1. #define statements
+			#  2. #undef statements
+			#  3. #if or #ifdef etc. statements
+			#
+			# Cases where the pointer will NOT be advanced:
+			#  1. Macro invocations
+			#  2. #include statements
+			
 			if i >= len(lines):
 				break
 		
-			# First thing you do is inherit all the available definitions by this line from the previous line
-			if i>0:
-				defsByLines[i] = defsByLines[i-1]
+			
 		
 			# KLUDGE
 			#The very first thing you do to remove any whitespace to the left of right of a # when the line begins with a #
@@ -5286,9 +5332,18 @@ def preProcess():
 			if re.match('^\s+#\s*',lines[i]) or re.match('^\s*#\s+',lines[i]):
 				PRINT("Before stripping the whitespace around the beginning # for line # %d <%s> "%(i,lines[i]))
 				lines[i] = re.sub('^\s*#\s*','#',lines[i])
-				PRINT("After  stripping the whitespace around the beginning # for line # %d <%s> "%(i,lines[i]))
+				PRINT("After stripping the whitespace around the beginning # for line # %d <%s> "%(i,lines[i]))
 
-			# Remove Multi-line comments
+			##########################################################
+			##														##
+			##				REMOVE COMMENTS							##
+			##														##
+			##		CONVERT MULTILINE MACROS INTO SINGLE-LINE		##
+			##														##
+			##########################################################
+			
+			# Remove Multi-line comments. We really should not have to do this again and again since the macros are not supposed to create new comments.
+			# Still, suppose one included file contained the beginning of a comment like /* ....., and another included file contained the end of comment like ..... */
 			removeComments()
 			
 			# Condense each Multi-line Macro into a single-line macro 
@@ -5298,40 +5353,414 @@ def preProcess():
 				errorRoutine(errorMessage)
 				return False
 
-			#PRINT ("searching for macro definitions in line # ",i, lines[i] )
-			currLine = lines[i]
-			PRINT("lines[",i,"] =",lines[i])
 
-			tokenizeLinesResult = tokenizeLines(lines[i])
-			PRINT("tokenized lines[",i,"] =",tokenizeLinesResult)
-			
-			if tokenizeLinesResult == False:
-				PRINT ("ERROR in preProcess after calling tokenizeLines(currLine) for currLine =",lines[i] )
+			macroTokenListResult = tokenizeLines(lines[i])
+			if macroTokenListResult == False:
+				errorMessage = "ERROR in preProcess after calling tokenizeLines(currLine) for currLine = " + lines[i]
+				errorRoutine(errorMessage)
 				return False
 			else:
-				currLineTokenList = tokenizeLinesResult[0]
+				macroTokenList = macroTokenListResult[0]
 
-			#preprocessingDirectives = ('#include', '#if', '#ifdef', '#ifndef', '#else', '#elif', '#endif', '#define', '#undef', '#line', '#error', '#pragma')
+			# First keep a handy list of the currently existing macronames. We do this so that we can simply compare it with every token in this line.
+			currentMacroNames = []	# This list will change every line since macros get defined, re-defined and un-defined every line. It is not a static list
+			for macroIndex in range(len(macroDefinitions)):
+				if not isinstance(macroDefinitions[macroIndex],list):
+					errorMessage = "ERROR in preprocess() - macroDefinitions[macroIndex=%d] = <%s> is not a list -- exiting!"%(macroIndex,STR(macroDefinitions[macroIndex]))
+					errorRoutine(errorMessage)
+					return False
+				else:
+					currentMacroNames.append(macroDefinitions[macroIndex][0])
+			PRINT("Before processing line #",i,", currentMacroNames =", STR(currentMacroNames))
+			
+			# Deal with blank lines right away
+			if lines[i].strip() == "":
+				i += 1
+				continue
+			
+			######################################################################
+			##																	##
+			##		MODIFY CURRENT LINE UNTIL IT IS NOT MODIFIABLE  			##
+			##																	##
+			######################################################################
+				
+			# Here is the logic we follow. There are only two kinds of operations that modify a line - macro invocation and #include.
+			# (Recall that things like #if impacts OTHER lines, but NOT the current line)
+			#
+			# Hence, we keep on going through macro invocations and #include processing until we are certain the current line cannot be modified any more.
+			# We, of course, follow the rules. For example, if the line starts with #define, we know that we cannot touch that line for macro invocations,
+			# even if that line contains them. We take #define statements as-is.
+			
+			processCurrentLineAgain = True
 
-			if currLineTokenList and currLineTokenList[0] in preprocessingDirectives:
-				PRINT("currLineTokenList[0] =",currLineTokenList[0],"is a preprocessingDirectives")
+			while processCurrentLineAgain:	# We keep on processing the current line until we are guaranteed that it is not modifiable any more
+										# i.e., no more macros in it, no #include etc.
+				
+				# The very first thing we do is to keep a copy of the current line, so that we know whether there was any change made via macro invocations or #include
+				currentLineBeforeMacroInvocationsAndIncludeProcessing = lines[i]
+				
+				######################################################################
+				##																	##
+				##		M A C R O   I N V O C A T I O N  							##
+				##																	##
+				######################################################################
+					
+				# There are some macro invocations that we are not supposed to replace. To make sure we don't hit them again and again, 
+				# this index below always moves forward. The reason we use a while loop is because the same macro can be invoked on a single line multiple times.
+				
+				checkForMacroFromTokenIndex = 0
+				while True:
+				
+					PRINT("Currently checking line #",i,"from token #",checkForMacroFromTokenIndex)
+					# Make sure that we are not inadvertantly using variables from previous loop
+					try:
+						del macroNameFoundAtIndex, macroName, macroIndex, macroArguments, macroExpansionText, macroProperties, macroExpansionTextTokenized, argumentList, macroExpansionTextAST, variadicMacro, variadicMacroExplicitArgumentCount, variadicMacroArgSpecialName, null__VA_ARGS__macroExpansionTextAST
+					except NameError:	
+						PRINT("NameError occured. Some variable isn't defined. Totally normal.")
+						
+					# We tokenize every time, since we do not know how the previous run changed the line. Because we did TEXT replacement, not TOKEN replacement.
+					tokenizeLinesOutputResult = tokenizeLines(lines[i])
+					if tokenizeLinesOutputResult == False:
+						errorMessage = "ERROR in after calling tokenizeLines(lines[i]) for lines[" + STR(i) + "] = " + lines[i]
+						errorRoutine(errorMessage)
+						return False
+					else:
+						tokenizeLinesOutput = tokenizeLinesOutputResult[0]
+						
+					if len(tokenizeLinesOutput) == 0:
+						processCurrentLineAgain = False
+						break
+					elif tokenizeLinesOutput[0] in ('#define', '#undef', '#ifdef', '#ifndef'):
+						processCurrentLineAgain = False
+						break
+					
+					# Advance the token pointer within the current line to the next occurrence of any macro name
+					while True:
+						if checkForMacroFromTokenIndex >= len(tokenizeLinesOutput):
+							break
+						elif tokenizeLinesOutput[checkForMacroFromTokenIndex] not in currentMacroNames:
+							PRINT("tokenizeLinesOutput[",checkForMacroFromTokenIndex,"] =",tokenizeLinesOutput[checkForMacroFromTokenIndex]," is not a macro name - advancing the token pointer")
+							checkForMacroFromTokenIndex += 1
+						elif tokenizeLinesOutput[checkForMacroFromTokenIndex] in currentMacroNames:
+							PRINT("tokenizeLinesOutput[",checkForMacroFromTokenIndex,"] =",tokenizeLinesOutput[checkForMacroFromTokenIndex]," is indeed a macro name - time to replace")
+							break
+							
+					
+					# This is not redundant - do the same check again so that we can get out of the outer while loop
+					if checkForMacroFromTokenIndex >= len(tokenizeLinesOutput):
+						processCurrentLineAgain = False
+						break
+					elif tokenizeLinesOutput[checkForMacroFromTokenIndex] not in currentMacroNames:	# Should never happen
+						OUTPUT ("Coding error in preProcess while looking for macroName")
+						sys.exit()
+					else:
+						PRINT("Currently checking line #",i,"from token #",checkForMacroFromTokenIndex)
+						macroNameFoundAtIndex = checkForMacroFromTokenIndex
+						macroName = tokenizeLinesOutput[macroNameFoundAtIndex]
+						macroIndex = currentMacroNames.index(macroName)
+						
+						# Sanity check once again
+						if len(currentMacroNames) != len(macroDefinitions) or not isinstance(macroDefinitions[macroIndex],list) or macroDefinitions[macroIndex][0] != currentMacroNames[macroIndex]:
+							OUTPUT("Coding error - currentMacroNames and macroDefinitions out of sync - exiting")
+							OUTPUT("\ncurrentMacroNames =",STR(currentMacroNames),"\n", "macroDefinitions =",STR(macroDefinitions))
+							sys.exit()
+
+						# get all the details of the macro
+						macroArguments = macroDefinitions[macroIndex][1]
+						macroExpansionText = macroDefinitions[macroIndex][2]
+						macroProperties = macroDefinitions[macroIndex][3]
+						# Updated for all macros
+						macroExpansionTextTokenized = macroProperties["macroExpansionTextTokenized"]
+						
+						# Special cases when the macro takes arguments
+						if macroArguments != "":
+							argumentList = macroProperties["argumentList"]
+							macroExpansionTextAST = macroProperties["macroExpansionTextAST"]
+							variadicMacro = macroProperties["variadicMacro"]
+						
+							# Special cases when the macro takes variable arguments
+							if variadicMacro:
+								variadicMacroExplicitArgumentCount = macroProperties["variadicMacroExplicitArgumentCount"]
+								variadicMacroArgSpecialName = macroProperties["variadicMacroArgSpecialName"]
+								null__VA_ARGS__macroExpansionTextAST = macroProperties["null__VA_ARGS__macroExpansionTextAST"]
+						
+						# Do not replace it if it is a #undef(macroName) / #ifdef(macroName) / #ifndef(macroName), or a defined(macroName) in a #if statement
+						if tokenizeLinesOutput[0] in ('#define', '#undef', '#ifdef', '#ifndef'):
+							checkForMacroFromTokenIndex = macroNameFoundAtIndex+1
+							PRINT("Found", macroName,"at token index",macroNameFoundAtIndex)
+							if checkForMacroFromTokenIndex != 2:
+								errorMessage = "Found "+ macroName +"at token index " + STR(macroNameFoundAtIndex) +" , which is an error."
+								errorRoutine(errorMessage)
+								return False
+							continue
+						elif tokenizeLinesOutput[0] in ('#if') and macroNameFoundAtIndex>2 and tokenizeLinesOutput[macroNameFoundAtIndex-2]=='defined' and tokenizeLinesOutput[macroNameFoundAtIndex-1]=='(' and tokenizeLinesOutput[macroNameFoundAtIndex+1]==')' :
+							checkForMacroFromTokenIndex = macroNameFoundAtIndex+2
+							PRINT("Found", macroName,"at token index",macroNameFoundAtIndex,", as part of",tokenizeLinesOutput[macroNameFoundAtIndex-2:macroNameFoundAtIndex+2])
+							continue
+						
+						PRINT ("BEFORE invoking macro", macroName, "line #",i," = <",lines[i],">" )
+						
+						# Now, we want to find the exact character locations of THIS very invocation of macroName (recall that a single line may contain 
+						macroInvocationLocation = findTokenListInLines(lines[i],macroName, macroNameFoundAtIndex)
+						if macroInvocationLocation == False:
+							errorMessage = "ERROR after calling findTokenListInLines(lines[i],macroName) for lines[" + STR(i) + "] = " + lines[i] +" and macroName =" + macroName 
+							errorRoutine(errorMessage)
+							return False
+						# The output from findTokenListInLines() is [tokenStartIndex,startLineNumber,startLineCharNumber,endLineNumber,endLineCharNumber]
+						elif macroInvocationLocation[1] != 0 or macroInvocationLocation[3] != 0 or lines[i][macroInvocationLocation[2]:macroInvocationLocation[4]+1] != macroName:
+							errorMessage = "ERROR in preProcess() - the match must happen within current line, while its occurrence location is "+ STR(macroInvocationLocation) + "and the lines[" + STR(i) + "][" + STR(macroInvocationLocation[2])+":"+ STR(macroInvocationLocation[4]+1)+"] = <"+lines[i][macroInvocationLocation[2]:macroInvocationLocation[4]+1]+">, while macroName = <"+macroName+">" 
+							errorRoutine(errorMessage)
+							return False
+							sys.exit()
+
+						# Replace object-like macros
+						
+						if macroArguments == "":
+						
+							PRINT ("The macro", macroName,"appears in line #",i+macroInvocationLocation[1],"char #",macroInvocationLocation[2] )
+							lines[i] = lines[i][:macroInvocationLocation[2]]+macroExpansionText+lines[i][macroInvocationLocation[4]+1:]
+							PRINT ("AFTER invoking macro", macroName, "line #",i," = <",lines[i],">" )
+				
+						# There is one major difference in the handling method when a macro takes argument (compared to one that doesn't).
+						# For one with no arguments, we only care about the current line, since we are talking about matching a single token (the macroName).
+						# However, when you tackle a macro with arguments, it is very much possible that the macroName is in one line and the arguments in subsequent lines.
+						# So, you need to potentially handle ALL the lines starting from the current one for finding the proper scope of macro invocation.
+						
+						elif macroArguments != "":
+
+							# So, after all these, we use the following method.
+							# - If the macro is variadic and __VA_ARGS__ is null, use null__VA_ARGS__macroExpansionTextAST.
+							# - For all other cases, use macroExpansionTextAST.
+					
+							# We do this because the parseArithmeticExpression routine expects the function name
+							# If we just give the (A, B, C) kind of text instead of the expected func(A, B, C), it might error out
+							
+							stringBeforeMacroName = "" if macroInvocationLocation[2] == 0 else lines[i][:macroInvocationLocation[2]]
+							stringAfterMacroName = lines[i][macroInvocationLocation[4]+1:]
+							PRINT ("The stringBeforeMacroName <", macroName, "> = <",stringBeforeMacroName,">, i=",i )
+							PRINT ("The stringAfterMacroName <", macroName, "> = <",stringAfterMacroName,">, i=",i )
+					
+							# The macro argument list could be distributed over many lines
+							restLines = []
+							PRINT ("Currently, lines[%d]=<%s>"%(i,lines[i]) )
+							if macroInvocationLocation[4] < len(lines[i])-1:
+#									PRINT ("Appending <%s> to restLines, curretly i=%d"%(lines[i][macroInvocationLocation[4]+1:],i) )
+								restLines.append(lines[i][macroInvocationLocation[4]+1:])
+							lineIndex = i+1
+							while lineIndex < len(lines):
+#									PRINT ("Appending <%s> to restLines"%lines[lineIndex] )
+								restLines.append(lines[lineIndex])
+								lineIndex = lineIndex + 1
+							
+							PRINT ("Now going to tonize restLines = ",restLines )
+							invocationTokensResult = tokenizeLines(restLines)	# This contains the parenthesized arguments, plus whatever comes after
+							if invocationTokensResult == False:
+								errorMessage = "Error while tokenizeLines(restLines) where restLines = " + STR(restLines)
+								errorRoutine(errorMessage)
+								return False
+							else:
+								invocationTokens = invocationTokensResult[0]
+							
+							if invocationTokens[0] != '(':
+								errorMessage = "Error after tokenizeLines(restLines) - the first token is not a '('"
+								errorRoutine(errorMessage)
+								return False
+							
+							endMatchingBraceDistance = matchingBraceDistance(invocationTokens)	# This tells exactly where the end-brace for the parenthesized arguments occur
+							if endMatchingBraceDistance < 1:
+								errorMessage = "Did not find argument list for macro " + macroName + "in line # " + STR(i) + STR( invocationTokens )
+								return False
+							else:
+								invocationTokensArgsOnly = invocationTokens[:endMatchingBraceDistance+1]	# Starts and ends with braces
+								PRINT("invocationTokensArgsOnly = <",invocationTokensArgsOnly,">, which we will parse for splitting the arguments")
+								argListInvoked = parseArgumentList(invocationTokensArgsOnly)
+								if argListInvoked == False:
+									errorMessage = "Exiting - ERROR during parsing invocationTokensArgsOnly = <"+ STR(invocationTokensArgsOnly) + "> for arguments"
+									errorRoutine(errorMessage)
+									return False
+								PRINT ("After parsing, the argument list for macro",macroName,"invocation in line #",i,"=", argListInvoked )
+								
+								# Verify that it matches the macro's argument count
+								
+								# For variadic Macro, the variable part of argument list might be empty. But any explicit argument must be provided
+								if variadicMacro and variadicMacroExplicitArgumentCount > len(argListInvoked):
+									errorMessage = "ERROR in preProcess() - len(argListInvoked) =" + STR(len(argListInvoked)) + "< variadicMacroExplicitArgumentCount =" + STR(variadicMacroExplicitArgumentCount)
+									erroRoutine(errorMessage)
+									return False
+								# For non-variadic Macro, the argument list count must match
+								elif not variadicMacro and len(argListInvoked) != len(argumentList):
+									errorMessage = "ERROR  in preProcess() - len(argListInvoked) =" + STR(len(argListInvoked)) + "!= len(argumentList) =" + STR(len(argumentList) )
+									erroRoutine(errorMessage)
+									return False
+								else:
+									macroIsVariadicWithNull__VA_ARGS__ = False
+									# If variadic macro, just create a single comma-separated string with all the excess arguments. This will be input 
+									if variadicMacro: 
+										PRINT("Original",len(argListInvoked),"-member argListInvoked =",STR(argListInvoked))
+										
+										# Handle a special case - if the code mentions the last argument as NULL like this below, then convert it to a blank string
+										#
+										#  #define eprintf(format, ...) fprintf (stderr, format, __VA_ARGS__)
+										#  eprintf("success!\n", );		// Observe that the coder didn't code it as <eprintf("success!\n");> - there is a comma at the end
+										if argListInvoked[-1]==[]:
+											argListInvoked[-1] = ''
+											PRINT("Which is then changed to",len(argListInvoked),"-member argListInvoked =",STR(argListInvoked))
+											
+										if variadicMacroExplicitArgumentCount + 1 == len(argListInvoked):
+											PRINT("Exactly one argument supplied against __VA_ARGS__ , hence no special processing required")
+										elif variadicMacroExplicitArgumentCount == len(argListInvoked):	# The __VA_ARGS__ part is null
+											PRINT("Adding a dummy NULL string to be used as a replacement for the __VA_ARGS__")
+											argListInvoked.append("")	
+											macroIsVariadicWithNull__VA_ARGS__ = True
+										else:
+											commaSeparated__VA_ARGS__ = ",".join(argListInvoked[variadicMacroExplicitArgumentCount:])
+											del argListInvoked[variadicMacroExplicitArgumentCount:]
+											argListInvoked.append(commaSeparated__VA_ARGS__)
+										PRINT("Transformed",len(argListInvoked),"-member argListInvoked =",STR(argListInvoked))
+										if len(argListInvoked) != len(argumentList):
+											OUTPUT("ERROR - should never happen")
+											sys.exit()
+											
+									PRINT ("The argument count (",len(argumentList),") is acceptable" )
+									
+									# Now replace the macro expansion AST
+									
+									PRINT ("\n\n\n=============================================================\nCreating the replacement dictionary")
+									argumentInvocationDictionary = OrderedDict()
+									for argIndex in range(len(argumentList)):
+										# TO-DO: Here is a question - do we replace it with the literal, or the AST version of it?
+										# Problem - there is no guarantee that a parameter passed to a macro will be a properly formed AST
+										argInvokedAST = parseArithmeticExpression(argListInvoked[argIndex])
+										if argInvokedAST == False:
+											errorMessage = "ERROR after calling parseArithmeticExpression(argListInvoked[argIndex]) for argListInvoked["+STR(argIndex)+"] ="+STR(argListInvoked[argIndex]) 
+											erroRoutine(errorMessage)
+											return False
+										else:
+											PRINT ("Replacing",argumentList[argIndex],"with",argInvokedAST )
+											argumentInvocationDictionary[argumentList[argIndex]]=argInvokedAST
+									PRINT ("argumentInvocationDictionary =",argumentInvocationDictionary )
+									PRINT ("=============================================================\n\n\n")
+									
+									# Recall the following.
+									# - If the macro is variadic and __VA_ARGS__ is null, use null__VA_ARGS__macroExpansionTextAST.
+									# - For all other cases, use macroExpansionTextAST.
+									if macroIsVariadicWithNull__VA_ARGS__:
+										PRINT ("null__VA_ARGS__macroExpansionTextAST =",null__VA_ARGS__macroExpansionTextAST )
+										# This is the precise place where we are actually doing the macro expansion
+										functionCallResult = replaceArguments (null__VA_ARGS__macroExpansionTextAST, argumentInvocationDictionary)
+									else:
+										PRINT ("macroExpansionTextAST =",macroExpansionTextAST )
+										# This is the precise place where we are actually doing the macro expansion
+										functionCallResult = replaceArguments (macroExpansionTextAST, argumentInvocationDictionary)
+										
+									if functionCallResult[0] == False:
+										PRINT ("Exiting - ERROR while invoking function replaceArguments for macroExpansionTextAST=", macroExpansionTextAST," and argumentInvocationDictionary =",argumentInvocationDictionary )
+										return False
+									argListInvokedReplacedAST = functionCallResult[1]
+									if '##' in macroExpansionText:
+										argListInvokedReplacedASTDoubleHash = applyDoubleHashOperator(argListInvokedReplacedAST)
+									else:
+										argListInvokedReplacedASTDoubleHash = argListInvokedReplacedAST
+									PRINT ("\n\n\n#### BEGIN ####=============================================================\n\n\n\n")
+									PRINT ("macroExpansionText = ",macroExpansionText )
+									PRINT ("argumentList = ",argumentList )
+									PRINT ("argListInvoked = ",argListInvoked )
+									PRINT ("macroExpansionTextAST = ",macroExpansionTextAST )
+									PRINT ("argListInvokedReplacedAST = ", argListInvokedReplacedAST )
+									PRINT ("argListInvokedReplacedASTDoubleHash = ",argListInvokedReplacedASTDoubleHash )
+									
+									# Now it's time to convert the AST back to the text
+									argListInvokedReplacedText = outputTextArithmeticExpressionFromAST(argListInvokedReplacedASTDoubleHash)
+									if argListInvokedReplacedText == False:
+										PRINT ("ERROR after calling outputTextArithmeticExpressionFromAST(argListInvokedReplacedASTDoubleHash) for argListInvokedReplacedASTDoubleHash =",argListInvokedReplacedASTDoubleHash )
+										return False
+									PRINT ("argListInvokedReplacedText =",argListInvokedReplacedText )
+									PRINT ("\n\n\n\n#### END ####=============================================================\n\n\n")
+									
+									# Now replace the text within the restLines. Once we do that, we will plug it back to the actual lines
+									macroInvocationSuffix = ""	# On the line where the macroName(argumentList) finally ends, the rest of the characters
+									macroExpansionPosition = findTokenListInLines(restLines,invocationTokensArgsOnly)
+									if macroExpansionPosition == False:
+										PRINT ("ERROR after calling findTokenListInLines(restLines,invocationTokensArgsOnly) for restLines =",restLines," and invocationTokensArgsOnly =",invocationTokensArgsOnly )
+										return False
+									elif macroExpansionPosition[0]<0 or macroExpansionPosition[1]<0 or macroExpansionPosition[2]<0 or macroExpansionPosition[3]<0 or macroExpansionPosition[4]<0:
+										PRINT ("ERROR in preProcess() : Was looking for ",invocationTokensArgsOnly, "inside <",restLines )
+										PRINT ("macroExpansionPosition = ",macroExpansionPosition )
+										return False
+										sys.exit()
+									else:
+										if macroExpansionPosition[4] < len(restLines[macroExpansionPosition[3]])-1:
+											macroInvocationSuffix = restLines[macroExpansionPosition[3]][macroExpansionPosition[4]+1:]
+											
+									# TO-DO: Currently we are putting a space before joining the below 3 fragments so that we accidentally do not concatenate variable names.
+									# TO-DO: Try to see if we can do it in a better way (it is currently pretty much a hack).
+									newLineAfterMacroInvocation = stringBeforeMacroName + " " + argListInvokedReplacedText + " " + macroInvocationSuffix
+									impactedLines = lines[i:i+macroExpansionPosition[3]+1]
+									PRINT ("impactedLines = <%s>"%impactedLines )
+									PRINT ("newLineAfterMacroInvocation = <%s>"%newLineAfterMacroInvocation )
+									PRINT ("\n\n\n\n\nPrinting the existing Lines before macro <",macroName, "> invocation replacement" )
+									PRINT ("===============================================" )
+									returnStatus = printLines(lines)
+									if returnStatus == False:
+										return False
+									PRINT ("===============================================" )
+									lines[i] = newLineAfterMacroInvocation
+									delLineIndex = 1
+									while delLineIndex <= macroExpansionPosition[3]:
+										PRINT ("Removing ALL tokens from lines[",i+delLineIndex,"] =",lines[i+delLineIndex],", essentially making it blank line" )
+										lines[i+delLineIndex] = '\n'
+										delLineIndex = delLineIndex + 1
+									PRINT ("===============================================" )
+									PRINT ("\n\n\n\n\nPrinting the existing Lines after macro <",macroName, "> invocation replacement" )
+									PRINT ("===============================================" )
+									returnStatus = printLines(lines)
+									if returnStatus == False:
+										return False
+									PRINT ("===============================================" )
+				
+
+				# All macro invocations have been done. Now let's re-tokenize
+				tokenizeLinesResult = tokenizeLines(lines[i])
+				PRINT("tokenized lines[",i,"] =",tokenizeLinesResult)
+				
+				if tokenizeLinesResult == False:
+					errorMessage = "ERROR in preProcess() before doing macro expansion after calling tokenizeLines(currLine) for currLine =" + lines[i]
+					errorRoutine(errorMessage)
+					return False
+				else:
+					macroTokenList = tokenizeLinesResult[0]
+
+				PRINT ("searching for preprocessing commands in line # ",i, lines[i] )
+				currLine = lines[i]
+				PRINT("lines[",i,"] =",lines[i], "macroTokenList =",macroTokenList)
+
+				#preprocessingDirectives = ('#include', '#if', '#ifdef', '#ifndef', '#else', '#elif', '#endif', '#define', '#undef', '#line', '#error', '#pragma')
+
+				if macroTokenList and macroTokenList[0] in preprocessingDirectives:
+					PRINT("macroTokenList[0] =",macroTokenList[0],"is a preprocessingDirectives")
+				
+				##########################################################
+				##														##
+				##				I N C L U D E							##
+				##														##
+				##########################################################
 				
 				# Handle the include statements
-				if currLineTokenList[0] == '#include':
-					if len(currLineTokenList) != 2 and len(currLineTokenList) != 4:
+				if macroTokenList[0] == '#include':
+					if len(macroTokenList) != 2 and len(macroTokenList) != 4:
 						errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - #include must have exactly one arguement" %(targetLineNumber,lines[targetLineNumber] )
 						errorRoutine(errorMessage)
 						return False
-					elif len(currLineTokenList) == 4 and not (currLineTokenList[1] == '<' and currLineTokenList[3] == '>') and not (currLineTokenList[1] == '"' and currLineTokenList[3] == '"'):
+					elif len(macroTokenList) == 4 and not (macroTokenList[1] == '<' and macroTokenList[3] == '>') and not (macroTokenList[1] == '"' and macroTokenList[3] == '"'):
 							errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - must be like #include <filename>" %(targetLineNumber,lines[targetLineNumber] )
 							errorRoutine(errorMessage)
 							return False
-					elif len(currLineTokenList) == 2 and (currLineTokenList[1][0] != '"' or currLineTokenList[1][-1] != '"' or len(currLineTokenList[1])<=2):
+					elif len(macroTokenList) == 2 and (macroTokenList[1][0] != '"' or macroTokenList[1][-1] != '"' or len(macroTokenList[1])<=2):
 							errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - must be like #include \"filename\"" %(targetLineNumber,lines[targetLineNumber] )
 							errorRoutine(errorMessage)
 							return False
 					else: 
-						includedFileName = currLineTokenList[1][1:-1].strip() if len(currLineTokenList) == 2 else currLineTokenList[2]
+						includedFileName = macroTokenList[1][1:-1].strip() if len(macroTokenList) == 2 else macroTokenList[2]
 						if not includedFileName:
 							errorMessage = "ERROR in preProcess() - included filename cannot be blank"
 							errorRoutine(errorMessage)
@@ -5375,294 +5804,122 @@ def preProcess():
 						PRINT ("Included code file has",len(includedLines),"lines, which contains:", includedLines )
 						PRINT ("Before inserting, len(lines) =",len(lines))
 						
-						# Insert the newly included lines in lines; also update the defsByLines
+						# Insert the newly included lines in lines
 						tempLines = lines[:i]
-						tempDefsByLines = defsByLines[:i+1]	# not a typo (we need to keep the inheritance from line # i-1)
-						
 						tempLines.extend(includedLines)
-						for j in range(len(includedLines)-1):
-							tempDefsByLines.append([])
-							
 						if i<len(lines)-1:
 							tempLines.extend(lines[i+1:])
-							tempDefsByLines.extend(defsByLines[i+1:])
-								
+
+						# Overwrite the lines
 						lines = tempLines
-						defsByLines = tempDefsByLines
-						PRINT ("After inserting, len(lines) =",len(lines), "len(defsByLines) =",len(defsByLines))
-						if len(lines) != len(defsByLines):
-							errorMessage = "ERROR in preProcess(): len(lines) (%d) != len(defsByLines) (%d)"%(len(lines), len(defsByLines))
-							errorRoutine(errorMessage)
-							return False
-								
+						PRINT ("After inserting, len(lines) =",len(lines))
 
-				elif currLineTokenList[0] == '#error':
-					warningMessage = "This tool currently ignores all #error statements: <"+lines[i]+">"
-					warningRoutine(warningMessage)
-				elif currLineTokenList[0] == '#line':
-					warningMessage = "This tool currently ignores all #line statements: <"+lines[i]+">"
-					warningRoutine(warningMessage)
-				elif currLineTokenList[0] in ('#if','#ifdef','#ifndef','#elif'):
+				if currentLineBeforeMacroInvocationsAndIncludeProcessing != lines[i]:
+					processCurrentLineAgain = True
+				else:
+					processCurrentLineAgain = False
+
 				
-					# First figure out the which all source code statements are impacted by this if statement.
-					# There might be multiple code blocks between the if-elif-elif-else-endif statements, but only one of them would succeed.
-					checkPreprocessingDirectivesInterleavingResult = checkPreprocessingDirectivesInterleaving(lines[i:])
-					if checkPreprocessingDirectivesInterleavingResult == False:
-						errorMessage = "ERROR in preProcess() after calling checkPreprocessingDirectivesInterleaving() from line %i"%i
-						errorRoutine(errorMessage)
-						return False
-					else:
-						scope = checkPreprocessingDirectivesInterleavingResult
-
-					PRINT("For line #",i," the scope for the if-elif-else-endif is",scope)
-					
-					# Recall that the the line numbers returned from checkPreprocessingDirectivesInterleaving() are relative, i.e. they start from 0.
-					# So, you need to add the current line number to get any absolute line number
-					k = 0
-
-					# Out of the many if-elif-elif-else-endif code blocks, only one will succeed. And once that succeeds, the rest must be deleted irrespecive of
-					# whether corresponding #elif condition evaluates to True or not
-					ifConditionTruthValueAlreadyFound = False
-					
-					while k<len(scope):
-						targetLineNumber = scope[k][0]+i
-						PRINT("Tokenizing line #",targetLineNumber)
-
-						deleteCodeBlock = False
-						
-						# If we already had one of the if-elif-elif-else-endif condition
-						if ifConditionTruthValueAlreadyFound:
-							deleteCodeBlock = True
-						else:
-							PRINT("Going to tokenizeLines(\"",lines[targetLineNumber],"\")")
-							tokenizeLinesResult = tokenizeLines(lines[targetLineNumber])
-							if tokenizeLinesResult == False:
-								errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s>" %(targetLineNumber,lines[targetLineNumber] )
-								errorRoutine(errorMessage)
-								return False
-							else:
-								PRINT("tokenizeLinesResult =",tokenizeLinesResult)
-								targetLineTokenList = tokenizeLinesResult[0]
-					
-							if targetLineTokenList[0] in ('#if','#ifdef','#ifndef', '#elif') and len(targetLineTokenList)<2:
-								errorMessage = "ERROR in line #"+targetLineNumber+": an "+ targetLineTokenList[0] +" statement must not be empty"
-								errorRoutine(errorMessage)
-								return False
-							elif targetLineTokenList[0] in ('#ifdef','#ifndef') and len(targetLineTokenList)>2:
-								errorMessage = "ERROR in line #"+targetLineNumber+": an "+ targetLineTokenList[0] +" statement must not supply more than one argument"
-								errorRoutine(errorMessage)
-								return False
-							elif targetLineTokenList[0] in ('#else','#endif') and len(targetLineTokenList)>1:
-								errorMessage = "ERROR in line #"+targetLineNumber+": an "+ targetLineTokenList[0] +" statement must not supply more than one argument"
-								errorRoutine(errorMessage)
-								return False
-							
-							# Calculate the if condition result (True or False)
-							ifConditionEvaluationResult = False	# The default value
-
-							if targetLineTokenList[0] == '#else': 	# If you are falling on an #else, it is by defintion true
-								ifConditionEvaluationResult = True
-								PRINT("The '#else' succeeded")
-							elif targetLineTokenList[0] == '#ifdef': 
-								if targetLineTokenList[1] in defsByLines[i]:
-									ifConditionEvaluationResult = True
-									PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' succeeded")
-								else:
-									PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' failed")
-							elif targetLineTokenList[0] == '#ifndef': 
-								if targetLineTokenList[1] not in defsByLines[i]:
-									ifConditionEvaluationResult = True
-									PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' succeeded")
-								else:
-									PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' failed")
-							elif targetLineTokenList[0] in ('#if','#elif'):
-								
-								# Handle one special case - before calling parseArithmeticExpression(), we must resolve the case of defined().
-								# This is because parseArithmeticExpression() is agnostic of exactly where in the source file the code is,
-								# but the result of a defined(symbol) depends precisely on that. So parseArithmeticExpression() cannot
-								# figure that out. So, we handle it locally first. We relace the defined(symbol) with 1 or 0.
-								
-								if 'defined' in targetLineTokenList:
-									currLineTokenListTransformed = targetLineTokenList
-									while True:
-										if 'defined' in currLineTokenListTransformed:
-											definedIndex = currLineTokenListTransformed.index('defined')
-											if definedIndex +3 < len(currLineTokenListTransformed) and currLineTokenListTransformed[definedIndex+1] == '(' and currLineTokenListTransformed[definedIndex+3] == ')':
-												symbolToCheckIfDefined = currLineTokenListTransformed[definedIndex+2]
-												#replace the 'defined' token with 1 or 0, and delete the three subsequent tokens signifying (symbol)
-												PRINT("Looking for Symbol", symbolToCheckIfDefined,"in defsByLines[",i,"] =",STR(symbolToCheckIfDefined))
-												if symbolToCheckIfDefined in defsByLines[i]:
-													currLineTokenListTransformed[definedIndex] = '1'
-													PRINT("Found it - replacing defined(",symbolToCheckIfDefined,") with 1")
-												else:
-													currLineTokenListTransformed[definedIndex] = '0'
-													PRINT("Did not find it - replacing defined(",symbolToCheckIfDefined,") with 0")
-												del currLineTokenListTransformed[definedIndex+1:definedIndex+4]
-										else:
-											break
-									targetLineTokenList = currLineTokenListTransformed
-									
-							
-								parseArithmeticExpressionResult = parseArithmeticExpression(targetLineTokenList[1:])
-								if parseArithmeticExpressionResult == False:
-									errorMessage = "ERROR in preProcess() parsing <%s>"%tokenizeLinesResult
-									errorRoutine(errorMessage)
-									return False
-									
-								evaluateArithmeticExpressionResult = evaluateArithmeticExpression(parseArithmeticExpressionResult)
-								PRINT("evaluateArithmeticExpression(",STR(parseArithmeticExpressionResult),") evaluates to", evaluateArithmeticExpressionResult)
-								if evaluateArithmeticExpressionResult[0] == False:
-									errorMessage = "ERROR in preProcess() evaluating <%s>"%evaluateArithmeticExpressionResult
-									errorRoutine(errorMessage)
-									return False
-								elif evaluateArithmeticExpressionResult[1] == 1:	# Truth value in C is 1, not True of Python
-									ifConditionEvaluationResult = True
-								elif evaluateArithmeticExpressionResult[1] == 0:	# False value in C is 0, not False of Python
-									ifConditionEvaluationResult = False
-								else:
-									errorMessage = "ERROR in preProcess() evaluating <%s> - it is not 1 or 0"%evaluateArithmeticExpressionResult
-									errorRoutine(errorMessage)
-									return False
-									
-								if ifConditionEvaluationResult == True:
-									PRINT("The if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> succeeded")
-								else:
-									PRINT("The if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> failed")
-
-							if ifConditionEvaluationResult == True:
-								ifConditionTruthValueAlreadyFound = True
-								PRINT("The overall if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> succeeded")
-							else:
-								PRINT("The overall if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> failed")
-								deleteCodeBlock = True
-							
-							
-						# Now that we have calculated the if condition result (True or False), delete the if statements and corresponding non-executing code blocks
-						if not deleteCodeBlock or k == len(scope)-1:
-							numLinesToDelete = 1
-						else:
-							numLinesToDelete = scope[k+1][0] - scope[k][0]
-							
-						PRINT ("Going to delete line",scope[k][0]+i,"through line",scope[k][0]+i+numLinesToDelete-1," - a total of",numLinesToDelete,"lines" )
-						d = 0
-						while d < numLinesToDelete:
-							lines[scope[k][0]+i+d] = ""
-							if d > 0:	# For all the lines except the first
-								defsByLines[scope[k][0]+i+d] = defsByLines[targetLineNumber]
-							d += 1
-						k += 1
-					
-#		PRINT ("======================\nGoing to handle expansions of macros\n======================" )
+			##########################################################
+			##														##
+			##			M A C R O    D E F I N I T I O N			##
+			##														##
+			##########################################################
 			
-			# TO-DO: Handle the case that the #define does not ooccur inside a string literal. 
-			# For example, a statement like String1 = "No #define here" should not invoke macro processing
-#			if re.search("^\s*#define\s+.+", currLine):	# What if the #define is the only thing that is on that line?
-			if re.search("^\s*#define\s*", lines[i]):
-				#  Each row of this macros table will have 3 parts: macroName, argumentList, macroExpansionText
+			
+			# If it is a macro definition (doesn't matter if re-definition), then we  add it to the macro dictionary as it is.
+			# We do NOT perform any invocation on either the macro argument list or the macro body.
+			#
+			# If it is a macro definition statement, the C preprocessor will NOT touch that statement for macro expansion
+			# For example,
+			#
+			#	#define CONSTANT 100
+			#	#define TABLESIZE CONSTANT				// <=== C preprocessor will NOT replace this statement as #define TABLESIZE 100
+			#
+			#   printf("TABLESIZE = %d", TABLESIZE);	// Obviously it will print "TABLESIZE = 100"
+			#
+			#	#define CONSTANT 50
+			#   printf("TABLESIZE = %d", TABLESIZE);	// Surprisingly, it will print "TABLESIZE = 50"
+			#
+			# Basically, what is happening is that first the preprocessor is replacing the original statement
+			#
+			# 		printf("TABLESIZE = %d", TABLESIZE);
+			#
+			# with this one:
+			#
+			# 		printf("TABLESIZE = %d", CONSTANT);
+			#
+			# Then it keeps searching again and finds that there is yet another instance of macro invocation (CONSTANT). So now it replaces this statement
+			#
+			# 		printf("TABLESIZE = %d", CONSTANT);
+			#
+			# with this one:
+			#
+			# 		printf("TABLESIZE = %d", 50);
+			#
+			# Now there is no more macro invocations in this last statement, hence it can give it to the compiler. Recall that a preprocessor is NOT part of the C language.
+			#
+			# This also has yet another surprising implication. The order of the macro definitions did not matter. We could also have had it like this
+			# and it would have given us identical result:
+			#
+			#	#define TABLESIZE CONSTANT				
+			#	#define CONSTANT 100
+			#
+			
+			# Now that all possible modification has been done to the current line, let's re-tokenize
+			macroTokenListResult = tokenizeLines(lines[i])
+			if macroTokenListResult == False:
+				errorMessage = "ERROR in preProcess(), after all macro invocations and #include statement processing has been done, right after calling tokenizeLines(currLine) for currLine = " + lines[i]
+				errorRoutine(errorMessage)
+				return False
+			else:
+				macroTokenList = macroTokenListResult[0]
+			
+			if macroTokenList[0] == "#define" :
+				
+				#  Each row of this macros table will have 4 parts: [macroName, macroArguments, macroExpansionText, macroProperties]
 				# (Recall that multi-line macros have alredy been converted to single-line macros).
 				# Find out if this macro takes parameters or not. Remember that by now ALL multi-line macros have already been converted to single-line macros
-				macroTokenListResult = tokenizeLines(lines[i])
-				if macroTokenListResult == False:
-					PRINT ("ERROR in preProcess after calling tokenizeLines(currLine) for currLine =",lines[i] )
-					return False
-				else:
-					macroTokenList = macroTokenListResult[0]
-					
-				if macroTokenList[0] != "#define" :
-					PRINT ("ERROR in preProcess() - Unknown token", macroTokenList[0], " -- exiting!" )
-					return False
-					sys.exit()
-				elif len(macroTokenList) < 2:
-					PRINT ("ERROR in preProcess() - Macro must have a valid name" )
+
+				
+				if len(macroTokenList) < 2:
 					errorMessage = "ERROR in line <%s> - Macro must have a valid name -- exiting!"%lines[i]
 					errorRoutine(errorMessage)
 					return False
-					sys.exit()
 				elif not re.search("^\s*[a-zA-Z_]+\w*", macroTokenList[1]):
 					PRINT ("ERROR in preProcess() - Macro must have a valid name", macroTokenList[1], " -- exiting!" )
 					return False
-					sys.exit()
+				elif macroTokenList[1] in illegalVariableNames:
+					errorMessage = "ERROR in line <%s> - Macro must have a valid name - <%s> is not allow -- exiting!"%(lines[i],macroTokenList[1])
+					errorRoutine(errorMessage)
+					return False
 				
 				macroName = macroTokenList[1]
+				macroProperties = {}
 				
-				# Add this macroName to the definitions available
-				PRINT("For line #",i,", current available definitions are",defsByLines[i])
-				if macroName not in defsByLines[i]:
-					PRINT("Adding", macroName,"to this list")
-					defsByLines[i].append(macroName)
-				else:
-					PRINT("No need to add", macroName,"to this list since it already exists there")
-				
-				#TO-DO: Need to check that the macroName is NOT a keyword
-				# currLine
-				# First handle the case that the macro takes no arguments
-				if re.search("^\s*#define\s+[a-zA-Z_]+\w*\s*$", lines[i]) or re.search("^\s*#define\s+[a-zA-Z_]+\w*\s+\S*", lines[i]):
-					PRINT ("Macro ", macroName,"takes NO arguments" )
-					# First handle the case that the macro resolves to NULL
-					if re.search("^\s*#define\s+[a-zA-Z_]+\w*\s*$", lines[i]):
-						macroExpansionText = ""
-					elif re.search("^\s*#define\s+[a-zA-Z_]+\w*\s+\S*", lines[i]):
-						# Find the expansion text
-						macroExpansionText = re.sub("^\s*#define\s+%s\s+"% macroName,"", lines[i])
-					PRINT (("Macro <%s> expands to <%s>"%(macroName,macroExpansionText)) )
-					# replace the macro invocation with all subsequent lines
-					j=i+1
-					while j<len(lines):
-						# There are some macro invocations that we are not supposed to replace. To make sure we don't hit them again and again, 
-						# this index below always moves forward.
-						checkForMacroFromTokenIndex = 0
-						while True:
-							tokenizeLinesOutputResult = tokenizeLines(lines[j])
-							if tokenizeLinesOutputResult == False:
-								PRINT ("ERROR in after calling tokenizeLines(lines[j]) for lines[",j,"] =", lines[j] )
-								return False
-							else:
-								tokenizeLinesOutput = tokenizeLinesOutputResult[0]
-							
-							# We have the problem that we are NOT supposed to replace the macroname in some very special cases (like #ifdef etc.)
-							# But, if you just keep checking if macroName in full tokenizeLinesOutput, you will always get a false hit for those special cases, 
-							# since those matches are never going to be replaced.
-							# So, we need an alternative approach. Every time we get a hit, we only check from the susequent token in the next run.
-							if checkForMacroFromTokenIndex<len(tokenizeLinesOutput) and macroName in tokenizeLinesOutput[checkForMacroFromTokenIndex:]: 
-							
-								macroNameFoundAtIndex = checkForMacroFromTokenIndex+tokenizeLinesOutput[checkForMacroFromTokenIndex:].index(macroName)
-								# Do not replace it if it is a #undef(macroName) / #ifdef(macroName) / #ifndef(macroName), or a defined(macroName) in a #if statement
-								if tokenizeLinesOutput[0] in ('#undef', '#ifdef', '#ifndef'):
-									checkForMacroFromTokenIndex = macroNameFoundAtIndex+1
-									PRINT("Found", macroName,"at token index",macroNameFoundAtIndex)
-									if checkForMacroFromTokenIndex != 2:
-										PRINT("Which is an error")
-										sys.exit()
-									continue
-								elif tokenizeLinesOutput[0] in ('#if') and tokenizeLinesOutput[macroNameFoundAtIndex-2]=='defined' and tokenizeLinesOutput[macroNameFoundAtIndex-1]=='(' and tokenizeLinesOutput[macroNameFoundAtIndex+1]==')' :
-									checkForMacroFromTokenIndex = macroNameFoundAtIndex+2
-									PRINT("Found", macroName,"at token index",macroNameFoundAtIndex,", as part of",tokenizeLinesOutput[macroNameFoundAtIndex-2:macroNameFoundAtIndex+2])
-									continue
-								
-								PRINT ("BEFORE invoking macro", macroName, "line #",j," = <",lines[j],">" )
-								macroInvocationLocation = findTokenListInLines(lines[j],macroName)
-								if macroInvocationLocation == False:
-									PRINT ("ERROR after calling findTokenListInLines(lines[j],macroName) for lines[",j,"] = ",lines[j]," and macroName =",macroName )
-									return False
-								elif macroInvocationLocation[1] != 0 or macroInvocationLocation[3] != 0 or lines[j][macroInvocationLocation[2]:macroInvocationLocation[4]+1] != macroName:
-									PRINT ("ERROR in preProcess() - the match must happen within current line, while its occurrence location is", macroInvocationLocation )
-									PRINT ("and the lines[",j,"][",macroInvocationLocation[2],":",macroInvocationLocation[4]+1,"] = <",lines[j][macroInvocationLocation[2]:macroInvocationLocation[4]+1],">, while macroName = <",macroName,">" )
-									return False
-									sys.exit()
-								else:
-									
-									PRINT ("The macro", macroName,"appears in line #",j+macroInvocationLocation[1],"char #",macroInvocationLocation[2] )
-									lines[j] = lines[j][:macroInvocationLocation[2]]+macroExpansionText+lines[j][macroInvocationLocation[4]+1:]
-	#								lines[j]=re.sub(macroName,macroExpansionText,lines[j])
-									PRINT ("AFTER invoking macro", macroName, "line #",j," = <",lines[j],">" )
-									runWhileLoopAgain = True
-							else:
-								break
-						j=j+1
-						
-				# Next handle the case that the macro takes arguments (where there is no gap between the macro name and the following parenthesis)
-				elif re.search("^#define\s+[a-zA-Z_]+\w*\(", lines[i]):
-				
+				if re.search("^\s*#define\s+[a-zA-Z_]+\w*\s*$", lines[i]): # No argument, no body (basically, a blank macro)
+					macroArguments = ""		# We do not use [] to differentiate the case when a macro behaves like a function with zero argument, like NEWMACRO()
+					macroExpansionText = ""
+					macroExpansionTextTokenized = []
+				elif re.search("^\s*#define\s+[a-zA-Z_]+\w*\s+\S*", lines[i]): # No argument, but has a macro body
+					macroArguments = ""		# We do not use [] to differentiate the case when a macro behaves like a function with zero argument, like NEWMACRO()
+					macroExpansionText = re.sub("^#define\s+[a-zA-Z_]+\w*\s+","",lines[i])
+					macroExpansionTextTokenized = macroTokenList[2:]
+				elif re.search("^#define\s+[a-zA-Z_]+\w*\(", lines[i]): # Has arguments
+					if macroTokenList[2] != '(' or ')' not in macroTokenList[3:]:
+						errorMessage = "ERROR in preProcess() - No ending parenthesis for macro argument list - exiting!"
+						errorRoutine(errorMessage)
+						return False
+					d = matchingBraceDistance(macroTokenList[2:]) 
+					if d < 0:
+						errorMessage = "ERROR in preProcess() - No matching parenthesis for macro argument list - exiting!"
+						errorRoutine(errorMessage)
+						return False
+					else:
+						macroArguments = macroTokenList[2:2+d]
+						macroExpansionText = re.sub("^#define\s+[a-zA-Z_]+\w*\([\w,]*\)\s+","",lines[i])
+						macroExpansionTextTokenized = macroTokenList[2+d+1:]
+
 					variadicMacro = False
 					variadicMacroExplicitArgumentCount = 0
 					variadicMacroArgSpecialName = ""
@@ -5672,17 +5929,17 @@ def preProcess():
 					PRINT ("temp = <",temp,">" )
 					# There cannot be nested parenthesis inside the argument list for macro  definition (it is allowed during invocation, but not during definition)
 					if ")" not in temp:
-						PRINT ("ERROR in preProcess() - No ending parenthesis for macro argument list - exiting!" )
+						errorMessage = "ERROR in preProcess() - No ending parenthesis for macro argument list - exiting!"
+						errorRoutine(errorMessage)
 						return False
-						sys.exit()
 					else:
 						endParenthesis = temp.index(')');
 						if "(" in temp:
 							newBeginParenthesis = temp.index('(');
 							if newBeginParenthesis < endParenthesis:
-								PRINT ("ERROR in  preProcess() : \"\(\" may not appear in macro parameter list" )
+								errorMessage = "ERROR in  preProcess() : \"\(\" may not appear in macro parameter list"
+								errorRoutine(errorMessage)
 								return False
-								sys.exit()
 						macroArgumentsDefined = "("+temp[:endParenthesis]+")"
 						tokenizeLinesOutputResult = tokenizeLines(macroArgumentsDefined)
 						if tokenizeLinesOutputResult == False:
@@ -5725,7 +5982,8 @@ def preProcess():
 						# Remember that for variadic macros with a special name for ... , we have deleted that token	
 						argumentList = parseArgumentList(tokenizeLinesOutput)
 						if argumentList == False:
-							PRINT ("Exiting - Error parsing for arguments in tokenized version of",macroArgumentsDefined )
+							errorMessage ("Exiting - Error parsing for arguments in tokenized version of " + STR(tokenizeLinesOutput) )
+							errorRoutine(errorMessage)
 							return False
 							sys.exit()
 						PRINT ("The macro",macroName,"takes the following argument list:",argumentList )
@@ -5738,13 +5996,13 @@ def preProcess():
 							argIndexJ = argIndexI + 1
 							while argIndexJ < len(argumentList):
 								if argumentList[argIndexI] == argumentList[argIndexJ]:
-									PRINT ("ERROR  in preProcess() - Macro", macroName, "has repeated argument, argumentList[",argIndexI,"] =",argumentList[argIndexI], "is same as argumentList[",argIndexJ,"]=", argumentList[argIndexJ] )
+									errorMessage = "ERROR  in preProcess() for argument list " + STR(tokenizeLinesOutput) + " for Macro <"+ macroName + "> has repeated argument, argumentList["+STR(argIndexI)+"] ="+ STR(argumentList[argIndexI]), " is same as argumentList[" + STR(argIndexJ)+"]="+ STR(argumentList[argIndexJ])
+									errorRoutine(errorMessage)
 									return False
-									sys.exit()
 								argIndexJ = argIndexJ + 1
 							argIndexI = argIndexI + 1	
 
-						PRINT("The argument list for this macro is valid")
+						PRINT("Valid argument list for macro ",macroName)
 						
 						# TO-DO: Can we have a case like where macro expansion text contains a quoted string literal that spills over to the next line?
 						macroExpansionText = temp[endParenthesis+1:].strip()
@@ -5796,7 +6054,7 @@ def preProcess():
 								d = matchingBraceDistance(temp[findIndex+1:])
 								if d < 0:
 									errorMessage = "ERROR in preProcess - no matching ) for __VA_OPT__"
-									errorMessage(errorRoutine)
+									errorRoutine(errorMessage)
 									return False
 								del temp[findIndex:findIndex+1+d+1]
 							else:
@@ -5804,7 +6062,7 @@ def preProcess():
 								
 						if '__VA_OPT__' in temp:
 							errorMessage = "ERROR in preProcess - illegal __VA_OPT__"
-							errorMessage(errorRoutine)
+							errorRoutine(errorMessage)
 							return False
 						
 						PRINT("After handling __VA_OPT__(), tokenizeLinesOutput for macro expansion text =",temp)
@@ -5826,256 +6084,252 @@ def preProcess():
 							sys.exit()
 						else:
 							PRINT ("============================\nnull__VA_ARGS__macroExpansionTextAST = \n", null__VA_ARGS__macroExpansionTextAST )
-						
-						# So, after all these, we use the following method.
-						# - If the macro is variadic and __VA_ARGS__ is null, use null__VA_ARGS__macroExpansionTextAST.
-						# - For all other cases, use macroExpansionTextAST.
-						
-						# replace the macro invocation with all subsequent lines
-						j=i+1
-						while j<len(lines):
-							# TO-DO: A single might have multiple invocations of the same macroName, so need to put it in a while loop
-#							macroInvocationLineTokenized = tokenizeLines(lines[j])
-							# TO-DO: Handle the case of multiple invocations of the same macro in a single line
-							# MannaManna - is it even valid syntax for python???
-							while tokenizeLines(lines[j]) != False and macroName in tokenizeLines(lines[j])[0]: # Do not use simple string matching, because the macroName might appear part of a literal or a string
-								macroInvocationLineTokenizedResult = tokenizeLines(lines[j])
-								if macroInvocationLineTokenizedResult == False:
-									PRINT ("Exiting - Error tokenizing lines[",j,"] = ",lines[j] )
-									return False
-								else:
-									macroInvocationLineTokenized = macroInvocationLineTokenizedResult[0]
-									
-								macroInvokedTokenIndex = macroInvocationLineTokenized.index(macroName)
-								PRINT ("Found macro-with-argument <",macroName,"> in line #",j,"=<",lines[j],">, which has been tokenized as",macroInvocationLineTokenized )
-								PRINT ("The macro invocation is at token #", macroInvokedTokenIndex )
-								# We do this because the parseArithmeticExpression routine expects the function name
-								# If we just give the (A, B, C) kind of text instead of the expected func(A, B, C), it might error out
-								macroExpansionScope = macroName		
-								MacroParametersFound = False
-								k = j
-								macroNamePosition = findTokenListInLines(lines[k:],macroName)
-								if macroNamePosition == False:
-									PRINT ("ERROR after calling findTokenListInLines(lines[k:],macroName) for lines[",k,":] =", lines[k:], " and macroName =",macroName )
-									return False
-								PRINT ("Macro", macroName," found at",macroNamePosition," relative to line #" ,k )
-								if (macroNamePosition[0] < 0 or macroNamePosition[1] != 0 or macroNamePosition[2] < 0 or macroNamePosition[2] >= len(lines[k]) or 
-										  					    macroNamePosition[3] != 0 or macroNamePosition[4] < 0 or macroNamePosition[4] >= len(lines[k])): #Shouldn't happen
-									PRINT ("ERROR in preProcess() - weird error - Apparently no match for macro", macroName,"in line #",k," = ",lines[k] )
-									return False
-									sys.exit()
-								elif macroNamePosition[2] == 0:
-									stringBeforeMacroName = ""
-								else:
-									stringBeforeMacroName = lines[k][:macroNamePosition[2]]
-								
-								stringAfterMacroName = lines[k][macroNamePosition[4]+1:]
-								PRINT ("The stringBeforeMacroName <", macroName, "> = <",stringBeforeMacroName,">, k=",k )
-								PRINT ("The stringAfterMacroName <", macroName, "> = <",stringAfterMacroName,">, k=",k )
-						
-								'''
-								# This code below will fail if the macroName occurs inside a string before the actual macro invocation
-								# We are just keeping it for some time to ensure that we are getting correct results. Ultimately it will be deleted
-								stringBeforeMacroNameAlternate = re.split(macroName,lines[k],1)[0]	# We don't strip since we want to preserve as much of it as possible
-								stringAfterMacroNameAlternate  = re.split(macroName,lines[k],1)[1]
-								if stringBeforeMacroName != stringBeforeMacroNameAlternate or stringAfterMacroName != stringAfterMacroNameAlternate:
-									PRINT ("WARNING - watch out for possible errors" )
-									PRINT ("The stringBeforeMacroName          <", macroName, "> = <",stringBeforeMacroName,">" )
-									PRINT ("The stringBeforeMacroNameAlternate <", macroName, "> = <",stringBeforeMacroNameAlternate,">" )
-									PRINT ("The stringAfterMacroName          <", macroName, "> = <",stringAfterMacroName,">" )
-									PRINT ("The stringAfterMacroNameAlternate <", macroName, "> = <",stringAfterMacroNameAlternate,">" )
-								'''
-								# The macro argument list could be distributed over many lines
-								restLines = []
-								PRINT ("Currently, lines[%d]=<%s>"%(k,lines[k]) )
-								if macroNamePosition[4] < len(lines[k])-1:
-#									PRINT ("Appending <%s> to restLines, curretly k=%d"%(lines[k][macroNamePosition[4]+1:],k) )
-									restLines.append(lines[k][macroNamePosition[4]+1:])
-								lineIndex = k+1
-								while lineIndex < len(lines):
-#									PRINT ("Appending <%s> to restLines"%lines[lineIndex] )
-									restLines.append(lines[lineIndex])
-									lineIndex = lineIndex + 1
-								
-								PRINT ("Now going to tonize restLines = ",restLines )
-								invocationTokensResult = tokenizeLines(restLines)	# This contains the parenthesized arguments, plus whatever comes after
-								if invocationTokensResult == False:
-									PRINT ("Error while tokenizeLines(restLines) where restLines = ", restLines )
-									return False
-								else:
-									invocationTokens = invocationTokensResult[0]
-									
-								endMatchingBraceDistance = matchingBraceDistance(invocationTokens)	# This tells exactly where the end-brace for the parenthesized arguments occur
-								if endMatchingBraceDistance < 1:
-									PRINT ("Did not find argument list for macro",macroName,"in line #",j, invocationTokens )
-									return False
-									sys.exit()
-								else:
-									invocationTokensArgsOnly = invocationTokens[:endMatchingBraceDistance+1]
-									PRINT("invocationTokensArgsOnly = <",invocationTokensArgsOnly,">, which we will parse for splitting the arguments")
-									argListInvoked = parseArgumentList(invocationTokensArgsOnly)
-									if argListInvoked == False:
-										PRINT ("Exiting - ERROR during parsing",invocationTokensArgsOnly,"for arguments" )
-										return False
-										sys.exit()
-									PRINT ("After parsing, the argument list for macro",macroName,"invocation in line #",j,"=", argListInvoked )
-									
-									# Verify that it matches the macro's argument count
-									
-									# For variadic Macro, the variable part of argument list might be empty. But any explicit argument must be provided
-									if variadicMacro and variadicMacroExplicitArgumentCount > len(argListInvoked):
-										errorMessage = "ERROR in preProcess() - len(argListInvoked) =" + STR(len(argListInvoked)) + "< variadicMacroExplicitArgumentCount =" + STR(variadicMacroExplicitArgumentCount)
-										erroRoutine(errorMessage)
-										return False
-									# For non-variadic Macro, the argument list count must match
-									elif not variadicMacro and len(argListInvoked) != len(argumentList):
-										errorMessage = "ERROR  in preProcess() - len(argListInvoked) =" + STR(len(argListInvoked)) + "!= len(argumentList) =" + STR(len(argumentList) )
-										erroRoutine(errorMessage)
-										return False
-									else:
-										macroIsVariadicWithNull__VA_ARGS__ = False
-										# If variadic macro, just create a single comma-separated string with all the excess arguments. This will be input 
-										if variadicMacro: 
-											PRINT("Original",len(argListInvoked),"-member argListInvoked =",STR(argListInvoked))
-											
-											# Handle a special case - if the code mentions the last argument as NULL like this below, then convert it to a blank string
-											#
-											#  #define eprintf(format, ...) fprintf (stderr, format, __VA_ARGS__)
-											#  eprintf("success!\n", );		// Observe that the coder didn't code it as <eprintf("success!\n");> - there is a comma at the end
-											if argListInvoked[-1]==[]:
-												argListInvoked[-1] = ''
-												PRINT("Which is then changed to",len(argListInvoked),"-member argListInvoked =",STR(argListInvoked))
-												
-											if variadicMacroExplicitArgumentCount + 1 == len(argListInvoked):
-												PRINT("Exactly one argument supplied against __VA_ARGS__ , hence no special processing required")
-											elif variadicMacroExplicitArgumentCount == len(argListInvoked):	# The __VA_ARGS__ part is null
-												PRINT("Adding a dummy NULL string to be used as a replacement for the __VA_ARGS__")
-												argListInvoked.append("")	
-												macroIsVariadicWithNull__VA_ARGS__ = True
-											else:
-												commaSeparated__VA_ARGS__ = ",".join(argListInvoked[variadicMacroExplicitArgumentCount:])
-												del argListInvoked[variadicMacroExplicitArgumentCount:]
-												argListInvoked.append(commaSeparated__VA_ARGS__)
-											PRINT("Transformed",len(argListInvoked),"-member argListInvoked =",STR(argListInvoked))
-											if len(argListInvoked) != len(argumentList):
-												OUTPUT("ERROR - should never happen")
-												sys.exit()
-												
-										PRINT ("The argument count (",len(argumentList),") is acceptable" )
-										
-										# Now replace the macro expansion AST
-										
-										PRINT ("\n\n\n=============================================================\nCreating the replacement dictionary")
-										argumentInvocationDictionary = OrderedDict()
-										for argIndex in range(len(argumentList)):
-											# TO-DO: Here is a question - do we replace it with the literal, or the AST version of it?
-											# Problem - there is no guarantee that a parameter passed to a macro will be a properly formed AST
-											argInvokedAST = parseArithmeticExpression(argListInvoked[argIndex])
-											if argInvokedAST == False:
-												errorMessage = "ERROR after calling parseArithmeticExpression(argListInvoked[argIndex]) for argListInvoked["+STR(argIndex)+"] ="+STR(argListInvoked[argIndex]) 
-												erroRoutine(errorMessage)
-												return False
-											else:
-												PRINT ("Replacing",argumentList[argIndex],"with",argInvokedAST )
-												argumentInvocationDictionary[argumentList[argIndex]]=argInvokedAST
-										PRINT ("argumentInvocationDictionary =",argumentInvocationDictionary )
-										PRINT ("=============================================================\n\n\n")
-										# Recall the following.
-										# - If the macro is variadic and __VA_ARGS__ is null, use null__VA_ARGS__macroExpansionTextAST.
-										# - For all other cases, use macroExpansionTextAST.
-										if macroIsVariadicWithNull__VA_ARGS__:
-											PRINT ("null__VA_ARGS__macroExpansionTextAST =",null__VA_ARGS__macroExpansionTextAST )
-											# This is the precise place where we are actually doing the macro expansion
-											functionCallResult = replaceArguments (null__VA_ARGS__macroExpansionTextAST, argumentInvocationDictionary)
-										else:
-											PRINT ("macroExpansionTextAST =",macroExpansionTextAST )
-											# This is the precise place where we are actually doing the macro expansion
-											functionCallResult = replaceArguments (macroExpansionTextAST, argumentInvocationDictionary)
-										if functionCallResult[0] == False:
-											PRINT ("Exiting - ERROR while invoking function replaceArguments for macroExpansionTextAST=", macroExpansionTextAST," and argumentInvocationDictionary =",argumentInvocationDictionary )
-											return False
-										argListInvokedReplaced = functionCallResult[1]
-										if '##' in macroExpansionText:
-											argListInvokedReplacedDoubleHash = applyDoubleHashOperator(argListInvokedReplaced)
-										else:
-											argListInvokedReplacedDoubleHash = argListInvokedReplaced
-										PRINT ("\n\n\n#### BEGIN ####=============================================================\n\n\n\n")
-										PRINT ("macroExpansionText = ",macroExpansionText )
-										PRINT ("argumentList = ",argumentList )
-										PRINT ("argListInvoked = ",argListInvoked )
-										PRINT ("macroExpansionTextAST = ",macroExpansionTextAST )
-										PRINT ("argListInvokedReplaced = ", argListInvokedReplaced )
-										PRINT ("argListInvokedReplacedDoubleHash = ",argListInvokedReplacedDoubleHash )
-										argListInvokedReplacedText = outputTextArithmeticExpressionFromAST(argListInvokedReplacedDoubleHash)
-										if argListInvokedReplacedText == False:
-											PRINT ("ERROR after calling outputTextArithmeticExpressionFromAST(argListInvokedReplacedDoubleHash) for argListInvokedReplacedDoubleHash =",argListInvokedReplacedDoubleHash )
-											return False
-										PRINT ("argListInvokedReplacedText =",argListInvokedReplacedText )
-										PRINT ("\n\n\n\n#### END ####=============================================================\n\n\n")
-										
-										# Now replace the text
-										macroInvocationSuffix = ""
-										macroExpansionPosition = findTokenListInLines(restLines,invocationTokensArgsOnly)
-										if macroExpansionPosition == False:
-											PRINT ("ERROR after calling findTokenListInLines(restLines,invocationTokensArgsOnly) for restLines =",restLines," and invocationTokensArgsOnly =",invocationTokensArgsOnly )
-											return False
-										elif macroExpansionPosition[0]<0 or macroExpansionPosition[1]<0 or macroExpansionPosition[2]<0 or macroExpansionPosition[3]<0 or macroExpansionPosition[4]<0:
-											PRINT ("ERROR in preProcess() : Was looking for ",invocationTokensArgsOnly, "inside <",restLines )
-											PRINT ("macroExpansionPosition = ",macroExpansionPosition )
-											return False
-											sys.exit()
-										else:
-											if macroExpansionPosition[4]<len(restLines[macroExpansionPosition[3]])-1:
-												macroInvocationSuffix = restLines[macroExpansionPosition[3]][macroExpansionPosition[4]+1:]
-												
-										# TO-DO: Currently we are putting a space before joining the below 3 fragments so that we accidentally do not concatenate variable names.
-										# TO-DO: Try to see if we can do it in a better way (it is currently pretty much a hack).
-										newLineAfterMacroInvocation = stringBeforeMacroName + " " + argListInvokedReplacedText + " " + macroInvocationSuffix
-										impactedLines = lines[k:k+macroExpansionPosition[3]+1]
-										PRINT ("impactedLines = <%s>"%impactedLines )
-										PRINT ("newLineAfterMacroInvocation = <%s>"%newLineAfterMacroInvocation )
-										PRINT ("\n\n\n\n\nPrinting the existing Lines before macro <",macroName, "> invocation replacement" )
-										PRINT ("===============================================" )
-										returnStatus = printLines(lines)
-										if returnStatus == False:
-											return False
-										PRINT ("===============================================" )
-										lines[k] = newLineAfterMacroInvocation
-										delLineIndex = 1
-										while delLineIndex <= macroExpansionPosition[3]:
-											PRINT ("Removing ALL tokens from lines[",k+delLineIndex,"] =",lines[k+delLineIndex],", essentially making it blank line" )
-											lines[k+delLineIndex] = '\n'
-											delLineIndex = delLineIndex + 1
-										PRINT ("===============================================" )
-										PRINT ("\n\n\n\n\nPrinting the existing Lines after macro <",macroName, "> invocation replacement" )
-										PRINT ("===============================================" )
-										returnStatus = printLines(lines)
-										if returnStatus == False:
-											return False
-										PRINT ("===============================================" )
-								
-							j=j+1
-						
-				else:
-					PRINT (("currLine = <%s>"%lines[i]) )
-					PRINT ("Error in preProcess() in Macro argument-checking code - exiting" )
-					return False
-					sys.exit()
-				
-				
-			i=i+1
+							
 
-			# After all the lines have been processed, we need to run the comment and macro processing again just in case there are such statements inside the included file
+				# macroDefinitions[] is a list of [macroName, macroArguments, macroExpansionText, macroProperties]
+
+				# The fourth term, macroProperties{} has variable number of entries depending on what kind of macro it is.
+
+				# Updated for all macros
+				macroProperties["macroExpansionTextTokenized"] = macroExpansionTextTokenized
+				
+				# Special cases when the macro takes arguments
+				if macroArguments != "":
+					macroProperties["argumentList"] = argumentList
+					macroProperties["macroExpansionTextAST"] = macroExpansionTextAST
+					macroProperties["variadicMacro"] = variadicMacro
+				
+					# Special cases when the macro takes variable arguments
+					if variadicMacro:
+						macroProperties["variadicMacroExplicitArgumentCount"] = variadicMacroExplicitArgumentCount
+						macroProperties["variadicMacroArgSpecialName"] = variadicMacroArgSpecialName
+						macroProperties["null__VA_ARGS__macroExpansionTextAST"] = null__VA_ARGS__macroExpansionTextAST
+				
+				# First find out if it already exists on macroDefinitions or not. That is an ordered array of [macroName, macroArguments, macroExpansionText, macroProperties]
+				
+				if macroName in currentMacroNames:
+					macroIndex = currentMacroNames.index(macroName)
+					# Sanity check once again
+					if len(currentMacroNames) != len(macroDefinitions) or not isinstance(macroDefinitions[macroIndex],list) or macroDefinitions[macroIndex][0] != currentMacroNames[macroIndex]:
+						OUTPUT("Coding error - currentMacroNames and macroDefinitions out of sync - exiting")
+						OUTPUT("\ncurrentMacroNames =",STR(currentMacroNames),"\n", "macroDefinitions =",STR(macroDefinitions))
+						sys.exit()
+					PRINT("Re-definition of existing macro", macroName, "at macroIndex =",macroIndex,", of currentMacroNames. Exiting entry =",macroDefinitions[macroIndex])
+					PRINT("updating existing entry.")
+					macroDefinitions[macroIndex] = [macroName, macroArguments, macroExpansionText, macroProperties]
+				else:
+					PRINT("New definition of existing macro", macroName, " - adding it at the end of the array.")
+					macroDefinitions.append([macroName, macroArguments, macroExpansionText, macroProperties])
+					currentMacroNames.append(macroName)
+				
 			
-			# Remove Multi-line comments
-			removeComments()
+			##########################################################
+			##														##
+			##					# U N D E F							##
+			##														##
+			##########################################################
+
+			elif macroTokenList[0] == "#undef":	# Not a #define statement
+				if len(macroTokenList)<2:
+					errorMessage = "ERROR in preProcess() - #undef must have some valid macroname"
+					errorRoutine(errorMessage)
+					return False
+				elif macroTokenList[1] not in currentMacroNames:
+					warningMessage = "ERROR in preProcess() - #undef must have some valid macroname"
+					warningRoutine(warningMessage)
+					continue
+				else:
+					macroIndex = currentMacroNames.index(macroName)
+					# Sanity check once again
+					if len(currentMacroNames) != len(macroDefinitions) or not isinstance(macroDefinitions[macroIndex],list) or macroDefinitions[macroIndex][0] != currentMacroNames[macroIndex]:
+						OUTPUT("Coding error - currentMacroNames and macroDefinitions out of sync - exiting")
+						OUTPUT("\ncurrentMacroNames =",STR(currentMacroNames),"\n", "macroDefinitions =",STR(macroDefinitions))
+						sys.exit()
+					PRINT("Removing definition of existing macro", macroName, "at macroIndex =",macroIndex,", of currentMacroNames. Exiting entry =",macroDefinitions[macroIndex])
+					del currentMacroNames[macroIndex]
+					del macroDefinitions[macroIndex]
+					
+					if len(currentMacroNames) != len(macroDefinitions) or macroTokenList[1] in currentMacroNames:
+						errorMessage = "ERROR in preProcess() - #undef "+ macroTokenList[1] + " did not work"
+						errorRoutine(errorMessage)
+						return False
+						
+			elif macroTokenList[0] == '#error':
+				warningMessage = "This tool currently ignores all #error statements: <"+lines[i]+">"
+				warningRoutine(warningMessage)
+			elif macroTokenList[0] == '#line':
+				warningMessage = "This tool currently ignores all #line statements: <"+lines[i]+">"
+				warningRoutine(warningMessage)
+
 			
-			# Condense each Multi-line Macro into a single-line macro 
-			status = condenseMultilineMacroIntoOneLine()
-			if status == False:
-				errorMessage = "ERROR in preProcess() after calling condenseMultilineMacroIntoOneLine()"
-				errorRoutine(errorMessage)
-				return False
+			##########################################################
+			##														##
+			##		  #IF - #IFDEF - #IFNDEF - #ELIF				##
+			##														##
+			##########################################################
+			
+
+			elif macroTokenList[0] in ('#if','#ifdef','#ifndef','#elif'):
+			
+				# First figure out the which all source code statements are impacted by this if statement.
+				# There might be multiple code blocks between the if-elif-elif-else-endif statements, but only one of them would succeed.
+				checkPreprocessingDirectivesInterleavingResult = checkPreprocessingDirectivesInterleaving(lines[i:])
+				if checkPreprocessingDirectivesInterleavingResult == False:
+					errorMessage = "ERROR in preProcess() after calling checkPreprocessingDirectivesInterleaving() from line %i"%i
+					errorRoutine(errorMessage)
+					return False
+				else:
+					scope = checkPreprocessingDirectivesInterleavingResult
+
+				PRINT("For line #",i," the scope for the if-elif-else-endif is",scope)
+				
+				# Recall that the the line numbers returned from checkPreprocessingDirectivesInterleaving() are relative, i.e. they start from 0.
+				# So, you need to add the current line number to get any absolute line number
+				k = 0
+
+				# Out of the many if-elif-elif-else-endif code blocks, only one will succeed. And once that succeeds, the rest must be deleted irrespecive of
+				# whether corresponding #elif condition evaluates to True or not
+				ifConditionTruthValueAlreadyFound = False
+				
+				while k<len(scope):
+					targetLineNumber = scope[k][0]+i
+					PRINT("Tokenizing line #",targetLineNumber)
+
+					deleteCodeBlock = False
+					
+					# If we already had one of the if-elif-elif-else-endif condition
+					if ifConditionTruthValueAlreadyFound:
+						deleteCodeBlock = True
+					else:
+						PRINT("Going to tokenizeLines(\"",lines[targetLineNumber],"\")")
+						tokenizeLinesResult = tokenizeLines(lines[targetLineNumber])
+						if tokenizeLinesResult == False:
+							errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s>" %(targetLineNumber,lines[targetLineNumber] )
+							errorRoutine(errorMessage)
+							return False
+						else:
+							PRINT("tokenizeLinesResult =",tokenizeLinesResult)
+							targetLineTokenList = tokenizeLinesResult[0]
+				
+						if targetLineTokenList[0] in ('#if','#ifdef','#ifndef', '#elif') and len(targetLineTokenList)<2:
+							errorMessage = "ERROR in line #"+targetLineNumber+": an "+ targetLineTokenList[0] +" statement must not be empty"
+							errorRoutine(errorMessage)
+							return False
+						elif targetLineTokenList[0] in ('#ifdef','#ifndef') and len(targetLineTokenList)>2:
+							errorMessage = "ERROR in line #"+targetLineNumber+": an "+ targetLineTokenList[0] +" statement must not supply more than one argument"
+							errorRoutine(errorMessage)
+							return False
+						elif targetLineTokenList[0] in ('#else','#endif') and len(targetLineTokenList)>1:
+							errorMessage = "ERROR in line #"+targetLineNumber+": an "+ targetLineTokenList[0] +" statement must not supply more than one argument"
+							errorRoutine(errorMessage)
+							return False
+						
+						# Calculate the if condition result (True or False)
+						ifConditionEvaluationResult = False	# The default value
+
+						if targetLineTokenList[0] == '#else': 	# If you are falling on an #else, it is by defintion true
+							ifConditionEvaluationResult = True
+							PRINT("The '#else' succeeded")
+						elif targetLineTokenList[0] == '#ifdef': 
+							if targetLineTokenList[1] in currentMacroNames:
+								ifConditionEvaluationResult = True
+								PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' succeeded")
+							else:
+								PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' failed")
+						elif targetLineTokenList[0] == '#ifndef': 
+							if targetLineTokenList[1] not in currentMacroNames:
+								ifConditionEvaluationResult = True
+								PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' succeeded")
+							else:
+								PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' failed")
+						elif targetLineTokenList[0] in ('#if','#elif'):
+							
+							# Handle one special case - before calling parseArithmeticExpression(), we must resolve the case of defined().
+							# This is because parseArithmeticExpression() is agnostic of exactly where in the source file the code is,
+							# but the result of a defined(symbol) depends precisely on that. So parseArithmeticExpression() cannot
+							# figure that out. So, we handle it locally first. We relace the defined(symbol) with 1 or 0.
+							
+							if 'defined' in targetLineTokenList:
+								currLineTokenListTransformed = targetLineTokenList
+								while True:
+									if 'defined' in currLineTokenListTransformed:
+										definedIndex = currLineTokenListTransformed.index('defined')
+										if definedIndex +3 < len(currLineTokenListTransformed) and currLineTokenListTransformed[definedIndex+1] == '(' and currLineTokenListTransformed[definedIndex+3] == ')':
+											symbolToCheckIfDefined = currLineTokenListTransformed[definedIndex+2]
+											#replace the 'defined' token with 1 or 0, and delete the three subsequent tokens signifying (symbol)
+											PRINT("Looking for Symbol", symbolToCheckIfDefined,"in currentMacroNames =",STR(symbolToCheckIfDefined))
+											if symbolToCheckIfDefined in currentMacroNames:
+												currLineTokenListTransformed[definedIndex] = '1'
+												PRINT("Found it - replacing defined(",symbolToCheckIfDefined,") with 1")
+											else:
+												currLineTokenListTransformed[definedIndex] = '0'
+												PRINT("Did not find it - replacing defined(",symbolToCheckIfDefined,") with 0")
+											del currLineTokenListTransformed[definedIndex+1:definedIndex+4]
+									else:
+										break
+								targetLineTokenList = currLineTokenListTransformed
+								
+						
+							parseArithmeticExpressionResult = parseArithmeticExpression(targetLineTokenList[1:])
+							if parseArithmeticExpressionResult == False:
+								errorMessage = "ERROR in preProcess() parsing <%s>"%tokenizeLinesResult
+								errorRoutine(errorMessage)
+								return False
+								
+							evaluateArithmeticExpressionResult = evaluateArithmeticExpression(parseArithmeticExpressionResult)
+							PRINT("evaluateArithmeticExpression(",STR(parseArithmeticExpressionResult),") evaluates to", evaluateArithmeticExpressionResult)
+							if evaluateArithmeticExpressionResult[0] == False:
+								errorMessage = "ERROR in preProcess() evaluating <%s>"%evaluateArithmeticExpressionResult
+								errorRoutine(errorMessage)
+								return False
+							elif evaluateArithmeticExpressionResult[1] == 1:	# Truth value in C is 1, not True of Python
+								ifConditionEvaluationResult = True
+							elif evaluateArithmeticExpressionResult[1] == 0:	# False value in C is 0, not False of Python
+								ifConditionEvaluationResult = False
+							else:
+								errorMessage = "ERROR in preProcess() evaluating <%s> - it is not 1 or 0"%evaluateArithmeticExpressionResult
+								errorRoutine(errorMessage)
+								return False
+								
+							if ifConditionEvaluationResult == True:
+								PRINT("The if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> succeeded")
+							else:
+								PRINT("The if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> failed")
+
+						if ifConditionEvaluationResult == True:
+							ifConditionTruthValueAlreadyFound = True
+							PRINT("The overall if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> succeeded")
+						else:
+							PRINT("The overall if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> failed")
+							deleteCodeBlock = True
+						
+						
+					# Now that we have calculated the if condition result (True or False), delete the if statements and corresponding non-executing code blocks
+					if not deleteCodeBlock or k == len(scope)-1:
+						numLinesToDelete = 1
+					else:
+						numLinesToDelete = scope[k+1][0] - scope[k][0]
+						
+					PRINT ("Going to delete line",scope[k][0]+i,"through line",scope[k][0]+i+numLinesToDelete-1," - a total of",numLinesToDelete,"lines" )
+					d = 0
+					while d < numLinesToDelete:
+						lines[scope[k][0]+i+d] = ""
+						d += 1
+					k += 1
+					
+			i = i+1
+				
+		# After all the lines have been processed, we need to run the comment and macro processing again just in case there are such statements inside the included file
+		
+		# Remove Multi-line comments
+		removeComments()
+		
+		# Condense each Multi-line Macro into a single-line macro 
+		status = condenseMultilineMacroIntoOneLine()
+		if status == False:
+			errorMessage = "ERROR in preProcess() after calling condenseMultilineMacroIntoOneLine()"
+			errorRoutine(errorMessage)
+			return False
 			
 			
 #		PRINT ("======================\nAFTER handling multi-line macros\n======================" )
@@ -10284,6 +10538,11 @@ def dumpDetailsForDebug(MUST=False):
 		for item in globalScopesSelected:
 			PRINT (item)
 			PRINT (variableDeclarations[item[0]][0])
+	PRINT ("currentMacroNames =",currentMacroNames)
+	PRINT ("macroDefinitions = ")
+	for item in macroDefinitions:
+		PRINT (item)
+	PRINT ("\n\n","==="*50)
 	PRINT ("variablesAtGlobalScopeSelected =",variablesAtGlobalScopeSelected)
 	PRINT ("variablesAtGlobalScopeSelected =",[variableDeclarations[item][0] for item in variablesAtGlobalScopeSelected])
 	PRINT ("variableSelectedIndices =",variableSelectedIndices)
