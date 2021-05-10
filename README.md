@@ -58,9 +58,9 @@
      The reason it displays the expression like that is so that you can know what the macro was actually expanded to, and
      also if there was anything wrong with the evaluation of the macro expansion expression.
 
-    Although Tcl/Tk allows you to write on this Interpret code Window, please DO NOT WRITE here. Treat it as read-only.
-    It is a bit of pain to make it read-only (redirecting all the key mappings), and I am researching how to do it.
-    The only "magic" in this window is when you bring your cursor over the variable names, but before that the "map" must happen.
+   Although Tcl/Tk allows you to write on this Interpret code Window, please DO NOT WRITE here. Treat it as read-only.
+   It is a bit of pain to make it read-only (redirecting all the key mappings), and I am researching how to do it.
+   The only "magic" in this window is when you bring your cursor over the variable names, but before that the "map" must happen.
 
    Once you can see the interpreted code in the Interpreted code window, the code will still be black-colored - there is no coloring.
    The Coloring only happens if you "map" the code to the data on the right. So, using your mouse, make a selection.
