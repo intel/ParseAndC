@@ -99,27 +99,27 @@
 
    Another thing to remember is that in C, even if we define a named struct within another struct (basically, "nested" declaration),
    Then even that nested struct defition becomes global. You cannot define 2 nested structs with the same name. 
-    _________________________________________________________________________________________________________________
-   |                       |                       |                                |                                |
-   |  Case 1               |  Case 2               |  Case 3                        |  Case 4  (not possible)        |
-   |_______________________|_______________________|________________________________|________________________________|
-   |                       |                       |                                |                                |
-   | struct A{             | struct B{             | typedef struct C{              | typedef struct D{              |
-   |          int i_a;     |          int i_b;     |                   int i_c;     |                   int i_d;     |
-   |          float f_a;   |          float f_b;   |                   float f_c;   |                   float f_d;   |
-   |          };           |          } varB;      |                  } varC;       |                  };            |
-   |_______________________|_______________________|________________________________|________________________________|
+		_________________________________________________________________________________________________________________
+	   |                       |                       |                                |                                |
+	   |  Case 1               |  Case 2               |  Case 3                        |  Case 4  (not possible)        |
+	   |_______________________|_______________________|________________________________|________________________________|
+	   |                       |                       |                                |                                |
+	   | struct A{             | struct B{             | typedef struct C{              | typedef struct D{              |
+	   |          int i_a;     |          int i_b;     |                   int i_c;     |                   int i_d;     |
+	   |          float f_a;   |          float f_b;   |                   float f_c;   |                   float f_d;   |
+	   |          };           |          } varB;      |                  } varC;       |                  };            |
+	   |_______________________|_______________________|________________________________|________________________________|
 
-    __________________________________________________________________________________________________________________
-   |                       |                       |                                |                                |
-   |  Case 5 (nested only) |  Case 6               |  Case 7                        |  Case 8  (not possible)        |
-   |_______________________|_______________________|________________________________|________________________________|
-   |                       |                       |                                |                                |
-   | struct  {             | struct {              | typedef struct {               | typedef struct {               |
-   |          int i_e;     |          int i_f;     |                   int i_g;     |                   int i_h;     |
-   |          float f_e;   |          float f_f;   |                   float f_g;   |                   float f_h;   |
-   |          };           |          } varF;      |                  } varG;       |                  };            |
-   |_______________________|_______________________|________________________________|________________________________|
+		__________________________________________________________________________________________________________________
+	   |                       |                       |                                |                                |
+	   |  Case 5 (nested only) |  Case 6               |  Case 7                        |  Case 8  (not possible)        |
+	   |_______________________|_______________________|________________________________|________________________________|
+	   |                       |                       |                                |                                |
+	   | struct  {             | struct {              | typedef struct {               | typedef struct {               |
+	   |          int i_e;     |          int i_f;     |                   int i_g;     |                   int i_h;     |
+	   |          float f_e;   |          float f_f;   |                   float f_g;   |                   float f_h;   |
+	   |          };           |          } varF;      |                  } varG;       |                  };            |
+	   |_______________________|_______________________|________________________________|________________________________|
 
 
    Once you have made your selection, then click on the "Map" button.
