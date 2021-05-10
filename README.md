@@ -99,6 +99,8 @@
 
    Another thing to remember is that in C, even if we define a named struct within another struct (basically, "nested" declaration),
    Then even that nested struct defition becomes global. You cannot define 2 nested structs with the same name. 
+   
+
 	    _________________________________________________________________________________________________________________
 	   |                       |                       |                                |                                |
 	   |  Case 1               |  Case 2               |  Case 3                        |  Case 4  (not possible)        |
