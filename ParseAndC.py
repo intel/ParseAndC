@@ -97,31 +97,34 @@
      variable declarations, as if they will create the storage on the stack. This behavior can be modified by clicking on the
      "Mapping typedefs too" button (which will then convert to "Don't map typedefs"), or via the command-line option (-t OFF).
 
-    Also remember that we cannot have typedef statements inside a nested struct definition - it must be at the global level.
 
-    Another thing to remember is that in C, even if we define a named struct within another struct (basically, "nested" declaration),
-    Then even that nested struct defition becomes global. You cannot define 2 nested structs with the same name. 
-    _________________________________________________________________________________________________________________
-   |                       |                       |                                |                                |
-   |  Case 1               |  Case 2               |  Case 3                        |  Case 4  (not possible)        |
-   |_______________________|_______________________|________________________________|________________________________|
-   |                       |                       |                                |                                |
-   | struct A{             | struct B{             | typedef struct C{              | typedef struct D{              |
-   |          int i_a;     |          int i_b;     |                   int i_c;     |                   int i_d;     |
-   |          float f_a;   |          float f_b;   |                   float f_c;   |                   float f_d;   |
-   |          };           |          } varB;      |                  } varC;       |                  };            |
-   |_______________________|_______________________|________________________________|________________________________|
+   Also remember that we cannot have typedef statements inside a nested struct definition - it must be at the global level.
 
-    __________________________________________________________________________________________________________________
-   |                       |                       |                                |                                |
-   |  Case 5 (nested only) |  Case 6               |  Case 7                        |  Case 8  (not possible)        |
-   |_______________________|_______________________|________________________________|________________________________|
-   |                       |                       |                                |                                |
-   | struct  {             | struct {              | typedef struct {               | typedef struct {               |
-   |          int i_e;     |          int i_f;     |                   int i_g;     |                   int i_h;     |
-   |          float f_e;   |          float f_f;   |                   float f_g;   |                   float f_h;   |
-   |          };           |          } varF;      |                  } varG;       |                  };            |
-   |_______________________|_______________________|________________________________|________________________________|
+   Another thing to remember is that in C, even if we define a named struct within another struct (basically, "nested" declaration),
+   Then even that nested struct defition becomes global. You cannot define 2 nested structs with the same name. 
+   
+
+	    _________________________________________________________________________________________________________________
+	   |                       |                       |                                |                                |
+	   |  Case 1               |  Case 2               |  Case 3                        |  Case 4  (not possible)        |
+	   |_______________________|_______________________|________________________________|________________________________|
+	   |                       |                       |                                |                                |
+	   | struct A{             | struct B{             | typedef struct C{              | typedef struct D{              |
+	   |          int i_a;     |          int i_b;     |                   int i_c;     |                   int i_d;     |
+	   |          float f_a;   |          float f_b;   |                   float f_c;   |                   float f_d;   |
+	   |          };           |          } varB;      |                  } varC;       |                  };            |
+	   |_______________________|_______________________|________________________________|________________________________|
+
+	    __________________________________________________________________________________________________________________
+	   |                       |                       |                                |                                |
+	   |  Case 5 (nested only) |  Case 6               |  Case 7                        |  Case 8  (not possible)        |
+	   |_______________________|_______________________|________________________________|________________________________|
+	   |                       |                       |                                |                                |
+	   | struct  {             | struct {              | typedef struct {               | typedef struct {               |
+	   |          int i_e;     |          int i_f;     |                   int i_g;     |                   int i_h;     |
+	   |          float f_e;   |          float f_f;   |                   float f_g;   |                   float f_h;   |
+	   |          };           |          } varF;      |                  } varG;       |                  };            |
+	   |_______________________|_______________________|________________________________|________________________________|
 
 
    Once you have made your selection, then click on the "Map" button.
@@ -307,7 +310,7 @@
 
 	The way to invoke this tool is the following:
 	
-	> python2/3 ParseIT.py [options], where the options are:
+	> python2/3 ParseAndC.py [options], where the options are:
 
 	-h, --help                Prints the options available
 	-i, --include             followed by a single string that contains the include file path(s), separated by semicolon
@@ -1246,7 +1249,7 @@ def warningRoutine(message):
 	return
 
 def printHelp():
-	OUTPUT("The way to invoke this tool is the following:\npython2/3 ParseIT.py [options], where the options are:\n")
+	OUTPUT("The way to invoke this tool is the following:\npython2/3 ParseAndC.py [options], where the options are:\n")
 	OUTPUT("-h, --help                Prints the options available")
 	OUTPUT("-i, --include             followed by a single string that contains the include file path(s), separated by semicolon")
 	OUTPUT("-x, --hex                 Prints the integral values in Hex (default is Decimal)")
@@ -7927,7 +7930,6 @@ def parseStructure(tokenList, i, parentStructName, level):
 		
 		
 		
-		
 
 		#  ===================================   This part below needs to be deleted once we implement it correctly ==============================
 		#
@@ -7988,9 +7990,14 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#      That's a increase from 1 BIT to 1 BYTE, which is an eight-fold increase.
 		#
 		#      In essense, the rules for determining the first eligible bit for loading the current bitfield member is:
-		#		- No aligned(m): First unfilled bit (bit #c) as the possible packing place.
+		#		- No aligned(m):
+		#			Choose the first unfilled bit (bit #c) as the possible packing place, assuming you do not cross the current container boundary.
+		#			If you are crossing the container boundary, check if there is a PACKED attribute.
+		#			  	- No PACKED: skip the current container and start filling from a new container.
+		#				- Has PACKED: start filling from c. Yes, it will spill over to the next container, that's fine.
+		#		
 		#		- There are member-level aligned(m) attributes. Find out the overall alignment (which will be aligned to some 2's power of bytes). The first bit
-		#		  adhering to this alignment is first eligible bit.
+		#		  adhering to this alignment is first eligible bit. PACKED or not PACKED, either at the member- or struct-level does not matter.
 		#      
 		#	   But, remember that just because we find this first "eligible" bit does not mean we will be able to pack the current member here - it depends on
 		#      how big (number of bits) the current bitfield member is, and how many bits are left in the current container.
@@ -8017,11 +8024,95 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#
 		#      This essentially means that, if a < s (like aligned(1) for a short or aligned(1/2) for an int), 
 		#	   then you can start packing within the current container but at the a-byte alignment. So, find the first a-byte-aligned bit after the first c bits.
-		#		- short s: b __attribute__((aligned(1))); 	<== Here the s can start packing from the bit #8 of the current short container. 
+		#      Suppose you already filled c bits (0 < c < 8) and now you have to pack the next bitfield member.
+		#		- short s1: b __attribute__((aligned(1))); 	<== Here the s1 can start packing from the bit #8 of the current short container. 
 		#		  If b <= 8, then it can be accommodated in the byte1. Else, start from Byte2.
 		#		- int i: b __attribute__((aligned(1))); 	<== Here the s can start packing from the second LSbyte of the current short container. 
 		#	   On the other hand, for the ultimate alignment of m and natural container size (s), if m < s (like aligned(1) for a short or aligned(1/2) for an int), 
-		#   _____________________________________________________________________________________________________________________________________________________
+		#   _______________________________________________________________________________________________________________________________________________________
+		#  |                                                 |
+		#  |  struct C{  char  c:1};                         | sizeof(C) = 1, sizeof(S) = 2, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
+		#  |  struct S{  short s:1};                         |
+		#  |  struct I{  int   i:1};                         | It does not matter that we are just using one bit, the container size will prevail.
+		#  |  struct L{  long  l:1};                         | So, without any packed or aligned(), the natural size is the alignment, just like non-bitfield.
+		#  |  struct LL{ long long  ll:1};                   |
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |  struct C{  char  c:1}                          | sizeof(C) = 1, sizeof(S) = 2, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
+		#  |       __attribute__((aligned(1)));              | 
+		#  |  struct S{  short s:1}                          | Recall that Aligned only INCREASES the alignment, it cannot decrease it.
+		#  |       __attribute__((aligned(1)));              | Hence, in absence of any PACKED attribute, it cannot reduce the default alignment (natural container size)
+		#  |  struct I{  int   i:1}                          | to the specified value of 1. Hence, this ALIGNED attibute is summarily ignored.
+		#  |       __attribute__((aligned(1)));              |
+		#  |  struct L{  long  l:1}                          |
+		#  |       __attribute__((aligned(1)));              |
+		#  |  struct LL{ long long  ll:1}                    |
+		#  |       __attribute__((aligned(1)));              |
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |                                                 |
+		#  |  struct C{  char  c:1} __attribute__((packed)); | sizeof(C) = 1, sizeof(S) = 1, sizeof(I) = 1, sizeof(L) = 1, sizeof(LL) = 1.
+		#  |  struct S{  short s:1} __attribute__((packed)); |
+		#  |  struct I{  int   i:1} __attribute__((packed)); | It does not matter what we container size we are using, since we are just using one bit, 
+		#  |  struct L{  long  l:1} __attribute__((packed)); | the PACKED will prevail. This is a new thing for bitfield - not only PACKED is changing the
+		#  |  struct LL{ long long  ll:1}                    | alignment to 1 bit, it is also overriding the natural size to 1 byte.
+		#  |           __attribute__((packed));              |
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |                                                 |
+		#  |  struct C{  char  c:1}                          | sizeof(C) = 1, sizeof(S) = 1, sizeof(I) = 1, sizeof(L) = 1, sizeof(LL) = 1.
+		#  |       __attribute__((packed, aligned(1)));      |
+		#  |  struct S{  short s:1}                          |
+		#  |       __attribute__((packed, aligned(1)));      |
+		#  |  struct I{  int   i:1}                          | 
+		#  |       __attribute__((packed, aligned(1)));      |
+		#  |  struct L{  long  l:1}                          |
+		#  |       __attribute__((packed, aligned(1)));      |
+		#  |  struct LL{ long long  ll:1}                    |
+		#  |       __attribute__((packed, aligned(1)));      |
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |                                                 |
+		#  |  struct C{  char  c:1}                          | sizeof(C) = 4, sizeof(S) = 4, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
+		#  |       __attribute__((packed, aligned(4)));      |
+		#  |  struct S{  short s:1}                          |
+		#  |       __attribute__((packed, aligned(4)));      |
+		#  |  struct I{  int   i:1}                          | 
+		#  |       __attribute__((packed, aligned(4)));      |
+		#  |  struct L{  long  l:1}                          |
+		#  |       __attribute__((packed, aligned(4)));      |
+		#  |  struct LL{ long long  ll:1}                    |
+		#  |       __attribute__((packed, aligned(4)));      |
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |                                                 |
+		#  |  struct C{  char  c:1}                          | sizeof(C) = 4, sizeof(S) = 4, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
+		#  |       __attribute__((packed, aligned(4)));      |
+		#  |  struct S{  short s:1}                          |
+		#  |       __attribute__((packed, aligned(4)));      |
+		#  |  struct I{  int   i:1}                          | 
+		#  |       __attribute__((packed, aligned(4)));      |
+		#  |  struct L{  long  l:1}                          |
+		#  |       __attribute__((packed, aligned(4)));      |
+		#  |  struct LL{ long long  ll:1}                    |
+		#  |       __attribute__((packed, aligned(4)));      |
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |  #pragma pack(2)                                |
+		#  |  struct C{  char  c:1}                          | sizeof(C) = 2, sizeof(S) = 2, sizeof(I) = 2, sizeof(L) = 4, sizeof(LL) = 2.
+		#  |       __attribute__((aligned(4)));              |
+		#  |  struct S{  short s:1}                          | Observe that presense or absense of PACKED had absolutely no effect once we had ALIGNED(4).
+		#  |       __attribute__((aligned(4)));              | And then #pragma pack(2) was able to bring down the alignment to 2.
+		#  |  struct I{  int   i:1}                          | 
+		#  |       __attribute__((aligned(4)));              |
+		#  |  struct L{  long  l:1}                          |
+		#  |       __attribute__((aligned(4)));              |
+		#  |  struct LL{ long long  ll:1}                    |
+		#  |       __attribute__((aligned(4)));              |
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |  struct C{char  c1:5, c2:5,c3:5;}               | sizeof(C) = 3 
+		#  |      __attribute__((packed));                   |
+		#  |  struct S{short s1:5, s2:5, s3:5;}              | sizeof(S) = 3
+		#  |      __attribute__((packed));                   |
+		#  |  struct I{int i1:5, i2:5, i3:5;}                | sizeof(I) = 3
+		#  |      __attribute__((packed));                   |
+		#  |  struct I{int i1:5, i2:5, i3:25;}               | sizeof(I) = 5. Observe that with the packed, we are not adding a second full int container -
+		#  |      __attribute__((packed));                   | we are just adding one more byte.
+		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  |  struct A {                                     | sizeof(A) = 2, because now the compiler will pack int i2 right after i1.
 		#  |        short i1:5;                              | So there will be a pad of 4 bits after i2.
 		#  |        short i2:7;                              | i1 = 00000000 00011111 
@@ -8051,14 +8142,14 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  | // No pragma pack                               | sizeof(A) = 2.
 		#  |  struct A {                                     |       byte1    byte0  
 		#  |     short i1: 1;                                |i1 = 00000000 00000001
-		#  |   };                                            |
-		#  |                                                 |
+		#  |   };                                            | In absence of any pragma pack, the alignment of i1 is the alignment of a short - 2 bytes.
+		#  |                                                 | Since the overall size of a struct is a multiple of the biggest alignment, sizeof(A) = 2.
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  | #pragma pack(1)                                 | sizeof(A) = 1.
 		#  |  struct A {                                     |        byte0  
 		#  |     short i1: 1;                                | i1 = 00000001
 		#  |   };                                            | Observe that even in absense of any __aligned__ attribute, the #pragma pack(1) was still able to 
-		#  |                                                 | 
+		#  |                                                 | bring down the SIZE of the container below its natural size of 2 bytes.
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  | // No pragma pack                               | sizeof(A) = 4.
 		#  |  struct A {                                     |       byte3    byte2    byte1    byte0  
@@ -8076,6 +8167,14 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |               __attribute__((packed));          |
 		#  |   };                                            | 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  | // No pragma pack                               | sizeof(A) = now 3. The aligned(2) now works since align can now increase the post-packed alignment of 1
+		#  |  struct __attribute__((packed)) A {             |         byte2    byte1    byte0  
+		#  |       int i1: 1 __attribute__((aligned(1)));    |  i1 = 00000000 00000000 00000001 
+		#  |       int i2: 1 __attribute__((aligned(1)));    |  i2 = 00000000 00000001 00000000 
+		#  |       int i3: 1 __attribute__((aligned(1)));    |  i3 = 00000001 00000000 00000000 
+		#  |   };                                            | ALL = 00000001 00000001 00000001 
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  | 
 		#  | // No packed, or pragma pack                    | sizeof(A) = 4. Since a short can only hold 16 bits, we start from a new short boundary.
 		#  |  struct A {                                     |        byte3    byte2    byte1    byte0  
 		#  |     short i1: 15;                               | i1 = 00000000 00000000 01111111 11111111 
@@ -8088,7 +8187,8 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |     short i2: 2 __attribute__((packed));        | i2 = 00000000 00000001 10000000 00000000 
 		#  |  };                                             | ALL  00000000 00000001 11111111 11111111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  | #pragma pack(2), but no packed                  | sizeof(A) = still 4. But, we are NOT starting from the new short boundary - i2 overlaps both shorts.
+		#  | #pragma pack(2) //but no packed                 | sizeof(A) = still 4. But, we are NOT starting from the new short boundary - i2 overlaps both shorts.
+		#  |                                                 | Which basically means, that for bitfields, #pragma pack() means PACKED at the struct level anyway.
 		#  |  struct A {                                     |        byte3    byte2    byte1    byte0  
 		#  |     short i1: 15;                               | i1 = 00000000 00000000 01111111 11111111 
 		#  |     short i2: 2;                                | i2 = 00000000 00000001 10000000 00000000 
@@ -8141,13 +8241,25 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |   struct C {                                    | sizeof(C) = now 4, because without the packed, now it is aligned to i1's size (2 bytes).
 		#  |        short i1:5;                              |       byte3    byte2    byte1    byte0  
 		#  |        short i2:9 __attribute__((aligned(1)));  | i1 = 00000000 00000000 00000000 00011111  
-		#  |  };                                             | i2 = 00000001 11111111 00000000 00000000 
-		#  |                                                 | ALL  00000001 11111111 00000000 00011111 
+		#  |  };    //aligned(1) is ignored since it can     | i2 = 00000001 11111111 00000000 00000000 
+		#  |        //only INCREASE alignment, not reduce    | ALL  00000001 11111111 00000000 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  |   struct C {                                    | sizeof(C) = still 4, because without the packed for i1, it's still aligned to max-sized i1's size (2 bytes).
 		#  |        short i1:5 __attribute__((aligned(1)));  |       byte3    byte2    byte1    byte0  
 		#  |        short i2:9 __attribute__((aligned(1)))   | i1 = 00000000 00000000 00000000 00011111 
-		#  |                   __attribute__((packed));      | i2 = 00000001 11111111 00000000 00000000 
+		#  |  };                                             | i2 = 00000001 11111111 00000000 00000000 
+		#  |     // No packed anywhere, aligneds ignored     | ALL  00000001 11111111 00000000 00011111 
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |   struct C {                                    | sizeof(C) = still 4, because without the packed for i1, it's still aligned to max-sized i1's size (2 bytes).
+		#  |        short i1:5 __attribute__((aligned(1)));  |       byte3    byte2    byte1    byte0      And while i2 is now aligned to 1-byte, even if it starts from
+		#  |        short i2:9 __attribute__((aligned(1)))   | i1 = 00000000 00000000 00000000 00011111    bit 8 (beginning of byte1), its 9 bits will still not fit within
+		#  |                   __attribute__((packed));      | i2 = 00000001 11111111 00000000 00000000    byte1. Hence it must start on byte2 and spill into byte3.
+		#  |  };                                             | ALL  00000001 11111111 00000000 00011111 
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |   struct C {                                    | sizeof(C) = still 4, because without the packed for i2, it's still aligned to max-sized i2's size (2 bytes).
+		#  |        short i1:5 __attribute__((aligned(1)))   |       byte3    byte2    byte1    byte0  
+		#  |                   __attribute__((packed));      | i1 = 00000000 00000000 00000000 00011111 
+		#  |        short i2:9 __attribute__((aligned(1)));  | i2 = 00000001 11111111 00000000 00000000 
 		#  |  };                                             | ALL  00000001 11111111 00000000 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  |   struct C {                                    | sizeof(C) = now 3, because now the max-sized alignment is 1 byte. We have packed on each struct member level,
@@ -8163,9 +8275,23 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |  };                                             | i2 = 00000001 11111111 00000000 
 		#  |                                                 | ALL  00000001 11111111 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |  #pragma pack(2)                                | sizeof(C) = 4, because now it is byte-aligned.
+		#  |  #pragma pack(2)                                | sizeof(C) = 2, because #pragma pack means PACKED on the whole struct.
+		#  |   struct C {                                    |
+		#  |        short i1:5;                              |       byte1    byte0  
+		#  |        short i2:9;                              | i1 = 00000000 00011111 
+		#  |  };                                             | i2 = 00111111 11100000 
+		#  |                                                 | ALL  00111111 11111111 
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |  #pragma pack(2)                                | sizeof(C) = 4, because even though i2 is byte-aligned, i1's alignment is still 2-bytes.
 		#  |   struct C {                                    |
 		#  |        short i1:5;  // aligned(1) is redundant  |       byte3    byte2    byte1    byte0  
+		#  |        short i2:9 __attribute__((aligned(1)));  | i1 = 00000000 00000000 00000000 00011111 
+		#  |  };                                             | i2 = 00000000 00000001 11111111 00000000 
+		#  |                                                 | ALL  00000000 00000001 11111111 00011111 
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |  #pragma pack(2)                                | sizeof(C) = 4, because even though i1 and i2 are byte-aligned, i1's alignment is still 2-bytes.
+		#  |   struct C {                                    |
+		#  |        short i1:5 __attribute__((aligned(1)));  |       byte3    byte2    byte1    byte0  
 		#  |        short i2:9 __attribute__((aligned(1)));  | i1 = 00000000 00000000 00000000 00011111 
 		#  |  };                                             | i2 = 00000000 00000001 11111111 00000000 
 		#  |                                                 | ALL  00000000 00000001 11111111 00011111 

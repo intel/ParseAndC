@@ -306,7 +306,7 @@
 
 	The way to invoke this tool is the following:
 	
-	> python2/3 ParseIT.py [options], where the options are:
+	> python2/3 ParseAndC.py [options], where the options are:
 
 	-h, --help                Prints the options available
 	-i, --include             followed by a single string that contains the include file path(s), separated by semicolon
