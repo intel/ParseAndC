@@ -359,7 +359,13 @@
   
   I am currently working on a few items. These items are not fully ready yet:
   - sizeof()
-  - bitfield alignemnt for Big-Endian (cannot find a processor to test it).
+  - Bitfield behavior with different combincation of packed, aligned and #pragma pack. I found that while the various top compilers have consistent behavior in terms of 
+    where to insert the padding for non-bitfield structs (even with different combincations of packed, aligned and #pragma pack), it is not consistent when you take 
+	structs with bitfields and deal with different combincation of packed, aligned and #pragma pack. And this is by design - K & R mentioned it in their C Bible that 
+	alignment of bitfields is very much implemenation-dependent. So, I am yet to figure out which is the best "common" method used by various compilers when it comes to
+	handle bitfields and deal with different combincation of packed, aligned and #pragma pack. Usually this is not a problem, because very rarely individual struct member 
+	variables in a struct will have their individual attribute statements. So, the tool currently does not implement the attribute handling (packed, aligned and #pragma pack)
+	for bitfields. It will do it in future, for sure.
 
 ##     KNOWN ISSUES:		##
   
@@ -396,7 +402,7 @@
   If you feel that this tool sucks, I still want to hear about it.
   If you have some feature in mind that you feel would make the tool better, I want to hear about it.
 
-  Please email me with any feedback: pkmanna AT gmail DOT com
+  Please email me with any feedback: Firstname <period> MI <period> Lastname AT company DOT com
   
  ##   FREQUENTLY ASKED QUESTIONS      ##
  
@@ -666,8 +672,8 @@ MAP_TYPEDEFS_TOO = True	# Usually, we do not create any storage for typedef (so 
 
 anonymousStructPrefix = "Anonymous#"
 dummyVariableNamePrefix = "DummyVar#"
-dummyZeroWidthBitfieldNamePrefix = "DummyZeroWidthBitfieldVar#"
-
+dummyUnnamedBitfieldNamePrefix = "dummyUnnamedBitfieldVar#"
+dummyUnnamedBitfieldCount = 0
 
 CHAR_SIZE = 1
 SHORT_SIZE = 2
@@ -1230,6 +1236,9 @@ keywordsSorted.sort(key=len)
 keywordsSorted.reverse()
 PRINT("sorted keyword list =",keywordsSorted)
 
+# There are two methods of calculating the bitfield offsets - Microsoft-style (Old), and GCC-style (new)
+bitFieldOffsetCalculationMethod = "old"
+#bitFieldOffsetCalculationMethod = "New"
 
 def errorRoutine(message):
 	global window, PRINT_DEBUG_MSG
@@ -3123,15 +3132,19 @@ def tokenizeLines(lines):
 					currentTokenEndCharNumInclusive = i
 				elif re.search('\s',c):					# Whitespace characters
 					if currentToken != "":
+						currentTokenIndex = tokenIndex
 						if currentToken == "long" and currentLinetokenList and currentLinetokenList[-1]=="long":
 							del currentLinetokenList[-1]
 							currentToken = "long long"
+							currentTokenIndex = currentLineTokenListInfo[-1][1]			# We need to pick up the token index from the previous token
 							currentTokenStartLineNum = currentLineTokenListInfo[-1][2]	# We need to pick up the starting position from the previous token
 							currentTokenStartCharNum = currentLineTokenListInfo[-1][3]	# We need to pick up the starting position from the previous token
+							tokenIndex = currentTokenIndex # Because we will increement it 
+							del currentLineTokenListInfo[-1]	# After noting down that information, we can delete it
 						currentLinetokenList.append(currentToken)
 						currentTokenEndLineNum = lineNumber
 						currentTokenEndCharNumInclusive = i-1		# Do not count the whitespace TO-DO: What about first char in current line is whitespace?
-						currentLineTokenListInfo.append([currentToken, tokenIndex, currentTokenStartLineNum, currentTokenStartCharNum, currentTokenEndLineNum, currentTokenEndCharNumInclusive])
+						currentLineTokenListInfo.append([currentToken, currentTokenIndex, currentTokenStartLineNum, currentTokenStartCharNum, currentTokenEndLineNum, currentTokenEndCharNumInclusive])
 						currentTokenStartLineNum = LARGE_NEGATIVE_NUMBER
 						currentTokenStartCharNum = LARGE_NEGATIVE_NUMBER
 						currentTokenEndLineNum = LARGE_NEGATIVE_NUMBER
@@ -3285,12 +3298,13 @@ def tokenizeLines(lines):
 				PRINT("\nWARNING: tokenListInfoForOneLine[",i,"] is blank!!")
 			i += 1
 
-	PRINT("\n\n\ntokenList =",tokenList)
-	PRINT("\n\n\ntokenListInfo =",tokenListInfo)
-	PRINT("\n\nlinewiseTokenInfo =",linewiseTokenInfo)
-	
 	if tokenList != tokenListReconstructed or len(tokenListInfo) != len(tokenList) or (tokenIndexListFromLines and max(tokenIndexListFromLines)!= len(tokenList)-1):
-		OUTPUT("\n\n\nERROR: Mismatching tokenList and tokenListReconstructed!!!")
+		if tokenList != tokenListReconstructed:
+			OUTPUT("\n\n\nERROR: Mismatching tokenList and tokenListReconstructed!!!")
+		if len(tokenListInfo) != len(tokenList):
+			OUTPUT("\nlen(tokenListInfo) =",len(tokenListInfo),"does not match with len(tokenList) =",len(tokenList))
+		if tokenIndexListFromLines and max(tokenIndexListFromLines)!= len(tokenList)-1:
+			OUTPUT("\nmax(tokenIndexListFromLines) = ",max(tokenIndexListFromLines),"does not match with len(tokenList)-1 =", len(tokenList)-1)
 		OUTPUT("\n\ntokenIndexListFromLines =",tokenIndexListFromLines)
 		OUTPUT("\nmax(tokenIndexListFromLines)=",max(tokenIndexListFromLines),"len(tokenList)-1=", len(tokenList)-1)
 		OUTPUT("\n\n\nlinewiseTokenInfo =",linewiseTokenInfo)
@@ -4174,7 +4188,7 @@ def findTypeSpecifierEndIndex(inputList):
 #This function takes a list of tokens representing a single variable declaration statement, and checks its legality and calculates its size on stack;
 #######################################################################################################################################################
 def parseVariableDeclaration(inputList):
-	global typedefs, structuresAndUnionsDictionary, primitiveDatatypeLength
+	global typedefs, structuresAndUnionsDictionary, dummyUnnamedBitfieldCount
 	PRINT ("="*30,"\nInside parseVariableDeclaration()\n","="*30,"\n" )
 	PRINT ("inputList =",inputList )
 	if not inputList:
@@ -4460,8 +4474,9 @@ def parseVariableDeclaration(inputList):
 		if inputList[i] == ':':
 			# Recall that the bitfield width need not be a straightaway number - it could be an arithmatic expression too
 			if i+2 < len(inputList) and ('=' in inputList[i+2:] or ',' in inputList[i+2:] or ';' in inputList[i+2:]):
-				PRINT("Found case of zero-width bitfield specifier (resets the bitfield boundary)");
-				variableName = dummyZeroWidthBitfieldNamePrefix
+				PRINT("Found case of unnamed bitfield specifier (resets the bitfield boundary)");
+				variableName = dummyUnnamedBitfieldNamePrefix + STR(dummyUnnamedBitfieldCount)
+				dummyUnnamedBitfieldCount += 1
 			else:
 				errorMessage = "ERROR in parseVariableDeclaration(): Illegal usage of <:> in bitfield specification for inputList =<"+STR(inputList)+">"
 				errorRoutine(errorMessage)
@@ -4503,7 +4518,7 @@ def parseVariableDeclaration(inputList):
 		
 		# Usually, we start scanning both to the left and right from the variableNameIndex. However, for zero-width bitfield, there is no variableNameIndex.
 		leftCounterPrevious = leftCounter = variableNameIndex
-		if variableName == dummyZeroWidthBitfieldNamePrefix:
+		if variableName.startswith(dummyUnnamedBitfieldNamePrefix):
 			rightCounterPrevious = rightCounter = variableNameIndex -1
 		else:
 			rightCounterPrevious = rightCounter = variableNameIndex
@@ -4659,12 +4674,15 @@ def parseVariableDeclaration(inputList):
 				# TO-DO: Verify that there cannot really be any comma.
 				nextCommaIndex = 10000000000000		# Arbitrarily large value
 				nextEqualToIndex = 10000000000000	# Arbitrarily large value
+				nextAttributeIndex = 10000000000000	# Arbitrarily large value
 				nextSemicolonIndex = rightCounter + inputList[rightCounter:].index(';')
 				if ',' in inputList[rightCounter:nextSemicolonIndex]:
 					nextCommaIndex = rightCounter + inputList[rightCounter:nextSemicolonIndex].index(',')
 				if '=' in inputList[rightCounter:nextSemicolonIndex]:
 					nextEqualToIndex = rightCounter + inputList[rightCounter:nextSemicolonIndex].index('=')
-				bitFieldWidthExpressionEndIndexInclusive = min(nextSemicolonIndex,nextCommaIndex,nextEqualToIndex)-1
+				if '__attribute__' in inputList[rightCounter:nextSemicolonIndex]:
+					nextAttributeIndex = rightCounter + inputList[rightCounter:nextSemicolonIndex].index('__attribute__')
+				bitFieldWidthExpressionEndIndexInclusive = min(nextSemicolonIndex,nextCommaIndex,nextEqualToIndex,nextAttributeIndex)-1
 				bitFieldWidthExpression = inputList[bitFieldWidthExpressionStartIndex:bitFieldWidthExpressionEndIndexInclusive+1]
 				PRINT ("The bitfield width expression is from start index ",bitFieldWidthExpressionStartIndex, "to end index ",bitFieldWidthExpressionEndIndexInclusive,"(inclusive) = ",bitFieldWidthExpression)
 
@@ -4690,7 +4708,7 @@ def parseVariableDeclaration(inputList):
 							errorMessage = "ERROR: Bitfield width of " + STR(bitFieldWidth) + "cannot be negative for bit variable " + variableName
 							errorRoutine(errorMessage)
 							return False
-						elif bitFieldWidth == 0 and variableName != dummyZeroWidthBitfieldNamePrefix:
+						elif bitFieldWidth == 0 and not variableName.startswith(dummyUnnamedBitfieldNamePrefix):
 							errorMessage = "ERROR: Bitfield width of " + STR(bitFieldWidth) + "cannot be 0 for bit variable " + variableName
 							errorRoutine(errorMessage)
 							return False
@@ -4989,6 +5007,8 @@ def parseVariableDeclaration(inputList):
 		returnList.append(variableDescriptionExtended)
 		
 		returnListOf5tuples.append(returnList)
+		
+		variableSpecificAttributes = {}		# Reset this so that previous variable's attributes do not get repeated here
 		
 		i = rightCounter + 1
 
@@ -6125,6 +6145,9 @@ def preProcess():
 					macroDefinitions.append([macroName, macroArguments, macroExpansionText, macroProperties])
 					currentMacroNames.append(macroName)
 				
+				# Finally, remove the #define statement from lines. Once added to the macro database, its job is done.
+				# Preprocessing is not part of actual C anyway.
+				lines[i] = ""
 			
 			##########################################################
 			##														##
@@ -6968,6 +6991,73 @@ def convertDerivedTypeDeclarationIntoBaseTypeDeclaration(tokenList, i):
 		return list2parse
 
 
+
+# This converts an absolute bit number to byte.bit format. For example, bit 9 would yield 1.2
+def bit2ByteAndBit(bits):
+	if (not checkIfIntegral(bits)) or bits < 0:
+		errorMessage = "ERROR in bit2ByteAndBit(): Illegal value of bits ="+STR(bits)
+		errorRoutine(errorMessage)
+		return False
+	
+	bytes = bit2Byte(bits)
+	bitNum = bits % BITS_IN_BYTE
+	
+	return STR(bytes)+"."+STR(bitNum)
+
+# This function returns the bit number that is aligned to a certain bit boundary.
+# If the bit is already aligned, it will send the previous aligned bit (which could be negative also). For example, for bit=0, alignment=8 it will return -8.
+def alignedStrictlyBefore(bit, alignment):
+	if (not checkIfIntegral(bit)) or (not checkIfIntegral(alignment)) or alignment < 1:
+		errorMessage = "ERROR in alignedStrictlyBefore(): Illegal value of bit ="+STR(bit)+", alignment = "+STR(alignment)
+		errorRoutine(errorMessage)
+		return False
+	else:
+		if bit% alignment == 0:
+			return (bit-alignment)
+		else:
+			return (bit - (bit% alignment))
+
+# This function returns the bit number that is aligned to a certain bit boundary.
+# If the bit is already aligned, it will send the next aligned bit. For example, for bit=0, alignment=8 it will return 8.
+def alignedStrictlyAfter(bit, alignment):
+	if (not checkIfIntegral(bit)) or (not checkIfIntegral(alignment)) or alignment < 1:
+		errorMessage = "ERROR in alignedStrictlyBefore(): Illegal value of bit ="+STR(bit)+", alignment = "+STR(alignment)
+		errorRoutine(errorMessage)
+		return False
+	else:
+		if bit% alignment == 0:
+			return (bit+alignment)
+		else:
+			return (bit - (bit% alignment) + alignment)
+
+# This function returns the bit number that is aligned to a certain bit boundary.
+# If the bit is already aligned, it will send the that bit. For example, for bit=0, alignment=8 it will return 0.
+def alignedOnOrBefore(bit, alignment):
+	if (not checkIfIntegral(bit)) or (not checkIfIntegral(alignment)) or alignment < 1:
+		errorMessage = "ERROR in alignedOnOrBefore(): Illegal value of bit ="+STR(bit)+", alignment = "+STR(alignment)
+		errorRoutine(errorMessage)
+		return False
+	else:
+		if bit% alignment == 0:
+			return bit
+		else:
+			return (bit - (bit% alignment))
+		
+# This function returns the bit number that is aligned to a certain bit boundary.
+# If the bit is already aligned, it will send the that bit. For example, for bit=0, alignment=8 it will return 0.
+def alignedOnOrAfter(bit, alignment):
+	if (not checkIfIntegral(bit)) or (not checkIfIntegral(alignment)) or alignment < 1:
+		errorMessage = "ERROR in alignedOnOrAfter(): Illegal value of bit ="+STR(bit)+", alignment = "+STR(alignment)
+		errorRoutine(errorMessage)
+		return False
+	else:
+		if bit% alignment == 0:
+			return bit
+		else:
+			return (bit - (bit% alignment) + alignment)
+
+
+
 ##############################################################################################################################################
 ##############################################################################################################################################
 ##																																			##
@@ -7015,6 +7105,7 @@ def parseStructure(tokenList, i, parentStructName, level):
 			structOrUnionTypeIndex = structDefinitionStartIndex
 		if structDefinitionStartIndex == 0:
 			break
+		# TO-DO: Bug - we assume that there is going to be a semicolon before the struct definition. It may not, if the previous statement is a #define statement.
 		elif tokenList[structDefinitionStartIndex-1] in (';','{'):	# we could very well have cascaded struct definition, hence checking for the '{' is important
 			break
 		structDefinitionStartIndex -= 1
@@ -7421,8 +7512,9 @@ def parseStructure(tokenList, i, parentStructName, level):
 				# This 6th member now represents the absolute index (within the tokenList) of the variable name.
 				
 				if memberDeclarationStatementAltered == False:
-					if not usingDummyVariable and item[0] != dummyZeroWidthBitfieldNamePrefix and tokenList[i+item[3]-numFakeEntries]!=item[0]:
-						PRINT ("ERROR in parseStructure() - for i=",i,"tokenList[i+item[3]-numFakeEntries] = tokenList[",i,"+",item[3],"-",numFakeEntries,"] =",tokenList[i+item[3]-numFakeEntries],"!=item[0]=",item[0] )
+					if not usingDummyVariable and (not item[0].startswith(dummyUnnamedBitfieldNamePrefix)) and tokenList[i+item[3]-numFakeEntries]!=item[0]:
+						errorMessage = "ERROR in parseStructure() - for i= "+STR(i)+" tokenList[i+item[3]-numFakeEntries] = tokenList["+STR(i)+"+"+item[3]+"-"+STR(numFakeEntries)+"] ="+tokenList[i+item[3]-numFakeEntries]+"!=item[0]="+item[0]
+						errorRoutine(errorMessage)
 						return False
 					else:
 						PRINT ("In parseStructure(), - for i=",i,"tokenList[i+item[3]-numFakeEntries] = tokenList[",i,"+",item[3],"-",numFakeEntries,"] =",tokenList[i+item[3]-numFakeEntries],"matches item[0]=",item[0] )
@@ -7439,7 +7531,7 @@ def parseStructure(tokenList, i, parentStructName, level):
 #					if tokenList[i] in getDictKeyList(typedefs):			# MannaManna
 					if tokenList[i+dataTypeIndex] in getDictKeyList(typedefs):
 						PRINT ("We modified the declaration statement, so we know that position index of the declared variable", item[0],"would not match (hence not checking it)" )
-						if item[0]==dummyZeroWidthBitfieldNamePrefix:
+						if item[0].startswith(dummyUnnamedBitfieldNamePrefix):
 							variableNameIndex = originalMemberDeclarationStatement.index(':')
 						else:
 							variableNameIndex = originalMemberDeclarationStatement.index(item[0])
@@ -7448,7 +7540,7 @@ def parseStructure(tokenList, i, parentStructName, level):
 						# TO-DO - accommodate the case where other cases like volatile / static / extern etc. qualifiers would precede the nested struct definition.
 						# Int that case, the variableNameIndex might be more than 2.
 						variableNameIndex = 2
-					elif item[0] != dummyZeroWidthBitfieldNamePrefix and tokenList[variableDeclarationStartIndex+item[3]]!=item[0]:
+					elif (not item[0].startswith(dummyUnnamedBitfieldNamePrefix)) and tokenList[variableDeclarationStartIndex+item[3]]!=item[0]:
 						errorMessage = "ERROR in parseStructure() - for variableDeclarationStartIndex = "+ STR(variableDeclarationStartIndex) + " tokenList[variableDeclarationStartIndex+item[3]] = " + STR(tokenList[variableDeclarationStartIndex+item[3]]) + " !=item[0]=" + STR(item[0])
 						errorRoutine(errorMessage)
 						return False
@@ -7815,7 +7907,7 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |        int i2;                                  |
 		#  |  };                                             |
 		#  |_________________________________________________|____________________________________________________________________________________________________
-		#  | #pragma pack(4)                                 | sizeof(C) = 12, because now the compiler will pack int i2 from its natural alignement (4),
+	#####  | #pragma pack(4)                                 | sizeof(C) = 12, because now the compiler will pack int i2 from its natural alignement (4),
 		#  |  struct C {                                     | 
 		#  |        int i1;                                  | 
 		#  |        short s;                                 |
@@ -8029,89 +8121,132 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#		  If b <= 8, then it can be accommodated in the byte1. Else, start from Byte2.
 		#		- int i: b __attribute__((aligned(1))); 	<== Here the s can start packing from the second LSbyte of the current short container. 
 		#	   On the other hand, for the ultimate alignment of m and natural container size (s), if m < s (like aligned(1) for a short or aligned(1/2) for an int), 
+		#
+		#  So, the golden rules are:
+		#  
+		#  - By default, in bitfields, the alignment is 1 BIT, packed or no packed. However, if inserting the next member variable causes it to overflow to the next container,
+		#    that is not allowed unless we use a __packed__ or #pragma pack() statement.
+		#  - #prgama pack(n) = packed + aligned(n). The PACKED part is always applied, but that aligned(n) is only applied in the following two cases:
+		#     1. To the overall alignment of struct, if the m is less than that.
+		#     2. Any individual member alignment, if the m is less than that.
+		#  - A packed attribute does two things for a bitfield:
+		#     1. It brings down the natural size of ALL containers (char / short / int / long / long long) to just 1 BYTE. This means the overall struct size may be less.
+		#     2. It says that pack it from the first available bit, even if it does not fit in the current container (assuming no ALIGNED, which prevails over packed)
+		#  - An ALIGNED(m) attribute does two things (m is 1/2/4/8):
+		#     1. It dictates that a variable must be starting from (aligned to) a m-byte boundary, assuming no #pragma pack(n) exists where n<m.
+		#	  2. It increases the size of the container, in case the m is larger than s (remember that s=1 byte if there is a packed).
+		#  - A #pragma pack(n) statement lowers the aligned(m) to aligned(n), if n<m (recall that both n and m are 1/2/4/8/16). It also applies PACKED.
 		#   _______________________________________________________________________________________________________________________________________________________
 		#  |                                                 |
-		#  |  struct C{  char  c:1};                         | sizeof(C) = 1, sizeof(S) = 2, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
-		#  |  struct S{  short s:1};                         |
-		#  |  struct I{  int   i:1};                         | It does not matter that we are just using one bit, the container size will prevail.
-		#  |  struct L{  long  l:1};                         | So, without any packed or aligned(), the natural size is the alignment, just like non-bitfield.
-		#  |  struct LL{ long long  ll:1};                   |
+		#  |  struct C{  char  c:1;};                        | sizeof(C) = 1, sizeof(S) = 2, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
+		#  |  struct S{  short s:1;};                        |
+		#  |  struct I{  int   i:1;};                        | It does not matter that we are just using one bit, the container size will prevail.
+		#  |  struct L{  long  l:1;};                        | So, without any packed or aligned(), the natural size is the alignment, just like non-bitfield.
+		#  |  struct LL{ long long  ll:1;};                  |
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |  struct C{  char  c:1}                          | sizeof(C) = 1, sizeof(S) = 2, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
+		#  | #define A(n) __attribute__((__aligned__(n)))    |
+		#  | A(1)  struct C{  char  c:1;};                   | sizeof(C) = 1, sizeof(S) = 2, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
+		#  | A(1)  struct S{  short s:1;};                   |
+		#  | A(1)  struct I{  int   i:1;};                   | It does not matter that we are just using one bit, the container size will prevail.
+		#  | A(1)  struct L{  long  l:1;};                   | The aligned(1) was ignored since it can only bring up the overall alignment, not decrease it.
+		#  | A(1)  struct LL{ long long  ll:1;};             |
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  | #define A(n) __attribute__((__aligned__(n)))    |
+		#  | A(2)  struct C{  char  c:1;};                   | sizeof(C) = 2, sizeof(S) = 2, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
+		#  | A(2)  struct S{  short s:1;};                   |
+		#  | A(2)  struct I{  int   i:1;};                   | It does not matter that we are just using one bit, the container size will prevail.
+		#  | A(2)  struct L{  long  l:1;};                   | The aligned(1) was ignored since it can only bring up the overall alignment, not decrease it.
+		#  | A(2)  struct LL{ long long  ll:1;};             | Except the the first case (C), where it increased it because sizeof(C) was 1 byte without the aligned.
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  | #define A(n) __attribute__((__aligned__(n)))    |
+		#  |  A(1) struct C0{                                |
+		#  |  char      c1:1     , c2:1     , c3:1     ;};   | sizeof(C0) = 1, because the aligned(1) applies only at the overall structural level, not individually to c1/c2/c3.
+		#  |  struct C1{                                     |
+		#  |  char A(1) c1:1     , c2:1     , c3:1     ;};   | sizeof(C1) = 3, because the aligned(1) applies to each of c1/c2/c3 individually.
+		#  |  struct C2{                                     |
+		#  |  char      c1:1 A(1), c2:1     , c3:1     ;};   | sizeof(C2) = 1, because the aligned(1) applies to only c1, and c2/c3 can fit in right after c1.
+		#  |  struct C3{                                     |
+		#  |  char      c1:1     , c2:1 A(1), c3:1     ;};   | sizeof(C3) = 2, because the aligned(1) applies to only c2, and c3 can fit in right after c2.
+		#  |  struct C4{                                     |
+		#  |  char      c1:1     , c2:1     , c3:1 A(1);};   | sizeof(C4) = 2, because the aligned(1) applies to only c3, but c1 and c2 are occupying the first byte.
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |  struct C{  char  c:1;}                         | sizeof(C) = 1, sizeof(S) = 2, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
 		#  |       __attribute__((aligned(1)));              | 
-		#  |  struct S{  short s:1}                          | Recall that Aligned only INCREASES the alignment, it cannot decrease it.
+		#  |  struct S{  short s:1;}                         | Recall that Aligned only INCREASES the alignment, it cannot decrease it.
 		#  |       __attribute__((aligned(1)));              | Hence, in absence of any PACKED attribute, it cannot reduce the default alignment (natural container size)
-		#  |  struct I{  int   i:1}                          | to the specified value of 1. Hence, this ALIGNED attibute is summarily ignored.
+		#  |  struct I{  int   i:1;}                         | to the specified value of 1. Neither can the Aligned(1) ensure that the member variables should be
+		#  |       __attribute__((aligned(1)));              | aligned to a byte boundary, because the member variable themselves have a higher alignment.
+		#  |  struct L{  long  l:1;}                         |
 		#  |       __attribute__((aligned(1)));              |
-		#  |  struct L{  long  l:1}                          |
-		#  |       __attribute__((aligned(1)));              |
-		#  |  struct LL{ long long  ll:1}                    |
+		#  |  struct LL{ long long  ll:1;}                   |
 		#  |       __attribute__((aligned(1)));              |
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  |                                                 |
-		#  |  struct C{  char  c:1} __attribute__((packed)); | sizeof(C) = 1, sizeof(S) = 1, sizeof(I) = 1, sizeof(L) = 1, sizeof(LL) = 1.
-		#  |  struct S{  short s:1} __attribute__((packed)); |
-		#  |  struct I{  int   i:1} __attribute__((packed)); | It does not matter what we container size we are using, since we are just using one bit, 
-		#  |  struct L{  long  l:1} __attribute__((packed)); | the PACKED will prevail. This is a new thing for bitfield - not only PACKED is changing the
-		#  |  struct LL{ long long  ll:1}                    | alignment to 1 bit, it is also overriding the natural size to 1 byte.
+		#  |  struct C{  char  c:1;} __attribute__((packed));| sizeof(C) = 1, sizeof(S) = 1, sizeof(I) = 1, sizeof(L) = 1, sizeof(LL) = 1.
+		#  |  struct S{  short s:1;} __attribute__((packed));|
+		#  |  struct I{  int   i:1;} __attribute__((packed));| It does not matter what we container size we are using, since we are just using one bit, 
+		#  |  struct L{  long  l:1;} __attribute__((packed));| the PACKED will prevail. This is a new thing for bitfield - it is overriding the natural size to 1 byte.
+		#  |  struct LL{ long long ll:1;}                    | 
 		#  |           __attribute__((packed));              |
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  |                                                 |
-		#  |  struct C{  char  c:1}                          | sizeof(C) = 1, sizeof(S) = 1, sizeof(I) = 1, sizeof(L) = 1, sizeof(LL) = 1.
+		#  |  struct C{  char  c:1;}                         | sizeof(C) = 1, sizeof(S) = 1, sizeof(I) = 1, sizeof(L) = 1, sizeof(LL) = 1.
+		#  |       __attribute__((packed, aligned(1)));      | 
+		#  |  struct S{  short s:1;}                         | Observe that if we had removed all the packed attributes, we would have ended up with 
 		#  |       __attribute__((packed, aligned(1)));      |
-		#  |  struct S{  short s:1}                          |
+		#  |  struct I{  int   i:1;}                         | sizeof(C) = 1, sizeof(S) = 2, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
 		#  |       __attribute__((packed, aligned(1)));      |
-		#  |  struct I{  int   i:1}                          | 
+		#  |  struct L{  long  l:1;}                         |
 		#  |       __attribute__((packed, aligned(1)));      |
-		#  |  struct L{  long  l:1}                          |
-		#  |       __attribute__((packed, aligned(1)));      |
-		#  |  struct LL{ long long  ll:1}                    |
+		#  |  struct LL{ long long ll:1;}                    |
 		#  |       __attribute__((packed, aligned(1)));      |
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  |                                                 |
-		#  |  struct C{  char  c:1}                          | sizeof(C) = 4, sizeof(S) = 4, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
+		#  |  struct C{  char  c:1;}                         | sizeof(C) = 4, sizeof(S) = 4, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
 		#  |       __attribute__((packed, aligned(4)));      |
-		#  |  struct S{  short s:1}                          |
+		#  |  struct S{  short s:1;}                         | Proof that even though the packed is bringing down the natural size to 1 byte,
+		#  |       __attribute__((packed, aligned(4)));      | aligned(4) is ensuring that the ultimate container size must be 4.
+		#  |  struct I{  int   i:1;}                         | 
 		#  |       __attribute__((packed, aligned(4)));      |
-		#  |  struct I{  int   i:1}                          | 
+		#  |  struct L{  long  l:1;}                         |
 		#  |       __attribute__((packed, aligned(4)));      |
-		#  |  struct L{  long  l:1}                          |
-		#  |       __attribute__((packed, aligned(4)));      |
-		#  |  struct LL{ long long  ll:1}                    |
+		#  |  struct LL{ long long ll:1;}                    |
 		#  |       __attribute__((packed, aligned(4)));      |
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  |                                                 |
-		#  |  struct C{  char  c:1}                          | sizeof(C) = 4, sizeof(S) = 4, sizeof(I) = 4, sizeof(L) = 4, sizeof(LL) = 4.
-		#  |       __attribute__((packed, aligned(4)));      |
-		#  |  struct S{  short s:1}                          |
-		#  |       __attribute__((packed, aligned(4)));      |
-		#  |  struct I{  int   i:1}                          | 
-		#  |       __attribute__((packed, aligned(4)));      |
-		#  |  struct L{  long  l:1}                          |
-		#  |       __attribute__((packed, aligned(4)));      |
-		#  |  struct LL{ long long  ll:1}                    |
-		#  |       __attribute__((packed, aligned(4)));      |
+		#  |  struct C{  char  c:1;}                         | sizeof(C) = 2, sizeof(S) = 2, sizeof(I) = 2, sizeof(L) = 2, sizeof(LL) = 2.
+		#  |       __attribute__((packed, aligned(2)));      |
+		#  |  struct S{  short s:1;}                         | Again, PACKED reduced its alignment to one bit and its natural size to 1 byte.
+		#  |       __attribute__((packed, aligned(2)));      | Then ALIIGNED(2) brought up its alignment and natural size to 2 bytes.
+		#  |  struct I{  int   i:1;}                         | 
+		#  |       __attribute__((packed, aligned(2)));      |
+		#  |  struct L{  long  l:1;}                         |
+		#  |       __attribute__((packed, aligned(2)));      |
+		#  |  struct LL{ long long ll:1;}                    |
+		#  |       __attribute__((packed, aligned(2)));      |
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  |  #pragma pack(2)                                |
-		#  |  struct C{  char  c:1}                          | sizeof(C) = 2, sizeof(S) = 2, sizeof(I) = 2, sizeof(L) = 4, sizeof(LL) = 2.
+		#  |  struct C{  char  c:1;}                         | sizeof(C) = 2, sizeof(S) = 2, sizeof(I) = 2, sizeof(L) = 2, sizeof(LL) = 2.
 		#  |       __attribute__((aligned(4)));              |
-		#  |  struct S{  short s:1}                          | Observe that presense or absense of PACKED had absolutely no effect once we had ALIGNED(4).
-		#  |       __attribute__((aligned(4)));              | And then #pragma pack(2) was able to bring down the alignment to 2.
-		#  |  struct I{  int   i:1}                          | 
+		#  |  struct S{  short s:1;}                         | Think of the #pragma pack(2) = PACKED + ALIGNED(max 2)
+		#  |       __attribute__((aligned(4)));              | 
+		#  |  struct I{  int   i:1;}                         | Packed brought down to all the natural sizes to 1 byte, and alignment to one BIT.
+		#  |       __attribute__((aligned(4)));              | Observe that presense or absense of PACKED had absolutely no effect once we had ALIGNED(4).
+		#  |  struct L{  long  l:1;}                         | And then #pragma pack(2) was able to bring down the alignment to 2.
 		#  |       __attribute__((aligned(4)));              |
-		#  |  struct L{  long  l:1}                          |
-		#  |       __attribute__((aligned(4)));              |
-		#  |  struct LL{ long long  ll:1}                    |
+		#  |  struct LL{ long long ll:1;}                    |
 		#  |       __attribute__((aligned(4)));              |
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |  struct C{char  c1:5, c2:5,c3:5;}               | sizeof(C) = 3 
+		#  |  struct C1{char  c1:5, c2:5,c3:5;};             | sizeof(C1) = 3 . Because without any packed, each of c1/c2/c3 starts on a new char container.
+		#  |  struct C2{char  c1:5, c2:5,c3:5;}              | sizeof(C2) = 2 . Because packed allows us to  pack c2 over two char containers, leading to a denser packing.
 		#  |      __attribute__((packed));                   |
-		#  |  struct S{short s1:5, s2:5, s3:5;}              | sizeof(S) = 3
+		#  |  struct S1{short s1:5, s2:5, s3:5;};            | sizeof(S1) = 2. Becase we do not need any packed to put 15 bits of s1/s2/s3 into a 16-bit short container.
+		#  |  struct S2{short s1:5, s2:5, s3:5;}             | sizeof(S2) = 2. Packed here is redundant.
 		#  |      __attribute__((packed));                   |
-		#  |  struct I{int i1:5, i2:5, i3:5;}                | sizeof(I) = 3
+		#  |  struct I{int i1:5, i2:5, i3:5;}                | sizeof(I) = 2. Packed brings down the natural size to 1 byte for the int. And we only need two such bytes.
 		#  |      __attribute__((packed));                   |
 		#  |  struct I{int i1:5, i2:5, i3:25;}               | sizeof(I) = 5. Observe that with the packed, we are not adding a second full int container -
-		#  |      __attribute__((packed));                   | we are just adding one more byte.
+		#  |      __attribute__((packed));                   | we are just adding one more byte. It's because PACKED has reduced the natural size to 1 byte.
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  |  struct A {                                     | sizeof(A) = 2, because now the compiler will pack int i2 right after i1.
 		#  |        short i1:5;                              | So there will be a pad of 4 bits after i2.
@@ -8125,31 +8260,43 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |  };                                             | i2 = 00001111 11100000
 		#  |  // The __attribute__((packed)) is redundant    | ALL  00001111 11111111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct A {                                    | sizeof(A) = now 2, because without the packed, now it is aligned to its "utilized" size (2 bytes).
+		#  |  struct A {                                     | sizeof(A) = now 2, because without the packed, now it is aligned to its "utilized" size (2 bytes).
 		#  |        short i1:5;                              |       byte1    byte0  
 		#  |        short i2:7 __attribute__((aligned(1)));  | i1 = 00000000 00011111
 		#  |  };                                             | i2 = 01111111 00000000
 		#  |                                                 | ALL  01111111 00011111
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct __attribute__((packed)) A {            | sizeof(A) = still 2, irrespective of the fact that there is a struct-level packed.
-		#  |												 | Shows that the moment we have aligned(), you can never pack at the bit-level - you start at a new byte.
-		#  |        char i1:1 __attribute__((packed));       | Here we went overboard with putting packed statement everywhere, but it did not matter.
+		#  |  struct __attribute__((packed)) A {             | sizeof(A) = still 2, irrespective of the fact that there is a struct-level packed.
+		#  |                                                 | Shows that the moment we have aligned(), you can never pack at the bit-level - you start at a new byte.
+		#  |   char i1:1 __attribute__((packed));            | Here we went overboard with putting packed statement everywhere, but it did not matter.
 		#  |                                                 |       byte1    byte0  
-		#  |        char i2:1 __attribute__((packed,         | i1 = 00000000 00000001
-		#  |  };                    aligned(1)));            | i2 = 00000001 00000000
+		#  |   char i2:1 __attribute__((packed,aligned(1))); | i1 = 00000000 00000001
+		#  |  };                                             | i2 = 00000001 00000000
 		#  |                                                 | ALL  00000001 00000001
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  | // No pragma pack                               | sizeof(A) = 2.
 		#  |  struct A {                                     |       byte1    byte0  
 		#  |     short i1: 1;                                |i1 = 00000000 00000001
-		#  |   };                                            | In absence of any pragma pack, the alignment of i1 is the alignment of a short - 2 bytes.
+		#  |   };                                            | In absence of any pragma pack, the natural size and alignment of i1 is the alignment of a short - 2 bytes.
 		#  |                                                 | Since the overall size of a struct is a multiple of the biggest alignment, sizeof(A) = 2.
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  | #pragma pack(1)                                 | sizeof(A) = 1.
-		#  |  struct A {                                     |        byte0  
-		#  |     short i1: 1;                                | i1 = 00000001
-		#  |   };                                            | Observe that even in absense of any __aligned__ attribute, the #pragma pack(1) was still able to 
-		#  |                                                 | bring down the SIZE of the container below its natural size of 2 bytes.
+		#  | #pragma pack(1)                                 | sizeof(A) = 1. Because #pragma pack(1) means packed + aligned(1). The packed brings down the natural size to 1 byte.
+		#  |  struct A { short i1:1;};                       |        
+		#  | #pragma pack(2)                                 | sizeof(B) = 1. Remember that pragma only bring DOWN the alignment, it cannot increase.
+		#  |  struct B { short i1:1;};                       |        
+		#  | #pragma pack(4)                                 | sizeof(C) = 1. Remember that pragma only bring DOWN the alignment, it cannot increase.
+		#  |  struct C { short i1:1;};                       |        
+		#  | #pragma pack(8)                                 | sizeof(D) = 1. Remember that pragma only bring DOWN the alignment, it cannot increase.
+		#  |  struct D { short i1:1;};                       |        
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  | #pragma pack(1)                                 | sizeof(A) = 1. Because #pragma pack(1) means packed + aligned(1). The packed brings down the natural size to 1 byte.
+		#  |  struct A { short i1:1, i2:1;};                 |        
+		#  | #pragma pack(2)                                 | sizeof(B) = 1. Remember that pragma only bring DOWN the alignment, it cannot increase.
+		#  |  struct B { short i1:1, i2:1;};                 |        
+		#  | #pragma pack(4)                                 | sizeof(C) = 1. Remember that pragma only bring DOWN the alignment, it cannot increase.
+		#  |  struct C { short i1:1, i2:1;};                 |        
+		#  | #pragma pack(8)                                 | sizeof(D) = 1. Remember that pragma only bring DOWN the alignment, it cannot increase.
+		#  |  struct D { short i1:1, i2:1;};                 | This example shows that #pragma pack(n) does NOT mean that we add any ALIGNED(n) attribute anywhere.       
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  | // No pragma pack                               | sizeof(A) = 4.
 		#  |  struct A {                                     |       byte3    byte2    byte1    byte0  
@@ -8165,7 +8312,7 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |  struct A {                                     |       byte1    byte0  
 		#  |     int i1: 1 __attribute__((aligned(2)))       |i1 = 00000000 00000001
 		#  |               __attribute__((packed));          |
-		#  |   };                                            | 
+		#  |   };                                            | The packed made the size of i1 to 1 byte, which the aligned(2) increased to 2 bytes.
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  | // No pragma pack                               | sizeof(A) = now 3. The aligned(2) now works since align can now increase the post-packed alignment of 1
 		#  |  struct __attribute__((packed)) A {             |         byte2    byte1    byte0  
@@ -8186,19 +8333,62 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |     short i1: 15;                               | i1 = 00000000 00000000 01111111 11111111 
 		#  |     short i2: 2 __attribute__((packed));        | i2 = 00000000 00000001 10000000 00000000 
 		#  |  };                                             | ALL  00000000 00000001 11111111 11111111 
+		#  |                                                 | Why still 4 bytes? Well, the alignment of i1 is still 2 bytes, and the overall struct's alignment 
+		#  |                                                 | must be a multiple of that.
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  | #pragma pack(2) //but no packed                 | sizeof(A) = still 4. But, we are NOT starting from the new short boundary - i2 overlaps both shorts.
-		#  |                                                 | Which basically means, that for bitfields, #pragma pack() means PACKED at the struct level anyway.
-		#  |  struct A {                                     |        byte3    byte2    byte1    byte0  
-		#  |     short i1: 15;                               | i1 = 00000000 00000000 01111111 11111111 
-		#  |     short i2: 2;                                | i2 = 00000000 00000001 10000000 00000000 
-		#  |  };                                             | ALL  00000000 00000001 11111111 11111111 
+		#  |                                                 | sizeof(A) = 3. Bits are packed in the same packed fashion, but the overall alignment is 1 byte, thanks to packed.
+		#  |  struct A {                                     |        byte2    byte1    byte0  
+		#  |     short i1:15;                                | i1 = 00000000 01111111 11111111 
+		#  |     short i2: 2;                                | i2 = 00000001 10000000 00000000 
+		#  |  } __attribute__((packed));                     | ALL  00000001 11111111 11111111 
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |                                                 | sizeof(A) = 3. The aligned(1) does not change anything since the overall struct alignment was 1 anyway.
+		#  |  struct A {                                     |        byte2    byte1    byte0  
+		#  |     short i1:15;                                | i1 = 00000000 01111111 11111111 
+		#  |     short i2: 2;                                | i2 = 00000001 10000000 00000000 
+		#  |  } __attribute__((packed, aligned(1)));         | ALL  00000001 11111111 11111111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  | #pragma pack(1)                                 | sizeof(A) = 3. Bits are packed in the same packed fashion, but the overall alignment is 1 byte.
+		#  | struct A {short i1:15, i2:2;};                  | 
+		#  |                                                 | The equivalence works because we are choosing a pack(n=1) which is <= overall structural alignment.
+		#  |  // Is equivalent to                            |
+		#  |                                                 |
 		#  |  struct A {                                     |        byte2    byte1    byte0  
-		#  |     short i1: 15;                               | i1 = 00000000 01111111 11111111 
+		#  |     short i1:15;                                | i1 = 00000000 01111111 11111111 
 		#  |     short i2: 2;                                | i2 = 00000001 10000000 00000000 
-		#  |  };                                             | ALL  00000001 11111111 11111111 
+		#  |  } __attribute__((packed, aligned(1)));         | ALL  00000001 11111111 11111111 
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  | #pragma pack(2)                                 | sizeof(A1) = Still 4. Again, we are NOT starting from the new short boundary - i2 overlaps both shorts.
+	#####  | struct A {short i1:15, i2:2;};                  | Which basically means, that for bitfields, #pragma pack() means PACKED at the struct level anyway.
+		#  | // PACKED has no extra effect                   | And then, sizeof(short) = 2.
+		#  |  // Is equivalent to                            | 
+		#  |                                                 | 
+		#  |  struct A {                                     |        byte3    byte2    byte1    byte0  
+		#  |     short i1:15;                                | i1 = 00000000 00000000 01111111 11111111 
+		#  |     short i2: 2;                                | i2 = 00000000 00000001 10000000 00000000 
+		#  |  } __attribute__((packed, aligned(2)));         | ALL  00000000 00000001 11111111 11111111 
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+	#####  | #pragma pack(4)                                 | sizeof(A) = Still 4. Again, we are NOT starting from the new short boundary - i2 overlaps both shorts.
+		#  | struct A {short i1:15, i2:2;};                  | Which basically means, that for bitfields, #pragma pack() means PACKED at the struct level anyway.
+		#  | // PACKED has no extra effect                   |  And then, sizeof(short) = 2.
+		#  |  // Is equivalent here to                       | 
+		#  |                                                 | 
+		#  |  struct A {                                     |        byte3    byte2    byte1    byte0  
+		#  |     short i1:15;                                | i1 = 00000000 00000000 01111111 11111111 
+		#  |     short i2: 2;                                | i2 = 00000000 00000001 10000000 00000000 
+		#  |  } __attribute__((packed, aligned(4)));         | ALL  00000000 00000001 11111111 11111111 
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+		#  |_________________________________________________|_____________________________________________________________________________________________________
+	#####  | #pragma pack(8)                                 | sizeof(A1) = Still 4. From #pragma pack(8), only the PACKED part will have any effect, by allowing 
+		#  | struct A1 {short i1:15, i2:2;};                 | i2 to span both byte1 and byte2. However, the other part of #pragma pack(8) - the aligned(8) will not be applied
+		#  | // PACKED has no extra effect                   |  since the overall struct alignment of 4 is less than 8. Recall that #pragma pack(n) only lowers the alignment
+		#  |  // Is NOT equivalent to                        | values to n - it never increases it to n.
+		#  |                                                 | sizeof(A2) = 8, not 4. The layout of the bottom 4 bytes is the same though.
+		#  |  struct A2 {                                    |        byte7    byte6    byte5    byte4    byte3    byte2    byte1    byte0  
+		#  |     short i1:15;                                | i1 = 00000000 00000000 00000000 00000000 00000000 00000000 01111111 11111111 
+		#  |     short i2: 2;                                | i2 = 00000000 00000000 00000000 00000000 00000000 00000001 10000000 00000000 
+		#  |  } __attribute__((packed, aligned(8)));         | ALL  00000000 00000000 00000000 00000000 00000000 00000001 11111111 11111111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
 		#  |  struct A {                                     | sizeof(A) = 4, because now i2 is aligned to a 2-byte boudary. So there will be a pad of 4 bits after i2.
 		#  |        short i1:5;                              | Observe that 5+7 bits = 12 bits fit into a single short, yet i2 starts from a new short boundary.
@@ -8238,31 +8428,31 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |  };                                             | i2 = 00000001 11111111 00000000 00000000 
 		#  |                                                 | ALL  00000001 11111111 00000000 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = now 4, because without the packed, now it is aligned to i1's size (2 bytes).
+		#  |  struct C {                                     | sizeof(C) = now 4, because without the packed, now it is aligned to i1's size (2 bytes).
 		#  |        short i1:5;                              |       byte3    byte2    byte1    byte0  
 		#  |        short i2:9 __attribute__((aligned(1)));  | i1 = 00000000 00000000 00000000 00011111  
 		#  |  };    //aligned(1) is ignored since it can     | i2 = 00000001 11111111 00000000 00000000 
 		#  |        //only INCREASE alignment, not reduce    | ALL  00000001 11111111 00000000 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = still 4, because without the packed for i1, it's still aligned to max-sized i1's size (2 bytes).
+		#  |  struct C {                                     | sizeof(C) = still 4, because without the packed for i1, it's still aligned to max-sized i1's size (2 bytes).
 		#  |        short i1:5 __attribute__((aligned(1)));  |       byte3    byte2    byte1    byte0  
-		#  |        short i2:9 __attribute__((aligned(1)))   | i1 = 00000000 00000000 00000000 00011111 
+		#  |        short i2:9 __attribute__((aligned(1)));  | i1 = 00000000 00000000 00000000 00011111 
 		#  |  };                                             | i2 = 00000001 11111111 00000000 00000000 
 		#  |     // No packed anywhere, aligneds ignored     | ALL  00000001 11111111 00000000 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = still 4, because without the packed for i1, it's still aligned to max-sized i1's size (2 bytes).
+		#  |  struct C {                                     | sizeof(C) = still 4, because without the packed for i1, it's still aligned to max-sized i1's size (2 bytes).
 		#  |        short i1:5 __attribute__((aligned(1)));  |       byte3    byte2    byte1    byte0      And while i2 is now aligned to 1-byte, even if it starts from
 		#  |        short i2:9 __attribute__((aligned(1)))   | i1 = 00000000 00000000 00000000 00011111    bit 8 (beginning of byte1), its 9 bits will still not fit within
 		#  |                   __attribute__((packed));      | i2 = 00000001 11111111 00000000 00000000    byte1. Hence it must start on byte2 and spill into byte3.
 		#  |  };                                             | ALL  00000001 11111111 00000000 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = still 4, because without the packed for i2, it's still aligned to max-sized i2's size (2 bytes).
+		#  |  struct C {                                     | sizeof(C) = still 4, because without the packed for i2, it's still aligned to max-sized i2's size (2 bytes).
 		#  |        short i1:5 __attribute__((aligned(1)))   |       byte3    byte2    byte1    byte0  
 		#  |                   __attribute__((packed));      | i1 = 00000000 00000000 00000000 00011111 
 		#  |        short i2:9 __attribute__((aligned(1)));  | i2 = 00000001 11111111 00000000 00000000 
 		#  |  };                                             | ALL  00000001 11111111 00000000 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = now 3, because now the max-sized alignment is 1 byte. We have packed on each struct member level,
+		#  |  struct C {                                     | sizeof(C) = now 3, because now the max-sized alignment is 1 byte. We have packed on each struct member level,
 		#  |        short i1:5 __attribute__((aligned(1)))   | which is same as putting a packed in the struct-level, as the example below
 		#  |                   __attribute__((packed));      |       byte2    byte1    byte0  
 		#  |        short i2:9 __attribute__((aligned(1)))   | i1 = 00000000 00000000 00011111 
@@ -8282,39 +8472,39 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |  };                                             | i2 = 00111111 11100000 
 		#  |                                                 | ALL  00111111 11111111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |  #pragma pack(2)                                | sizeof(C) = 4, because even though i2 is byte-aligned, i1's alignment is still 2-bytes.
+	#####  |  #pragma pack(2)                                | sizeof(C) = 4, because even though i2 is byte-aligned, i1's alignment is still 2-bytes.
 		#  |   struct C {                                    |
 		#  |        short i1:5;  // aligned(1) is redundant  |       byte3    byte2    byte1    byte0  
 		#  |        short i2:9 __attribute__((aligned(1)));  | i1 = 00000000 00000000 00000000 00011111 
 		#  |  };                                             | i2 = 00000000 00000001 11111111 00000000 
-		#  |                                                 | ALL  00000000 00000001 11111111 00011111 
+		#  | // PACKED has no extra effect                   | ALL  00000000 00000001 11111111 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |  #pragma pack(2)                                | sizeof(C) = 4, because even though i1 and i2 are byte-aligned, i1's alignment is still 2-bytes.
+	#####  |  #pragma pack(2)                                | sizeof(C) = 4, because even though i1 and i2 are byte-aligned, i1's alignment is still 2-bytes.
 		#  |   struct C {                                    |
 		#  |        short i1:5 __attribute__((aligned(1)));  |       byte3    byte2    byte1    byte0  
 		#  |        short i2:9 __attribute__((aligned(1)));  | i1 = 00000000 00000000 00000000 00011111 
 		#  |  };                                             | i2 = 00000000 00000001 11111111 00000000 
-		#  |                                                 | ALL  00000000 00000001 11111111 00011111 
+		#  | // PACKED has no extra effect                   | ALL  00000000 00000001 11111111 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = still 4, but look at the placement of i2. It's no longer at byte #2, it's now at byte#1
+		#  |  struct C {                                     | sizeof(C) = still 4, but look at the placement of i2. It's no longer at byte #2, it's now at byte#1
 		#  |        short i1:5;                              |       byte3    byte2    byte1    byte0  
 		#  |        int   i2:9 __attribute__((aligned(1)));  | i1 = 00000000 00000000 00000000 00011111 
 		#  |  };                                             | i2 = 00000000 00000001 11111111 00000000 
 		#  |                                                 | ALL  00000000 00000001 11111111 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = still 4, because you can still start at a byte-aligned second byte, and fill it within 1 int.
+		#  |  struct C {                                     | sizeof(C) = still 4, because you can still start at a byte-aligned second byte, and fill it within 1 int.
 		#  |        short i1:5;                              |       byte3    byte2    byte1    byte0  
 		#  |        int   i2:24 __attribute__((aligned(1))); | i1 = 00000000 00000000 00000000 00011111 
 		#  |  };                                             | i2 = 11111111 11111111 11111111 00000000 
 		#  |                                                 | ALL  11111111 11111111 11111111 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = still 4, because you can still start at a byte-aligned second byte, and fill it within 1 int.
+		#  |  struct C {                                     | sizeof(C) = still 4, because you can still start at a byte-aligned second byte, and fill it within 1 int.
 		#  |        short i1:5;                              |       byte3    byte2    byte1    byte0  
 		#  |        int   i2:24 __attribute__((aligned(1))); | i1 = 00000000 00000000 00000000 00011111 
 		#  |  } __attribute__((packed));                     | i2 = 11111111 11111111 11111111 00000000 
 		#  |  // packed is redundant                         | ALL  11111111 11111111 11111111 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = 8, because when you start packing from the byte2, you cannot fit in 24 bits witin the next 2 bytes.
+		#  |  struct C {                                     | sizeof(C) = 8, because when you start packing from the byte2, you cannot fit in 24 bits witin the next 2 bytes.
 		#  |                                                 | So you go to the next place where the int container can start (byte4) and pack from there.
 		#  |        short i1:5;                              |        byte7    byte6    byte5    byte4   byte3    byte2    byte1    byte0  
 		#  |        int   i2:24 __attribute__((aligned(2))); | i1 = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00011111 
@@ -8323,7 +8513,7 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |                                                 | Because we did not have a packed attribute, aligned(2) was not able to REDUCE the alignemnt of where the 
 		#  |                                                 | next int container could start from. Its alignment remained it natural size, 4.
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = 6, because when you start packing from the byte2, you cannot fit in 24 bits witin the next 2 bytes.
+		#  |  struct C {                                     | sizeof(C) = 6, because when you start packing from the byte2, you cannot fit in 24 bits witin the next 2 bytes.
 		#  |                                                 | So you go to the next place where the int container can start (byte2) and pack from there.
 		#  |        short i1:5;                              |        byte5    byte4   byte3    byte2    byte1    byte0  
 		#  |        int   i2:24 __attribute__((aligned(2)))  | i1 = 00000000 00000000 00000000 00000000 00000000 00011111 
@@ -8332,19 +8522,19 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |                                                 | Because we have a packed attribute, it initially reduced the the alignemnt to 1 of where the next int container
 		#  |                                                 | could start from. Then aligned(2) INCREASED that alignment to 2.
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = still 4, No change due to the int -> long long shift
+	#####  |  struct C {                                     | sizeof(C) = still 4, No change due to the int -> long long shift
 		#  |      short i1:5;                                |       byte3    byte2    byte1    byte0  
 		#  |      long long i2:9 __attribute__((aligned(1)));| i1 = 00000000 00000000 00000000 00011111 
 		#  |  };                                             | i2 = 00000000 00000001 11111111 00000000 
 		#  |                                                 | ALL  00000000 00000001 11111111 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = still 4, No change due to the int -> long long shift
+	#####  |   struct C {                                    | sizeof(C) = still 4, No change due to the int -> long long shift
 		#  |      short i1:5;                                |       byte3    byte2    byte1    byte0  
 		#  |      long long i2:9 __attribute__((aligned(2)));| i1 = 00000000 00000000 00000000 00011111 
 		#  |  };                                             | i2 = 00000001 11111111 00000000 00000000
 		#  |                                                 | ALL  00000001 11111111 00000000 00011111 
 		#  |_________________________________________________|_____________________________________________________________________________________________________
-		#  |   struct C {                                    | sizeof(C) = now 8, No change due to the int -> long long shift ???????????????????????????????????
+	#####  |   struct C {                                    | sizeof(C) = now 8, No change due to the int -> long long shift ???????????????????????????????????
 		#  |      short i1:5;                                |       byte3    byte2    byte1    byte0  
 		#  |      long long i2:9 __attribute__((aligned(4)));| i1 = 00000000 00000000 00000000 00011111 is this correct?
 		#  |  };                                             | i2 = 00000001 11111111 00000000 00000000
@@ -8375,6 +8565,397 @@ def parseStructure(tokenList, i, parentStructName, level):
 		#  |        short i2:9 __attribute__((aligned(4)));  | i2 = 00000001 11111111 00000000 
 		#  |  };                                             | ALL  00000001 11111111 00011111
 		#  |_________________________________________________|_____________________________________________________________________________________________________
+
+
+
+
+		#########################################
+		#										#
+		#   NEW METHOD - GCC STYLE				#
+		#										#
+		#########################################
+
+
+
+
+		# We do all the calculations in bits so that we can use one single metric for both bitfield and non-bitfield (will have to divide it by BITS_IN_BYTE to get Byte #)
+		leadingPadSizeBits = 0
+		trailingPadSizeBits = 0
+		structSizeBytes = 0		# We don't do structSizeBits since a struct size can never be an incomplete byte. It must always end at a byte boundary
+		largestMemberLevelAlignmentBytes = 1
+		
+		# For bitfields, there are two ways to calculate the bit offsets.
+		# Technically, once can mix the storage containers. For example, struct MixedContainers { short s:2; int i:4; long l:20;}; is legal in C.
+		# However, it is not a good way to code in C, since the output bit offset would vary from compiler to compiler.
+		# Similarly, when you have different attributes for a bitfield-weilding struct (like packed, aligned and #pragma pack), the result may vary.
+		structHasMemberLevelOrStructLevelAttributes = False
+		structHasBitFields = False
+		structHasBitFieldsWithMixedContainers = False
+		structBitFieldContainers = []
+		
+		
+		structComponentList = structuresAndUnionsDictionary[structName]["components"]
+		
+		lastItemWasZeroWidthBitfield = False
+		
+		for N in range(len(structComponentList)):
+			structMember 			 = structComponentList[N]
+			structMemberName 		 = structMember[0]
+			structMemberSizeBytes 	 = structMember[1]
+			structMemberDescription  = structMember[4]
+			isBitField				 = structMemberDescription["isBitField"]
+			datatype				 = structMemberDescription["datatype"]
+			if isBitField:
+				bitFieldWidth = structMemberDescription["bitFieldWidth"]
+				structHasBitFields = True
+				
+				# Also figure out if the struct has mixed storage containers (highly unusual, makes little sense, and is frowned upon)
+				if structBitFieldContainers:
+					for item in structBitFieldContainers:
+						if item != datatype:
+							structHasBitFieldsWithMixedContainers = True
+				structBitFieldContainers.append(datatype)
+			
+			PRINT("\nGoing to process member #",N,"structMemberName =",structMemberName,", structMemberSizeBytes =",structMemberSizeBytes,", datatype =",datatype,", structSizeBytes =",structSizeBytes,", trailingPadSizeBits =",trailingPadSizeBits)
+			
+			#########################################################################################################
+			# Alignment and Size calculation - Exactly from where it will start to occupy (causes leading padding)
+			#########################################################################################################
+			
+			# 1. First, get the member's datatype's size - that is its natural alignment. For array variables, take the base datatype, not the total size of the array.
+			#    For member variables that are struct, take the overall struct's alignment.
+			# 2. If there is a member-level or struct-level __attribute__((packed)) statement, it tells that the compiler should start packing the member from the 
+			#    first available empty space. You cannot specify a byte-boundary - it's assumed to be 1. So, __attribute__((packed)) overrides natural alignment.
+			# 3. __attribute__((aligned(m)))__ overrides __attribute__((packed)) - no matter if the packed is at the struct-level at the member-level.
+			#    Once again, recall that the packed doesn't come with a number.
+			# 4. #pragma packed(n), when smaller, overrides __attribute__((aligned(m))). It only reduces, but never increases the aligned. So, if n > m, it is ignored.
+			
+			# If the member item is a struct itself, get its alignment. Recall that unless packed, a structure's alignment is its largest sized member vairable's alignment.
+			
+			naturalSizeBytes = structMemberSizeBytes
+			memberAlignmentBytes = 1	# Default value in Bytes
+			sanityCheckCount = 0
+			
+			# 1. get the "natural" alignment
+			while (True):
+				sanityCheckCount += 1
+				if sanityCheckCount > 100:
+					errorMessage = "ERROR in parseStructure() - endlessly looping trying to find the alignment for this member"
+					errorRoutine(errorMessage)
+					return False
+					
+				if datatype.startswith("unsigned"):
+					datatype = datatype[len("unsigned")+1:]
+				elif datatype.startswith("function"): # A function pointer has a size. A function does not need any storage. Pure C does not allow structs to have functions in them.
+					memberAlignmentBytes = 1		# Possible bug?
+					break
+				elif datatype in getDictKeyList(primitiveDatatypeLength):
+					memberAlignmentBytes = primitiveDatatypeLength[datatype]
+					break
+				elif datatype in getDictKeyList(typedefs):
+					# It typedefs into a structure/union
+					if isinstance(typedefs[datatype],list) and len(typedefs[datatype])==2 and (typedefs[datatype][0] == "enum" or typedefs[datatype][0] == "struct" or typedefs[datatype][0] == "union"):
+						datatype = typedefs[datatype][1]
+					# It typedefs into some other regular variable declaration
+					else: 
+						item = typedefs[datatype]
+						PRINT ("The typedef", datatype,"resolves into",item )
+						if len(item) != 5:
+							errorMessage = "ERROR in parseStructure() - unknown tuple - exiting"
+							errorRoutine(errorMessage)
+							return False
+						else:
+							memberAlignmentBytes = typedefs[datatype][1]
+							break
+				elif datatype in getDictKeyList(enums):
+					if "attributes" in getDictKeyList(enums[datatype]) and ALIGNED_STRING in getDictKeyList(enums[datatype]["attributes"]):
+						memberAlignmentBytes = enums[datatype]["attributes"][ALIGNED_STRING]
+						break
+					else:
+						# In C, enum sizes are not specified of at least an INT
+						memberAlignmentBytes = primitiveDatatypeLength["int"]
+						PRINT ("The size of Enum <",datatype,"> is assumed to be same as an Integer,",size )
+						break
+				elif datatype in getDictKeyList(structuresAndUnionsDictionary):
+					structOrUnionName = datatype
+					if "attributes" not in getDictKeyList(structuresAndUnionsDictionary[structOrUnionName]):
+						errorMessage = "ERROR in parseStructure() - struc/union datatype <" + structOrUnionName + "> does not have attributes - exiting"
+						errorRoutine(errorMessage)
+						return False
+					elif ALIGNED_STRING not in getDictKeyList(structuresAndUnionsDictionary[structOrUnionName]["attributes"]):
+						errorMessage = "ERROR in parseStructure() - struc/union datatype <" + structOrUnionName + "> attributes does not have ALIGNED_STRING - exiting"
+						errorRoutine(errorMessage)
+						return False
+					else:
+						memberAlignmentBytes = int(structuresAndUnionsDictionary[structOrUnionName]["attributes"][ALIGNED_STRING])
+						break
+
+			PRINT("For struct member",structMemberName,"of datatype",datatype, ",original memberAlignmentBytes =",memberAlignmentBytes)
+			
+			# 2. If there is a struct-level or member-level packed statement, that overrides this natural alignment to  byte (or 1 bit for bitfield)
+			isPacked = False
+			isPackedReason = ""
+			if "attributes" in getDictKeyList(structuresAndUnionsDictionary[structName]) and PACKED_STRING in getDictKeyList(structuresAndUnionsDictionary[structName]["attributes"]):
+				isPacked = True
+				isPackedReason = "Struct-level packed attribute"
+			if "attributes" in getDictKeyList(structuresAndUnionsDictionary[structName]["components"][N][4]) and PACKED_STRING in getDictKeyList(structuresAndUnionsDictionary[structName]["components"][N][4]["attributes"]):
+				isPacked = True
+				isPackedReason += (("" if isPackedReason == "" else "as well as ") + "Member-level packed attribute")
+			# This is essentially a hack. We treat #pragma pack(n) = packed + max alignment is n only when it is a bitfield. Otherwise, it is just the max alignment.
+			if isBitField and pragmaPackCurrentValue != None:
+				isPacked = True
+				isPackedReason += (("" if isPackedReason == "" else "as well as ") + "#pragma pack() statement")
+			
+			if isPacked:
+				structHasMemberLevelOrStructLevelAttributes = True
+				memberAlignmentBytes = 1 
+				PRINT("However, ",structMemberName," is packed thanks to", isPackedReason,", hence memberAlignmentBytes =",memberAlignmentBytes)
+				if isBitField:
+					naturalSizeBytes = 1
+					PRINT("In fact,",structMemberName," is a packed bitfield, so naturalSizeBytes =",naturalSizeBytes)
+			else:
+				PRINT(structMemberName,"is NOT a packed bitfield, so naturalSizeBytes =",naturalSizeBytes)
+
+			memberAlignmentBits = 1 if isBitField else memberAlignmentBytes * BITS_IN_BYTE
+			PRINT("After checking if",structMemberName, "is PACKED, memberAlignmentBits =",memberAlignmentBits)
+
+
+			# 3. However, if there is any member-level aligned statement, that overrides this (it cannot decrease, only increase)
+			if "attributes" in getDictKeyList(structuresAndUnionsDictionary[structName]["components"][N][4]) and ALIGNED_STRING in getDictKeyList(structuresAndUnionsDictionary[structName]["components"][N][4]["attributes"]):
+				structHasMemberLevelOrStructLevelAttributes = True
+				alignedBytes = structuresAndUnionsDictionary[structName]["components"][N][4]["attributes"][ALIGNED_STRING]
+				alignedBits = alignedBytes * BITS_IN_BYTE
+				PRINT("However, there is a member-level __aligned__((",alignedBytes,")) attribute")
+				memberAlignmentBytes = max(memberAlignmentBytes,alignedBytes)
+				memberAlignmentBits  = max(memberAlignmentBits ,alignedBits )
+				PRINT("Post-ALIGNED, New value of memberAlignmentBytes =",memberAlignmentBytes,"bytes, memberAlignmentBits =",memberAlignmentBits," bits")
+
+			
+			# 4. #pragma packed(n) overrides the maximum alignment. It only reduces, but never increases the aligned. So, if n > m, it is ignored.
+			if pragmaPackCurrentValue != None:
+				PRINT("There is also a #pragma pack(",pragmaPackCurrentValue,") statement.")
+				memberAlignmentBytes = min(pragmaPackCurrentValue				, memberAlignmentBytes)
+				memberAlignmentBits  = min(pragmaPackCurrentValue * BITS_IN_BYTE, memberAlignmentBits )
+				PRINT("Post-PRAGMA-PACK, New value of memberAlignmentBytes =",memberAlignmentBytes,"bytes, memberAlignmentBits =",memberAlignmentBits," bits")
+				structHasMemberLevelOrStructLevelAttributes = True
+
+			# Update the overall struct-level alignment
+			largestMemberLevelAlignmentBytes = max(memberAlignmentBytes, largestMemberLevelAlignmentBytes)
+			PRINT("After checking PACKED, ALIGNED, and #PRAGMA PACK(), memberAlignmentBytes =",memberAlignmentBytes,". Hence largestMemberLevelAlignmentBytes = ",largestMemberLevelAlignmentBytes)
+
+			# Once we know the alignment, calculate its effective size. It must be at least as big as the natural size (except for non-packed bitfields), otherwise we will lose data
+			# For bitfields, when it is packed, the natural size defaults to 1 byte, irrespective of whether the container is char/short/int/long etc.
+			effectiveSizeBytes = max(naturalSizeBytes, memberAlignmentBytes)
+			effectiveSizeBits = effectiveSizeBytes * BITS_IN_BYTE
+
+			PRINT("After processing all the attributes for struct member",structMemberName,"of original naturalSizeBytes =",naturalSizeBytes,"and effectiveSizeBytes =",effectiveSizeBytes,"and member-level alignment =",memberAlignmentBytes,", set largestMemberLevelAlignmentBytes = ",largestMemberLevelAlignmentBytes) 
+
+			if structuresAndUnionsDictionary[structName]["type"]=="union":
+				structuresAndUnionsDictionary[structName]["components"][N][4]["bitOffsetWithinStruct"] = 0
+				structSizeBytes = max(effectiveSizeBytes,structSizeBytes)
+				structSizeBits = structSizeBytes * BITS_IN_BYTE
+				continue
+
+			if isBitField and bitFieldWidth == 0:
+				lastItemWasZeroWidthBitfield = True
+				continue
+
+			#####################################
+			#  			   BITFIELD				#
+			#####################################
+			
+			if isBitField:
+				# Find out the first available unfilled bit. Starts from bit # 0.
+				structSizeBits = structSizeBytes * BITS_IN_BYTE
+				firstUnfilledBitNumber = structSizeBits - trailingPadSizeBits # This trailingPadSizeBits was calculated by the previous struct member in previous iteration
+				firstUnfilledBitNumberAligned = alignedOnOrAfter(firstUnfilledBitNumber, memberAlignmentBits) # Careful - this might be AFTER the struct size
+				
+				PRINT("For Bitfield structMemberName = ",structMemberName, "structSizeBytes =",structSizeBytes,"(",structSizeBits," bits), trailingPadSizeBits = ",trailingPadSizeBits,", firstUnfilledBitNumber =",firstUnfilledBitNumber,"leadingPadSizeBits = ",leadingPadSizeBits)
+				
+				# If there is no ALIGNED(m), and basically we have the liberty to fill the member from whichever bit we want, then it is simple (except when we have mixed containers)
+				
+				if lastItemWasZeroWidthBitfield == False:
+				
+					PRINT("We can start packing",structMemberName,"right from the first available bit aligned to",memberAlignmentBits,"bits, which is bit#", firstUnfilledBitNumberAligned)
+					
+					# If it is packed, just don't care how much bits are left in the current container. If it spills over, add another byte, not another effectiveSizeBytes
+					if isPacked:
+					
+						PRINT(structMemberName,"can be packed without worrying about if it would spill to another container")
+						bitOffsetWithinStruct = firstUnfilledBitNumberAligned
+						currentMemberEndsAtBitNumberInclusive = firstUnfilledBitNumberAligned + bitFieldWidth - 1
+						PRINT(structMemberName,"starts and ends at bit numbers <",bitOffsetWithinStruct,",",currentMemberEndsAtBitNumberInclusive,"(inclusive)>")
+						# If we could accommodate the full member within the leading pad, then structSizeBytes is unchanged
+						if currentMemberEndsAtBitNumberInclusive < structSizeBits:
+							PRINT("The current member",structMemberName,"of bitfield width", bitFieldWidth,"could be accommodated within the", trailingPadSizeBits,"bits of trailing pads itself")
+							trailingPadSizeBits = trailingPadSizeBits - bitFieldWidth
+							PRINT("After filling",structMemberName,"of bitfield width", bitFieldWidth,", the new value of trailingPadSizeBits =", trailingPadSizeBits)
+							PRINT(structMemberName,"starts and ends at bit numbers <",bitOffsetWithinStruct,"(",bit2ByteAndBit(bitOffsetWithinStruct),"),",currentMemberEndsAtBitNumberInclusive,"(",bit2ByteAndBit(currentMemberEndsAtBitNumberInclusive),") (inclusive)>")
+							PRINT("The structSizeBytes is still",structSizeBytes,"(",structSizeBits," bits") 
+							PRINT("\n","==="*50,"\n")
+						else:
+							PRINT("The current bitfield member",structMemberName,"of", bitFieldWidth,"bits width could NOT be accommodated within the", trailingPadSizeBits,"bits of trailing pads itself")
+							extraBitsReqd = currentMemberEndsAtBitNumberInclusive + 1 - structSizeBits
+							extraBytesReqd = integerDivision(extraBitsReqd, BITS_IN_BYTE) if extraBitsReqd % BITS_IN_BYTE == 0 else integerDivision(extraBitsReqd, BITS_IN_BYTE) + 1
+							PRINT("Need to add",extraBytesReqd,"bytes to the structSizeBytes =",structSizeBytes)
+							structSizeBytes += extraBytesReqd
+							structSizeBits = structSizeBytes * BITS_IN_BYTE
+							trailingPadSizeBits = structSizeBits - currentMemberEndsAtBitNumberInclusive - 1
+							PRINT("After filling",structMemberName,"of bitfield width", bitFieldWidth,", the new value of trailingPadSizeBits =", trailingPadSizeBits)
+							PRINT(structMemberName,"starts and ends at bit numbers <",bitOffsetWithinStruct,"(",bit2ByteAndBit(bitOffsetWithinStruct),"),",currentMemberEndsAtBitNumberInclusive,"(",bit2ByteAndBit(currentMemberEndsAtBitNumberInclusive),") (inclusive)>")
+							PRINT("The new value of structSizeBytes is",structSizeBytes,"(",structSizeBits," bits)") 
+							PRINT("\n","==="*50,"\n")
+							
+					else:	# Not packed; need to be careful about staying within contaner boundary. Add effectiveSizeBytes if spills over to a new container
+					
+						PRINT(structMemberName,"can NOT be packed without worrying about if it would spill to another container")
+						# First look back and find the closest bit that matches the current member alignment. If it is first available bit itself, take appropriate actions.
+						if firstUnfilledBitNumberAligned == structSizeBits:
+							bitOffsetWithinStruct = firstUnfilledBitNumberAligned
+							structSizeBytes += effectiveSizeBytes
+							structSizeBits = structSizeBytes * BITS_IN_BYTE
+						else:
+							# First, there is no guarantee that the current container will match the previous container. So, one must first bring up the structSizeBytes if needed
+							# to align to at least the current container.
+							lastBitAlignedToNaturalSize = firstUnfilledBitNumber - firstUnfilledBitNumber % effectiveSizeBits
+							newMinimumStructSizeBits = lastBitAlignedToNaturalSize + effectiveSizeBits
+							if newMinimumStructSizeBits > structSizeBytes * BITS_IN_BYTE:
+								PRINT("The existing structSizeBytes =",structSizeBytes,"does not align to the", datatype," and/or its corresponding effectiveSizeBytes =",effectiveSizeBytes)
+								structSizeBytes = bit2Byte(newMinimumStructSizeBits)
+								structSizeBits = structSizeBytes * BITS_IN_BYTE
+								PRINT("Hence increased it to structSizeBytes =",structSizeBytes,"that does align to the", datatype,", alignment =",effectiveSizeBytes,"bytes" )
+							# Even though firstUnfilledBitNumberAligned > firstUnfilledBitNumber, the bits between them is unusable
+							bitsUsedWithinNaturalSizeAlignment = firstUnfilledBitNumberAligned - lastBitAlignedToNaturalSize
+							maxBitsAvailableWithinNaturalSizeAlignment = effectiveSizeBits - bitsUsedWithinNaturalSizeAlignment
+							PRINT("Looking backwards, lastBitAlignedToNaturalSize =",lastBitAlignedToNaturalSize,"is the bit number that aligns to the effective size of",effectiveSizeBytes,"bytes")
+							PRINT("Starting from bit #",lastBitAlignedToNaturalSize,"a total of bitsUsedWithinNaturalSizeAlignment =",bitsUsedWithinNaturalSizeAlignment,"bits have already been filled, leaving",maxBitsAvailableWithinNaturalSizeAlignment,"bits ready for use")
+							# Now, the problem is that
+							if bitFieldWidth > maxBitsAvailableWithinNaturalSizeAlignment:	# Need to start a new container
+								# 	Suppose we are dealing with a struct like:
+								#   struct S1{				MSb	=============================================================== LSb
+								#              	char c1:7; 				    	       									   01111111	structSizeBytes = 1, trailingPadSizeBits = 1
+								#              	char c2:7;                    							 		  01111111 01111111	structSizeBytes = 2, trailingPadSizeBits = 1
+								#              	char c3:5; 		     									 00011111 01111111 01111111	structSizeBytes = 3, trailingPadSizeBits = 3
+								#				int  i1:12;	00000000 00000000 00001111 11111111 00000000 01111111 01111111 01111111	structSizeBytes = 4, trailingPadSizeBits = 9
+								#   };
+								# In the above case, when we are trying to fit i1 (12 bits), even when we added a fourth byte to structSizeBytes so that overall it aligns to
+								# to an integer boundary, the effective trailing pad = 11 bits (not enough). So, we needed to add a whole new 4 bytes.
+								PRINT("Unfortunlately, bitFieldWidth (",bitFieldWidth,"bits) > maxBitsAvailableWithinNaturalSizeAlignment (",maxBitsAvailableWithinNaturalSizeAlignment,"bits)")
+								bitOffsetWithinStruct = lastBitAlignedToNaturalSize + effectiveSizeBits
+								PRINT("Hence adding a new container of effectiveSizeBytes =",effectiveSizeBytes, "bytes to the current structSizeBytes =",structSizeBytes)
+								structSizeBytes += effectiveSizeBytes
+								PRINT("The new value of structSizeBytes =",structSizeBytes)
+							else: # No need to start a new container
+								# 	Suppose we are dealing with a struct like:
+								#   struct S1{				MSb	=========================== LSb
+								#              	char c1:7; 				    	       01111111	structSizeBytes = 1, trailingPadSizeBits = 1
+								#              	char c2:7;                    01111111 01111111	structSizeBytes = 2, trailingPadSizeBits = 1
+								#              	char c3:5; 		     00011111 01111111 01111111	structSizeBytes = 3, trailingPadSizeBits = 3
+								#				int  i1:2;	00000000 01111111 01111111 01111111	structSizeBytes = 4, trailingPadSizeBits = 9
+								#   };
+								# In the above case, when we are trying to fit i1 (2 bits), it fits within the third byte. Yet,  we added a fourth byte to structSizeBytes 
+								# so that overall it aligns to an integer boundary. 
+								PRINT("Fortunlately, bitFieldWidth (",bitFieldWidth,"bits) <= maxBitsAvailableWithinNaturalSizeAlignment (",maxBitsAvailableWithinNaturalSizeAlignment,"bits)")
+								bitOffsetWithinStruct = firstUnfilledBitNumberAligned
+								PRINT("Hence we do not need to add another",effectiveSizeBytes,"-byte-sized",datatype,"container")
+								PRINT("The structSizeBytes =",structSizeBytes,"does not need to be changed")
+				else:	# Last bit was a zero-width bitfield
+					bitOffsetWithinStruct = alignedOnOrAfter(firstUnfilledBitNumber, effectiveSizeBits)
+				
+				#Common for all non-packed		
+				PRINT("Hence the new bitOffsetWithinStruct =",bitOffsetWithinStruct)
+				currentMemberEndsAtBitNumberInclusive = bitOffsetWithinStruct + bitFieldWidth - 1
+				structSizeBits = structSizeBytes * BITS_IN_BYTE
+				trailingPadSizeBits = structSizeBits - currentMemberEndsAtBitNumberInclusive - 1
+				PRINT(structMemberName,"starts and ends at bit numbers <",bitOffsetWithinStruct,"(",bit2ByteAndBit(bitOffsetWithinStruct),"),",currentMemberEndsAtBitNumberInclusive,"(",bit2ByteAndBit(currentMemberEndsAtBitNumberInclusive),") (inclusive)>")
+				PRINT("After filling the bitfield <",datatype,structMemberName,":", bitFieldWidth,">, the new value of trailingPadSizeBits =", trailingPadSizeBits)
+				structuresAndUnionsDictionary[structName]["components"][N][4]["bitOffsetWithinStruct"] = bitOffsetWithinStruct
+				PRINT("The new value of structSizeBytes is",structSizeBytes,"(",structSizeBits," bits)") 
+				PRINT("\n","==="*50,"\n")
+						
+			#####################################
+			#  			NON-BITFIELD			#
+			#####################################
+			
+			else: # Not bitfield; regular struct member
+			
+				trailingPadSizeBytes = integerDivision((trailingPadSizeBits - (trailingPadSizeBits % BITS_IN_BYTE)), BITS_IN_BYTE)
+				# See if we can fit it in current member of effectiveSizeBytes within the trailing pads
+				
+				# Both structSizeBytes and previousMemberEndedAtSizeBytes represent SIZE. Thet are NOT byte numbers. Hence they do not start from 0, they start from 1.
+				# The byte numbering is 0, 1, 2 like this. But, if the byte 0 is filled, the size is not 0 - it is 1. Hence, the size numbering must start from 1.
+				# Remember that structSizeBytes is total NUMBER of bytes that the struct is currently occupying. For example, if the first member is a short, structSizeBytes = 2
+				# For previousMemberEndedAtSizeBytes, the size numbering is like 1, 2, 3 (NOT 0, 1, 2). Remember that this is NOT byte numbering, this is SIZE.
+				previousMemberEndedAtSizeBytes = structSizeBytes - trailingPadSizeBytes 	# This trailingPadSizeBytes was calculated by the previous struct member in previous iteration
+				
+				PRINT ("Although currently structSizeBytes =",structSizeBytes,"trailingPadSizeBytes =",trailingPadSizeBytes,"which means previousMemberEndedAtSizeBytes =",previousMemberEndedAtSizeBytes, ", essentially at byte #",previousMemberEndedAtSizeBytes-1)
+				
+				# First find out exactly where the current member data starts
+				leadingPadSizeBytes = 0 if previousMemberEndedAtSizeBytes % memberAlignmentBytes == 0 else memberAlignmentBytes - (previousMemberEndedAtSizeBytes % memberAlignmentBytes)
+				# Remember that offsetWithinStructBytes starts from 0, not 1
+				offsetWithinStructBytes = previousMemberEndedAtSizeBytes + leadingPadSizeBytes
+				PRINT ("For previousMemberEndedAtSizeBytes =",previousMemberEndedAtSizeBytes,"memberAlignmentBytes =",memberAlignmentBytes,"leadingPadSizeBytes =",leadingPadSizeBytes,", resulting in offsetWithinStructBytes =",offsetWithinStructBytes)
+				
+				currentMemberRealDataEndByte  = offsetWithinStructBytes + structMemberSizeBytes	# thanks to an aligned(m), a member's size may artifically increase. This is where real data ends
+				currentMemberAlignmentEndByte = offsetWithinStructBytes + effectiveSizeBytes
+				PRINT("structSizeBytes = max(structSizeBytes =",structSizeBytes,", currentMemberAlignmentEndByte =",currentMemberAlignmentEndByte,")")
+				structSizeBytes = max(structSizeBytes, currentMemberAlignmentEndByte)
+				PRINT("New value of structSizeBytes =",structSizeBytes)
+				
+				# MUST NOT define trailingPadSizeBytes before this since it will be used by the next struct member in next iteration
+				# Right in this statement below, we are OVERWRITING the trailingPadSizeBytes
+				trailingPadSizeBytes = structSizeBytes - currentMemberRealDataEndByte
+				trailingPadSizeBits = trailingPadSizeBytes * BITS_IN_BYTE
+
+				# Update within the main structure dictionary from which bit number this struct is starting
+				bitOffsetWithinStruct = offsetWithinStructBytes * BITS_IN_BYTE
+				structuresAndUnionsDictionary[structName]["components"][N][4]["bitOffsetWithinStruct"] = bitOffsetWithinStruct
+
+			lastItemWasZeroWidthBitfield = False
+			# This is the end of the code body that loops over all the members of the struct
+
+
+		# We are done with the member-level calculations. Let's do struct-level end-processing
+		structLevelAlignmentFinal = largestMemberLevelAlignmentBytes
+		PRINT("After processing all members of this struct, largestMemberLevelAlignmentBytes =",largestMemberLevelAlignmentBytes)
+		
+		# Now perform struct-level alignment. If there is a struct-level aligned specified, that may increase the member-level alignment.
+		if ALIGNED_STRING in getDictKeyList(attributes):
+			structLevelAlignmentSpecified = attributes[ALIGNED_STRING]
+			PRINT("However, there is a struct-level alignment specified =",structLevelAlignmentSpecified)
+			if structLevelAlignmentSpecified > structLevelAlignmentFinal:
+				PRINT("largestMemberLevelAlignmentBytes (",largestMemberLevelAlignmentBytes,") overridden by structLevelAlignmentSpecified(",structLevelAlignmentSpecified,")")
+				structLevelAlignmentFinal = structLevelAlignmentSpecified
+			else:
+				PRINT("largestMemberLevelAlignmentBytes (",largestMemberLevelAlignmentBytes,") not overridden by structLevelAlignmentSpecified(",structLevelAlignmentSpecified,")")
+				
+		#pragma packed(n) overrides the maximum alignment. It only reduces, but never increases the aligned. So, if n > m, it is ignored.
+		if pragmaPackCurrentValue != None:
+			if pragmaPackCurrentValue < structLevelAlignmentFinal:
+				PRINT("structLevelAlignmentFinal (",structLevelAlignmentFinal,") overridden by pragmaPackCurrentValue(",pragmaPackCurrentValue,")")
+				structLevelAlignmentFinal = pragmaPackCurrentValue
+			else:
+				PRINT("structLevelAlignmentFinal (",structLevelAlignmentFinal,") NOT overridden by pragmaPackCurrentValue(",pragmaPackCurrentValue,")")
+
+		
+		if structSizeBytes % structLevelAlignmentFinal != 0:
+			EndStructPadding = (structLevelAlignmentFinal - structSizeBytes % structLevelAlignmentFinal)
+			PRINT("Adding",EndStructPadding,"bytes to align structSizeBytes =",structSizeBytes,"bytes to struct-level alignment of",structLevelAlignmentFinal,"bytes")
+			structSizeBytes += EndStructPadding
+		else:
+			PRINT("No end-struct padding needed to align structSizeBytes =",structSizeBytes, "bytes to struct-level alignment of",structLevelAlignmentFinal,"bytes")
+		PRINT("\n","==="*50,"\nEnd processing ",structName,"Final structSizeBytes =",structSizeBytes,"structLevelAlignmentFinal =",structLevelAlignmentFinal, "\n","==="*50)
+
+
+
+		#########################################
+		#										#
+		#   OLD METHOD - MICROSOFT STYLE		#
+		#										#
+		#########################################
+
+
+
 		
 		# By this time all the individual members of the struct/union have been evaluated (including bitfields), hence we can calculate the overall length of the structure 
 		PRINT ("INFO: The structuresAndUnionsDictionary[",structName,"] = ",structuresAndUnionsDictionary[structName] )
@@ -8745,7 +9326,7 @@ def parseStructure(tokenList, i, parentStructName, level):
 					# Update the ["offsetWithinStruct"] for all the subsequent members in the bitfield sequence (recall that the first one is alredy updated)
 					# Observe that currentBitFieldSequenceContainerIndex is not an aggregate variable, so it must be updated individually for each component
 					for bitFieldSequenceIndex in range(N+1, structComponentIndexCurrentBitFieldSequenceEndInclusive+1):
-						if structuresAndUnionsDictionary[structName]["components"][bitFieldSequenceIndex][0] == dummyZeroWidthBitfieldNamePrefix:
+						if structuresAndUnionsDictionary[structName]["components"][bitFieldSequenceIndex][0].startswith(dummyUnnamedBitfieldNamePrefix):
 							pass
 						else:
 #							PRINT(structuresAndUnionsDictionary[structName]["components"][bitFieldSequenceIndex][4])
@@ -9037,7 +9618,12 @@ def parseStructure(tokenList, i, parentStructName, level):
 		
 		PRINT ("structuresAndUnionsDictionary[",structName,"][\"size\"]=", structuresAndUnionsDictionary[structName]["size"] )
 		
-		
+		# We want to note down if the structure contains bitfields with different containers, or with different attributes.
+		structuresAndUnionsDictionary[structName]["structHasBitFields"] = structHasBitFields
+		structuresAndUnionsDictionary[structName]["structHasMemberLevelOrStructLevelAttributes"] = structHasMemberLevelOrStructLevelAttributes
+		if structHasBitFields:
+			structuresAndUnionsDictionary[structName]["structHasBitFieldsWithMixedContainers"] = structHasBitFieldsWithMixedContainers
+			
 		
 		return structName
 
@@ -9087,12 +9673,12 @@ def unravelNestedStruct(level, structName, prefix, offset):
 		structMemberDescription 		= structMember[4]
 		baseType						= structMemberDescription["baseType"]
 		datatype						= structMemberDescription["datatype"]
-		if structMember[0]!=dummyZeroWidthBitfieldNamePrefix:
+		if not structMember[0].startswith(dummyUnnamedBitfieldNamePrefix):
 			offsetWithinStruct 			= structMemberDescription["offsetWithinStruct"]
 		PRINT ("\nfor N =",N,"variableName =",variableName,"datatype =",datatype,"structMemberDescription =",structMemberDescription)
 #		PRINT ("passed KeyError")
 		
-		if variableName == dummyZeroWidthBitfieldNamePrefix:
+		if variableName.startswith(dummyUnnamedBitfieldNamePrefix):
 			PRINT("Not adding the dummy variable for resetting the bitfield boundary")
 		elif structMemberDescription["isArray"]:
 			arrayElementSize = structMemberDescription["arrayElementSize"]
@@ -9119,6 +9705,21 @@ def unravelNestedStruct(level, structName, prefix, offset):
 		elif datatype in getDictKeyList(structuresAndUnionsDictionary):
 			PRINT("\ndatatype is struct/union - calling unravelNestedStruct() recursively.")
 			unravelNestedStruct(level+1, datatype, prefix+"."+variableName, offset + offsetWithinStruct)
+		elif structMemberDescription["isBitField"]:
+			if "bitOffsetWithinStruct" not in getDictKeyList(structMemberDescription):
+				OUTPUT("For",variableName,"structMemberDescription =",structMemberDescription)
+				errorMessage = "ERROR: "+variableName+" is a bitfield without bitOffsetWithinStruct calculated"
+				errorRoutine(errorMessage)
+				sys.exit()
+			bitOffsetWithinStruct = structMemberDescription["bitOffsetWithinStruct"]
+			bitFieldWidth = structMemberDescription["bitFieldWidth"]
+			# If it is a packed bitfield variable that spills over two containers, we start from the very byte that the variable starts from
+			# Yes, this means the Big-Endian values would be garbage.
+			if integerDivision(bitOffsetWithinStruct, primitiveDatatypeLength[datatype]*BITS_IN_BYTE) < integerDivision(bitOffsetWithinStruct+bitFieldWidth-1, primitiveDatatypeLength[datatype]*BITS_IN_BYTE):
+				PRINT("Bitfield",variableName,"seems to be a packed variable that spreads over two",datatype,"containers (from ",bit2ByteAndBit(bitOffsetWithinStruct)," through ", bit2ByteAndBit(bitOffsetWithinStruct+bitFieldWidth-1),"). Its Big-Endian value is not implemented yet and should be considered garbage")
+				unraveled.append([level+1, prefix+"."+variableName,structMemberDescription, offset+bit2Byte(bitOffsetWithinStruct), offset+bit2Byte(bitOffsetWithinStruct)+primitiveDatatypeLength[datatype] ])
+			else:
+				unraveled.append([level+1, prefix+"."+variableName,structMemberDescription, offset+offsetWithinStruct, offset+offsetWithinStruct+structMemberSizeBytes ])
 		else:
 			PRINT("\ndatatype is",datatype," Adding to unraveled.")
 			unraveled.append([level+1, prefix+"."+variableName,structMemberDescription, offset+offsetWithinStruct, offset+offsetWithinStruct+structMemberSizeBytes ])
@@ -9146,8 +9747,8 @@ def getOffsetsRecursively(variableId, sizeOffsets, beginOffset):
 		else:	
 			structName = datatype
 			for component in structuresAndUnionsDictionary[structName]["components"]:
-				if component[0] == dummyZeroWidthBitfieldNamePrefix:
-					PRINT("Zero-width bitfield - ignoring!")
+				if component[0].startswith(dummyUnnamedBitfieldNamePrefix):
+					PRINT("Unnamed bitfield - ignoring!")
 					PRINT("Component = ", component)
 				elif 'offsetWithinStruct' not in getDictKeyList(component[4]):
 					OUTPUT ("For variableName =",variableName,", variableDeclarations[variableId] =",variableDeclarations[variableId],"\n"*3)
@@ -10103,7 +10704,8 @@ def printHexStringWord (inputBytes):
 def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="int", signedOrUnsigned="signed", bitFieldSize=0, bitStartPosition=0):
 
 	if littleEndianOrBigEndian not in (LITTLE_ENDIAN, BIG_ENDIAN):
-		PRINT ("ERROR: Inside calculateInternalValue(), littleEndianOrBigEndian = ",littleEndianOrBigEndian,"is NOT either Little-Endian or Big-Endian" )
+		errorMessage = "ERROR: Inside calculateInternalValue(), littleEndianOrBigEndian = <" + STR(littleEndianOrBigEndian) + "> is NOT either Little-Endian or Big-Endian" 
+		errorRoutine(errorMessage)
 		return False
 	elif littleEndianOrBigEndian == LITTLE_ENDIAN:
 		inputFormat = "Little-Endian"
@@ -10113,6 +10715,7 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 		sys.exit()
 		
 
+	#
 	# In Little-Endian, the bits are packed from the LSB to MSB. So, if we have four bitfields in an integer, each 8 bits wide, they will be packed like this:
 	#      Bit #   MSb  31........24 23 ........16 15 ........8 7...........0 LBb
 	#                   N7........N0 M7.........M0 L7........L0 K7.........K0
@@ -10125,9 +10728,87 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 	#			  M : 8;    // bitStartPosition = 16
 	#			  N : 8;    // bitStartPosition = 24
 	#   }
-	# But, this is different than the usual way of Little endian packing. For example, if the little-endian integer had an interanl 0xNMLK value, in the displayed byte
+	# But, this is different than the usual way of Little endian packing. For example, if the little-endian unsigned integer had an interanl 0xNMLK value, in the displayed byte
 	# it shows as 0xKLMN (the order of the byte gets flipped). Similarly, 
 	# In Big-Endian, the bits are packed from the MSB to LSB. So, change the starting position accordingly.
+	#
+	# Now, suppose we have the following two structs A and B - A is NOT packed, but B is packed:
+	#  
+	# Example 1:
+	#-------------------------------------------------------------------------------------------------
+	# struct A {                             |  struct __attribute__((__packed__)) B {               |                                   
+	#             unsigned short s1: 8;      |                        unsigned short s1: 8 =   0xEF; |   
+	#             unsigned short s2:16;      |                        unsigned short s2:16 = 0xABCD; |     
+	#             unsigned short s3: 8;      |                        unsigned short s3: 8 =   0x12; |        
+	# };                                     |            } ;                                        |
+	#-------------------------------------------------------------------------------------------------
+	# struct A will take 6 bytes. But since struct B is packed, it will only take 4 bytes. Now the question is how exactly B will look in the Little-endian vs Big-endian.
+	# Suppose the value of S1 is 0xEF (decimal 239), value of s2 is 0xABCD (decimal 43981), and S3 is 0x12 (decimal 34).
+	# 
+	#___________________________________________________________________________________________________________________________________________
+	#     Little-Endian packing (pack from the LSb to MSb)                  |    Big-Endian packing (pack from the MSb to LSb)                  |
+	#_______________________________________________________________________|___________________________________________________________________|
+	#    <-- short integer #1    -->    <-- short integer #0   -->          |    <-- short integer #1    -->    <-- short integer #0   -->      |
+	#    31........24  	23........16 	15.........8 	7........0          |   31........24  	23........16 	15.........8 	7........0      |
+	#    <--  s3  -->   <----------- s2 ----------->    <-- s1 -->          |   --s2-------->    <-- s3 -->     <--  s1  -->    <---- s2 --     |
+	#    <-- 0x12 -->   <-- 0xAB -->    <-- 0xCD -->    <-- 0xEF -->        |   <-- 0xCD -->    <-- 0x12 -->    <-- 0xEF -->    <-- 0xAB -->    |
+	# Now, the above was internal represenation, 0xEFCDAB12                 |  Now, the above was internal represenation, 0xCD12EFAB            |
+	# Since this is Little-Endian packing, they will packed just like that. | However, since it is Big-endinan packing, when laid out in memory,|
+	# So, the byte array would be like this: [0xEF, 0xCD, 0xAB, 0x12]       | the byte order of the short will change: [0xEF, 0xAB, 0xCD, 0x12] |
+	# The byte order of the short will NOT change.                          | Observe that the s2 is still in contiguous bytes.
+	#
+	# Example 2:
+	#
+	# In the previous example, we found that even if we are storing in the Big-Endian format, the variable that spilled over two adjacent containers 
+	# were still in contiguous bits. However, this following example will demonstrate that it was pure luck - when you pack a variable over the container
+	# boundary, it cn end up in disjointed places.
+	#---------------------------------------------------------
+	#   struct __attribute__((__packed__)) B {               |                                   
+	#                         unsigned char c1:3 =   0;      |   
+	#                         unsigned char c2:8 = 0xFF;     |     
+	#                         unsigned char c3:5 =   0;      |        
+	#             } ;                                        |
+	#---------------------------------------------------------
+	#________________________________________________________________________________________________________________________________
+	#     Little-Endian packing (pack from the LSb to MSb)       |    Big-Endian packing (pack from the MSb to LSb)                  |
+	#____________________________________________________________|___________________________________________________________________|
+	#     <-- char1 ->  <--char0-->                              |    <-- char1 ->  <--char0-->                                      |
+	#    15.........8 	7........0                               |   15.........8 	7........0                                       |
+	#      00000 111    11111  000                               |     111  00000   000  11111                                       |
+	#     <-c3-> <---c2 ----> <-c1->                             |    -c2-> <-c3-> <-c1-><--c2                                       |
+	#____________________________________________________________|___________________________________________________________________|
+	#  The bits occupied by c2 is contiguous                     | The bits occupied by c2 is NOT contiguous.                        |
+	#____________________________________________________________|___________________________________________________________________|
+	#
+	#
+	# Example 3:
+	#
+	#---------------------------------------------------------
+	#             struct  B {                                |                                   
+	#                         unsigned short c1:6 =   0;     |   
+	#                         unsigned short c2:3 = 0x7;     |     
+	#                         unsigned short c3:7 =   0;     |        
+	#             } ;                                        |
+	#---------------------------------------------------------
+	#________________________________________________________________________________________________________________________________
+	#     Little-Endian packing (pack from the LSb to MSb)       |    Big-Endian packing (pack from the MSb to LSb)                  |
+	#____________________________________________________________|___________________________________________________________________|
+	# Internal representation of stored number in Little-endian  | Internal representation of stored number in Big-endian            |
+	#     <-- char1 ->  <--char0-->                              |    <-- char1 ->  <--char0-->                                      |
+	#    15.........8 	7........0                               |   15.........8 	7........0                                       |
+	#      0000000 1    11 000000                                |     000000 11    1 0000000                                        |
+	#      <- c3-> <- c2-> <-c1->                                |     <-c1-> <- c2-> <- c3->                                        |
+	#____________________________________________________________|___________________________________________________________________|
+	#    Memory layout in Little-endian (byte order unchanged)   | Memory layout in Big-endian (byte order changed for short)        |
+	#     <-- char1 ->  <--char0-->                              |    <-- char1 ->  <--char0-->                                      |
+	#    15.........8 	7........0                               |   15.........8 	7........0                                       |
+	#      0000000 1    11 000000                                |     1  0000000   000000 11                                        |
+	#      <- c3-> <-c2-> <- c1->                                |  -c2-> <- c3 ->  <- c1-> <-c2                                     |
+	#____________________________________________________________|___________________________________________________________________|
+	#  The bits occupied by c2 is contiguous                     | The bits occupied by c2 is NOT contiguous.                        |
+	#____________________________________________________________|___________________________________________________________________|
+	#
+	# So, the point is, in Big-endian there is no guarantee that overall the variables would appear contiguous in memory.
 	#
 	if littleEndianOrBigEndian == BIG_ENDIAN:
 		origBitStartPosition = bitStartPosition
@@ -10137,46 +10818,79 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 	PRINT ("\nInside calculateInternalValue(inputBytes =",printHexStringWord(inputBytes),"inputFormat =",inputFormat, "datatype =",datatype, "signedOrUnsigned =",signedOrUnsigned, "bitFieldSize =",bitFieldSize, "bitStartPosition = ",bitStartPosition)
 	
 	if datatype not in getDictKeyList(primitiveDatatypeLength):
-		PRINT ("ERROR: Inside calculateInternalValue(), datatype ",datatype,"NOT found in primitiveDatatypeLength.keys()=",getDictKeyList(primitiveDatatypeLength) )
+		errorMessage = "ERROR: Inside calculateInternalValue(), datatype " + datatype+" NOT found in primitiveDatatypeLength.keys()="+STR(getDictKeyList(primitiveDatatypeLength))
+		errorRoutine(errorMessage)
 		return False
 #	elif not checkIfString(inputBytes):
 	elif not checkIfValidRawInput(inputBytes):
-		PRINT ("ERROR: Inside calculateInternalValue(), input byte stream ",printHexStringWord(inputBytes)," is not a valid input" )
+		errorMessage = "ERROR: Inside calculateInternalValue(), input byte stream "+printHexStringWord(inputBytes)+" is not a valid input" 
+		errorRoutine(errorMessage)
 		return False
 	elif not inputBytes:
-		PRINT ("ERROR: Inside calculateInternalValue(), input byte stream <",inputBytes,"> of length",len(inputBytes),"Hex ",printHexStringWord(inputBytes)," is not a valid input (most likely empty)" )
+		errorMessage = "ERROR: Inside calculateInternalValue(), input byte stream <"+STR(inputBytes)+"> of length "+STR(len(inputBytes))+" Hex "+printHexStringWord(inputBytes)+" is not a valid input (most likely empty)" 
+		errorRoutine(errorMessage)
 		return False
 	elif signedOrUnsigned!="unsigned" and signedOrUnsigned!="signed" :
-		PRINT ("ERROR: Inside calculateInternalValue(), input byte stream ",printHexStringWord(inputBytes)," is not a valid input - the input", signedOrUnsigned, "value is not either signed or unsigned" )
+		errorMessage = "ERROR: Inside calculateInternalValue(), input byte stream "+printHexStringWord(inputBytes)+" is not a valid input - the input "+ signedOrUnsigned+ " value is not either signed or unsigned" 
+		errorRoutine(errorMessage)
 		return False
 	elif bitFieldSize > 0 and bitFieldSize > primitiveDatatypeLength[datatype]*BITS_IN_BYTE:	# It is a bitfield, so the MSBit is dependent on the bit field size
-		PRINT ("ERROR: Inside calculateInternalValue(), Width of bitfield", bitFieldSize, "exceeds its type (",datatype,")" )
+		errorMessage = "ERROR: Inside calculateInternalValue(), Width of bitfield " + STR(bitFieldSize) + " exceeds its type (" + datatype +")" 
+		errorRoutine(errorMessage)
 		return False
 	elif bitFieldSize > 0 and (bitStartPosition <0 or bitStartPosition >= primitiveDatatypeLength[datatype]*BITS_IN_BYTE):
-		PRINT ("ERROR: Inside calculateInternalValue(), For the",bitFieldSize,"-bit-wide",datatype,", the bitfield starting position", bitStartPosition, "is outside the valid range of <0,",primitiveDatatypeLength[datatype]*BITS_IN_BYTE-1,">" )
+		errorMessage = "ERROR: Inside calculateInternalValue(), For the " + STR(bitFieldSize) + "-bit-wide" + datatype + ", the bitfield starting position "+ STR(bitStartPosition) + " is outside the valid range of <0," + STR(primitiveDatatypeLength[datatype]*BITS_IN_BYTE-1)+">" 
+		errorRoutine(errorMessage)
 		return False
 	elif bitStartPosition !=0 and bitFieldSize <= 0:
-		PRINT ("ERROR: Non-bit fields cannot have a the bitfield starting position", bitStartPosition)
+		errorMessage = "ERROR: Non-bit fields cannot have a the bitfield starting position "+ STR(bitStartPosition)
+		errorRoutine(errorMessage)
 		return False
-	elif bitFieldSize>0 and bitStartPosition+bitFieldSize > primitiveDatatypeLength[datatype]*BITS_IN_BYTE:
-		PRINT ("ERROR: Inside calculateInternalValue(), for field width of", bitFieldSize," bits of",datatype,", the bitfield starting position", bitStartPosition, "is outside the valid range of <0,",primitiveDatatypeLength[datatype]*BITS_IN_BYTE-bitFieldSize,">" )
+	elif bitFieldSize>0 and bitStartPosition+bitFieldSize > primitiveDatatypeLength[datatype]*BITS_IN_BYTE and len(inputBytes) != 2*primitiveDatatypeLength[datatype]:
+		errorMessage = "ERROR: Inside calculateInternalValue(), for field width of "+ STR(bitFieldSize)+" bits of " + datatype +", the bitfield starting position " + STR(bitStartPosition) + " is outside the valid range of <0,"+STR(primitiveDatatypeLength[datatype]*BITS_IN_BYTE-bitFieldSize)+">" 
+		errorRoutine(errorMessage)
 		return False
-	elif len(inputBytes) not in (1,2,4,8):
-		PRINT ("WARNING: Inside calculateInternalValue(), length of inputBytes is not 1,2, 4 or 8 - Endianness is immaterial" )
+	elif bitFieldSize==0 and len(inputBytes) != primitiveDatatypeLength[datatype]:
+		errorMessage = "WARNING: Inside calculateInternalValue(), length of inputBytes ("+STR(len(inputBytes))+ ") is not primitiveDatatypeLength["+datatype+"], which is "+STR(primitiveDatatypeLength[datatype])
+		errorRoutine(errorMessage)
+		return False
+	elif ((bitFieldSize==0) or  (bitFieldSize>0 and bitStartPosition+bitFieldSize < primitiveDatatypeLength[datatype]*BITS_IN_BYTE)) and len(inputBytes) not in (1,2,4,8):
+		errorMessage = "WARNING: Inside calculateInternalValue(), length of inputBytes is not 1,2, 4 or 8 - Endianness is immaterial"
+		errorRoutine(errorMessage)
 		return False
 	else:
 #		PRINT ("="*30,"\nNo obvious input error!\n","="*30 )
 		
 		# This is the value without considering the sign
 		IEEEFormatValue = 0
-		for i in range(len(inputBytes)):
-			if littleEndianOrBigEndian == BIG_ENDIAN:
-				IEEEFormatValue = IEEEFormatValue + ORD(inputBytes[i])*2**((len(inputBytes)-i-1)*BITS_IN_BYTE)
-			elif littleEndianOrBigEndian == LITTLE_ENDIAN:
+		if littleEndianOrBigEndian == LITTLE_ENDIAN:
+			for i in range(len(inputBytes)):
 				IEEEFormatValue = IEEEFormatValue + ORD(inputBytes[i])*2**(i*BITS_IN_BYTE)
+		elif littleEndianOrBigEndian == BIG_ENDIAN:
+			if len(inputBytes) == primitiveDatatypeLength[datatype]:
+				for i in range(len(inputBytes)):
+					IEEEFormatValue = IEEEFormatValue + ORD(inputBytes[i])*2**((len(inputBytes)-i-1)*BITS_IN_BYTE)
+			elif len(inputBytes) == 2*primitiveDatatypeLength[datatype]:
+				# The bitfield is spread over two containers
+				containerSize = integerDivision(len(inputBytes),2)
+				inputBytesFirst  = inputBytes[:containerSize ]
+				inputBytesSecond = inputBytes[ containerSize:]
+				IEEEFormatValueFirst = 0
+				for i in range(containerSize):
+					IEEEFormatValueFirst  = IEEEFormatValueFirst  + ORD(inputBytesFirst [i])*2**((containerSize-i-1)*BITS_IN_BYTE)
+				IEEEFormatValueSecond = 0
+				for i in range(containerSize):
+					IEEEFormatValueSecond = IEEEFormatValueSecond + ORD(inputBytesSecond[i])*2**((containerSize-i-1)*BITS_IN_BYTE)
+				IEEEFormatValue = IEEEFormatValueFirst * (2**containerSize) + IEEEFormatValueSecond
 			else:
+				OUTPUT("Coding ERROR in calculateInternalValue() - how did I come here???")
+				OUTPUT("For datatype =",datatype,", len(inputBytes) =",len(inputBytes), ", primitiveDatatypeLength[datatype] =", primitiveDatatypeLength[datatype])
+				OUTPUT("signedOrUnsigned=",signedOrUnsigned,", bitFieldSize =",bitFieldSize,", bitStartPosition =",bitStartPosition)
 				sys.exit()
-		PRINT ("For inputBytes =",printHexStringWord(inputBytes), "the IEEEFormatValue =",IEEEFormatValue,"(basically 0x%x"%(IEEEFormatValue),")" )
+			
+		else:
+			sys.exit()
+		PRINT ("For inputFormat =",inputFormat,", inputBytes =",printHexStringWord(inputBytes), "the IEEEFormatValue =",IEEEFormatValue,"(basically 0x%x"%(IEEEFormatValue),")" )
 
 		################################################################
 		# Pointer
@@ -10234,7 +10948,7 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 				PRINT ("ERROR: Inside calculateInternalValue(), input byte stream <%s> is not a valid Signed input as the datatype = %s"%(printHexStringWord(inputBytes),datatype) )
 				errorMessage = "ERROR: input byte stream <%s> is not a valid Signed input as its length = %d is not in (1,2,4 or 8)"%(printHexStringWord(inputBytes),len(inputBytes))
 				errorRoutine(errorMessage)
-			elif len(inputBytes) not in (1,2,4,8):
+			elif len(inputBytes) not in (1,2,4,8,16):
 				PRINT ("ERROR: Inside calculateInternalValue(), input byte stream ",printHexStringWord(inputBytes)," is not a valid Signed input as its length =",len(inputBytes) )
 				errorMessage = "ERROR: input byte stream <%s> is not a valid Signed input as its length = %d is not in (1,2,4 or 8)"%(printHexStringWord(inputBytes),len(inputBytes))
 				errorRoutine(errorMessage)
@@ -10261,7 +10975,7 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 		################################################################
 		
 		elif signedOrUnsigned=="unsigned" and datatype in ("char", "short", "short int", "int", "long", "long int", "long long"):
-			if len(inputBytes) not in (1,2,4,8):
+			if len(inputBytes) not in (1,2,4,8,16):
 				errorMessage = "ERROR: Inside calculateInternalValue(), input byte stream "+printHexStringWord(inputBytes)+" is not a valid Signed input"
 				errorRoutine(errorMessage)
 				return False
@@ -10470,21 +11184,83 @@ def populateUnraveled():
 			PRINT ("unraveled[",N,"] =",unraveled[N])
 			if N<len(unraveled)-1 and unraveled[N][0]==unraveled[N+1][0]-1:	# The current node is a parent
 				unraveled[N].extend(["","",""])
+				parentName = unraveled[N][2]
 			else:
 				if isinstance(unraveled[N][2],dict) and unraveled[N][2]["datatype"].startswith("function "):
 					unraveled[N].extend(["","",""])
 				else:
+					variableName = unraveled[N][1]	# Recall that this variable may or may not be a struct member
+					
 					# Don't forget to deduct the dataLocationOffset, since the dataBlock is essentially a block with indices 0 through totalBytesToReadFromDataFile-1
 					if unraveled[N][2]["isBitField"]:
+						if "offsetWithinStruct" not in getDictKeyList(unraveled[N][2]) or "bitOffsetWithinStruct" not in getDictKeyList(unraveled[N][2]):
+							OUTPUT("\n\nFor variableName",variableName,", unraveled[N =",N,"] =",unraveled[N])
+							errorMessage = "For variableName "+variableName+" the byte/bit offsets within the struct is missing"
+							errorRoutine(errorMessage)
+							return False
+						else:
+							offsetWithinStruct = unraveled[N][2]["offsetWithinStruct"]		# Recall that this is constructed using the old method. The new method calculated bits
+							bitOffsetWithinStruct = unraveled[N][2]["bitOffsetWithinStruct"]
+
 						bitFieldWidth = unraveled[N][2]["bitFieldWidth"]
-						datatype = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceContainerDatatype"]
-						numBytesToRead = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceContainerSizeInBytes"]
-						bitIndexStart = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexStart"]
-						bitIndexEndInclusive = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexEndInclusive"]
+					
+						datatypeNew = unraveled[N][2]["datatype"]
+						# It is guaranteed that a bitfield width cannot be larger than its container type, hence we can trust numBytesToRead
+						numBytesToReadNew = primitiveDatatypeLength[datatypeNew]
+						# The problem is that, there is no guarantee that this bitfield would not cross the alignment boundary (it might have been packed)
+						# For example, a 10-byte bitfield <short i1:20;> may be spread over two shorts like this: 
+						#
+						#  MSb ............................LSb
+						#  00000000 00011111 11111000 00000000
+						#  <-- short # 1 --> <-- short # 0 -->
+						#
+						# So, we need to find out exactly which byte it starts from and ends at
+						bitIndexStartNew = bitOffsetWithinStruct - offsetWithinStruct*BITS_IN_BYTE
+						bitIndexEndInclusiveNew = bitIndexStartNew + bitFieldWidth - 1
+						
+						# We take the following strategy. If the bitIndexStart and bitIndexEndInclusive both fall within the alignment of a single datatype,
+						# We read just one alignment worth of data. However, if it spills over two, we double the numBytesToRead
+						if integerDivision(bitIndexStartNew, numBytesToReadNew*BITS_IN_BYTE) < integerDivision(bitIndexEndInclusiveNew, numBytesToReadNew*BITS_IN_BYTE):
+							numBytesToReadNew *= 2
+						
+						datatypeOld = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceContainerDatatype"]
+						numBytesToReadOld = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceContainerSizeInBytes"]
+						bitIndexStartOld = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexStart"]
+						bitIndexEndInclusiveOld = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexEndInclusive"]
+						
+						PRINT("Performing sanity check for struct parentName =",parentName,", variableName=",variableName)
+						
+						if structuresAndUnionsDictionary[parentName]["structHasBitFields"] == True:
+							if structuresAndUnionsDictionary[parentName]["structHasMemberLevelOrStructLevelAttributes"] == True or structuresAndUnionsDictionary[parentName]["structHasBitFieldsWithMixedContainers"]==True:
+								PRINT("Struct has bitfields with attributes and/or mixed storage containers - we know that the two different ways of bifield calculations would not match")
+							else:
+								if datatypeOld != datatypeNew or numBytesToReadOld != numBytesToReadNew or bitIndexStartOld != bitIndexStartNew or bitIndexEndInclusiveOld != bitIndexEndInclusiveNew:
+									OUTPUT("\n\nWARNING! For bitfield member variable",variableName,"in struct",parentName,", values calculated by old and new methods for are mismatching!!")
+									OUTPUT("bitOffsetWithinStruct =",bitOffsetWithinStruct)
+									OUTPUT("\nunraveled[",N,"] =",unraveled[N])
+									OUTPUT("datatypeOld =",datatypeOld, "datatypeNew =",datatypeNew,"numBytesToReadOld =",numBytesToReadOld,"numBytesToReadNew =",numBytesToReadNew,"bitIndexStartOld =",bitIndexStartOld,"bitIndexStartNew =",bitIndexStartNew,"bitIndexEndInclusiveOld =",bitIndexEndInclusiveOld,"bitIndexEndInclusiveNew =",bitIndexEndInclusiveNew)
+									sys.exit()
+								else:
+									PRINT("\n\nFor bitfield member variable",variableName,"in struct",parentName,", values calculated by old and new methods for are matching!!")
+							
+						if bitFieldOffsetCalculationMethod == "old":
+							datatype = datatypeOld
+							numBytesToRead = numBytesToReadOld
+							bitIndexStart = bitIndexStartOld
+							bitIndexEndInclusive = bitIndexEndInclusiveOld
+						elif bitFieldOffsetCalculationMethod == "new":
+							datatype = datatypeNew
+							numBytesToRead = numBytesToReadNew
+							bitIndexStart = bitIndexStartNew
+							bitIndexEndInclusive = bitIndexEndInclusiveNew
+						else:
+							OUTPUT("Coding error for handling bitFieldOffsetCalculationMethod =",bitFieldOffsetCalculationMethod)
+							sys.exit()
+						
 						if bitFieldWidth != bitIndexEndInclusive - bitIndexStart + 1:
 							PRINT ("Mismatching bitwidth for N = ",N)
 							sys.exit()
-					else:
+					else: #Not bitfield
 						bitFieldWidth = 0
 						bitIndexStart = 0
 						datatype = unraveled[N][2]["datatype"]
@@ -11465,7 +12241,7 @@ class MainWindow:
 		PRINT ("Line.char currentCoordinates of last Mouse click =",currentCoordinates )
 
 	def displayDataWindowFromOffset(self, newFileOffset):
-		if newFileOffset < 0:
+		if newFileOffset < 0 or newFileOffset >= dataFileSizeInBytes:
 			return
 		
 		# When we change the displayed data window, which all Interpreted Code Window variables will get highlighted (based on cursor movement)

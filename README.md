@@ -356,6 +356,13 @@
   I am currently working on a few items. These items are not fully ready yet:
   - sizeof()
   - bitfield alignemnt for Big-Endian (cannot find a processor to test it).
+  - Bitfield behavior with different combincation of packed, aligned and #pragma pack. I found that while the various top compilers have consistent behavior in terms of 
+    where to insert the padding for non-bitfield structs (even with different combincations of packed, aligned and #pragma pack), it is not consistent when you take 
+	structs with bitfields and deal with different combincation of packed, aligned and #pragma pack. And this is by design - K & R mentioned it in their C Bible that 
+	alignment of bitfields is very much implemenation-dependent. So, I am yet to figure out which is the best "common" method used by various compilers when it comes to
+	handle bitfields and deal with different combincation of packed, aligned and #pragma pack. Usually this is not a problem, because very rarely individual struct member 
+	variables in a struct will have their individual attribute statements. So, the tool currently does not implement the attribute handling (packed, aligned and #pragma pack)
+	for bitfields. It will do it in future, for sure.
 
 ##     KNOWN ISSUES:		##
   
@@ -392,7 +399,7 @@
   If you feel that this tool sucks, I still want to hear about it.
   If you have some feature in mind that you feel would make the tool better, I want to hear about it.
 
-  Please email me with any feedback: pkmanna AT gmail DOT com
+  Please email me with any feedback: Firstname <period> MI <period> Lastname AT company DOT com
   
  ##   FREQUENTLY ASKED QUESTIONS      ##
  
