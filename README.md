@@ -384,7 +384,7 @@
 
 ##     HOW  TO  REPORT  A  BUG:		##
 
-  Please email to pkmanna AT gmail DOT com with a subject line of "ParseAndC bug" along with the following information/attachments:
+  Please email me with a subject line of "ParseAndC bug" along with the following information/attachments:
 
   1. Your running environment (Windows / Unix / Mac), Python version.
   2. The input files you used for code and data. If the Data file is large, at least send the Code file. If you typed in the code, copy what you typed.
