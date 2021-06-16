@@ -657,6 +657,8 @@ from collections import OrderedDict
 # 2021-04-29 - Added Double-click feature for the Hex and Ascii data windows.
 # 2021-05-05 - Added zero-width bitfield variable (alignment reset) handling
 # 2021-05-09 - Changed the way preProcess() works
+# 2021-06-10 - Before separating the preprocessing directive symbol (#) from all the preprocessing directives.
+# 2021-06-15 - Before allowing negative data offsets.
 
 # Global settings
 
@@ -674,6 +676,7 @@ anonymousStructPrefix = "Anonymous#"
 dummyVariableNamePrefix = "DummyVar#"
 dummyUnnamedBitfieldNamePrefix = "dummyUnnamedBitfieldVar#"
 dummyUnnamedBitfieldCount = 0
+preProcessorSymbol = '#'
 
 CHAR_SIZE = 1
 SHORT_SIZE = 2
@@ -1162,8 +1165,9 @@ COLORS_ALL = ['DarkGoldenrod2', 'DarkOrange1', 'DarkOrchid1', 'DeepPink2', 'Deep
 'misty rose', 'navajo white', 'navy', 'olive drab', 'orange', 'orange red', 'orchid1', 'pale goldenrod', 'pale green', 'pale turquoise', 'pale violet red', 'papaya whip', 
 'peach puff', 'pink', 'pink1', 'plum1', 'powder blue', 'purple', 'red', 'rosy brown', 'royal blue', 'saddle brown', 'salmon', 'sandy brown', 'sea green', 'seashell2', 
 'sienna1', 'sky blue', 'slate blue', 'slate gray', 'snow', 'spring green', 'steel blue', 'tan1', 'thistle', 'tomato', 'turquoise', 'violet red', 'wheat1', 'yellow', 'yellow green']
-preprocessingDirectives = ('#include', '#if', '#ifdef', '#ifndef', '#else', '#elif', '#endif', '#define', '#undef', '#line', '#error', '#pragma', '...', '__VA_ARGS__','__VA_OPT__')
-oneCharOperatorList = ('.','+','-','*','/','%', '&', '|', '<', '>', '!', '^', '~', '?', ':', '=', ',')
+#preprocessingDirectives = ('#include', '#if', '#ifdef', '#ifndef', '#else', '#elif', '#endif', '#define', '#undef', '#line', '#error', '#pragma', '...', '__VA_ARGS__','__VA_OPT__')
+preprocessingDirectives = ('include', 'if', 'ifdef', 'ifndef', 'else', 'elif', 'endif', 'define', 'undef', 'line', 'error', 'pragma', '...', '__VA_ARGS__','__VA_OPT__')
+oneCharOperatorList = ('.','+','-','*','/','%', '&', '|', '<', '>', '!', '^', '~', '?', ':', '=', ',','#')
 twoCharOperatorList = ('##','++', '--','()','[]','->','>>', '<<', '<=', '>=', '==', '!=', '&&', '||', '+=', '-=', '*=', '/=', '%=', '&=', '^=', '|=')
 threeCharOperatorList = ('<<=', '>>=')
 derivedOperatorList = ("function()","typecast")
@@ -1239,6 +1243,7 @@ PRINT("sorted keyword list =",keywordsSorted)
 # There are two methods of calculating the bitfield offsets - Microsoft-style (Old), and GCC-style (new)
 bitFieldOffsetCalculationMethod = "old"
 #bitFieldOffsetCalculationMethod = "New"
+
 
 def errorRoutine(message):
 	global window, PRINT_DEBUG_MSG
@@ -3183,6 +3188,7 @@ def tokenizeLines(lines):
 							tokenConsumed = line[i:lastCharIndexToBeConsumedInThisToken+1]
 							break
 
+					'''
 					# The '#' has a special case. When we have '#define' at the beginning of the line, it is a single token.
 					# But, the statement '#define NEWMACRO(define) #define' is valid, and the second '#define' is interpreted as two tokens: '#' followed by 'define'.
 					# However, the '##' can be anywhere - leave that alone.
@@ -3190,7 +3196,7 @@ def tokenizeLines(lines):
 						PRINT("\nVERY, VERY special case found!!")
 						lastCharIndexToBeConsumedInThisToken = i
 						tokenConsumed = c
-
+					'''
 					currentLinetokenList.append(tokenConsumed)
 					currentTokenStartLineNum = lineNumber
 					currentTokenStartCharNum = i
@@ -5086,7 +5092,7 @@ def checkPreprocessingDirectivesInterleaving(inputLines):
 			return False
 			sys.exit()
 
-	#preprocessingDirectives = ('#include', '#if', '#ifdef', '#ifndef', '#else', '#elif', '#endif', '#define', '#undef', '#line', '#error', '#pragma')
+	#preprocessingDirectives = ('include', 'if', 'ifdef', 'ifndef', 'else', 'elif', 'endif', 'define', 'undef', 'line', 'error', 'pragma')
 
 	# This essentially only keeps those lines starting with a preprocessingDirectives. We note the preprocessingDirective and its line number, and its nesting level
 	onlyPreprocessingDirectives = []
@@ -5101,36 +5107,38 @@ def checkPreprocessingDirectivesInterleaving(inputLines):
 			return False
 		else:
 			currLineTokenList = tokenizeLinesResult[0]
-			if currLineTokenList and currLineTokenList[0] in preprocessingDirectives:
-				if currLineTokenList[0] in ('#if', '#ifdef', '#ifndef'):
+			if currLineTokenList and currLineTokenList[0] == preProcessorSymbol and len(currLineTokenList)>=2 and currLineTokenList[1] in preprocessingDirectives:
+				if currLineTokenList[1] in ('if', 'ifdef', 'ifndef'):
 					nestingLevel += 1
-					onlyPreprocessingDirectives.append([lineNumber, currLineTokenList[0], nestingLevel])
-					tempStack.append(currLineTokenList[0])
-				elif currLineTokenList[0] in ('#elif','#else'):
-					onlyPreprocessingDirectives.append([lineNumber, currLineTokenList[0], nestingLevel])
-					tempStack.append(currLineTokenList[0])
-				elif currLineTokenList[0] == '#endif':
-					onlyPreprocessingDirectives.append([lineNumber, currLineTokenList[0],nestingLevel])
-					if tempStack[-1] ==  '#else':
+					onlyPreprocessingDirectives.append([lineNumber, currLineTokenList[1], nestingLevel])
+					tempStack.append(currLineTokenList[1])
+				elif currLineTokenList[1] in ('elif','else'):
+					onlyPreprocessingDirectives.append([lineNumber, currLineTokenList[1], nestingLevel])
+					tempStack.append(currLineTokenList[1])
+				elif currLineTokenList[1] == 'endif':
+					onlyPreprocessingDirectives.append([lineNumber, currLineTokenList[1],nestingLevel])
+					if tempStack[-1] ==  'else':
 						del tempStack[-1]
 					while True:
-						if tempStack[-1] ==  '#else':
-							errorMessage = "The interleaving of if-then-else at the preprocessor level is not correct - multiple #else"
+						if tempStack[-1] ==  'else':
+							errorMessage = "The interleaving of if-then-else at the preprocessor level is not correct - multiple "+preProcessorSymbol+"else"
 							errorRoutine(errorMessage)
 							return False
-						elif tempStack[-1] ==  '#elif':
+						elif tempStack[-1] ==  'elif':
 							del tempStack[-1]
 						else:
 							break
-					if tempStack[-1] in ('#if', '#ifdef', '#ifndef'):
+					if tempStack[-1] in ('if', 'ifdef', 'ifndef'):
 						del tempStack[-1]
 					else:
 						errorMessage = "The interleaving of if-then-else at the preprocessor level is not correct"
 						errorRoutine(errorMessage)
 						return False
 					nestingLevel -= 1
+				elif len(currLineTokenList)>=2:
+					PRINT("Ignoring preprocessingDirectives currLineTokenList[0:1] =",STR(currLineTokenList[0:2]))
 				else:
-					PRINT("Ignoring preprocessingDirectives currLineTokenList[0] =",currLineTokenList[0])
+					PRINT("Ignoring preprocessingDirectives currLineTokenList[0] =",STR(currLineTokenList))
 			else:
 				PRINT("Ignoring non-preprocessingDirective currLine =",currLine)
 		lineNumber += 1
@@ -5152,15 +5160,17 @@ def checkPreprocessingDirectivesInterleaving(inputLines):
 		
 	# Sanity check - it must start with a mandatory single if, followed by optional elifs, followed by a single optional else, followed by a signle mandatory endif
 	if len(returnValue) <2:
+		OUTPUT("returnValue =",returnValue)
+		OUTPUT("onlyPreprocessingDirectives =",onlyPreprocessingDirectives)
 		errorMessage = "An if-then-else must have at least two rows (the beginning if and the ending endif)"
 		errorRoutine(errorMessage)
 		return False
-	elif returnValue[0][1] not in ('#if', '#ifdef', '#ifndef'):
-		errorMessage = "The first term must be '#if', '#ifdef', or '#ifndef'"
+	elif returnValue[0][1] not in ('if', 'ifdef', 'ifndef'):
+		errorMessage = "The first term must be '"+preProcessorSymbol+"if', '"+preProcessorSymbol+"ifdef', or '"+preProcessorSymbol+"ifndef'"
 		errorRoutine(errorMessage)
 		return False
-	elif returnValue[-1][1] not in ('#endif'):
-		errorMessage = "The last term must be '#endif'"
+	elif returnValue[-1][1] not in ('endif'):
+		errorMessage = "The last term must be '"+preProcessorSymbol+"endif'"
 		errorRoutine(errorMessage)
 		return False
 	elif len(returnValue)>2:
@@ -5169,32 +5179,32 @@ def checkPreprocessingDirectivesInterleaving(inputLines):
 		elseCount = 0
 		endifCount = 0
 		for row in returnValue:
-			if row[1] in ('#if', '#ifdef', '#ifndef'):
+			if row[1] in ('if', 'ifdef', 'ifndef'):
 				ifCount += 1
-			elif row[1] in ('#elif'):
+			elif row[1] in ('elif'):
 				elifCount += 1
-			elif row[1] in ('#else'):
+			elif row[1] in ('else'):
 				elseCount += 1
-			elif row[1] in ('#endif'):
+			elif row[1] in ('endif'):
 				endifCount += 1
 		if ifCount + elifCount + elseCount + endifCount != len(returnValue):
 			errorMessage = "ERROR in checkPreprocessingDirectivesInterleaving() - ifCount(%d) + elifCount(%d) + elseCount(%d) + endifCount(%d) != len(returnValue)(%d)"%(ifCount, elifCount, elseCount, endifCount, len(returnValue))
 			errorRoutine(errorMessage)
 			return False
 		elif ifCount > 1:
-			errorMessage = "ERROR in checkPreprocessingDirectivesInterleaving() - multiple #if/#ifdef/#ifndef statements"
+			errorMessage = "ERROR in checkPreprocessingDirectivesInterleaving() - multiple "+preProcessorSymbol+"if/"+preProcessorSymbol+"ifdef/"+preProcessorSymbol+"ifndef statements"
 			errorRoutine(errorMessage)
 			return False
 		elif elseCount > 1:
-			errorMessage = "ERROR in checkPreprocessingDirectivesInterleaving() - multiple #else statements"
+			errorMessage = "ERROR in checkPreprocessingDirectivesInterleaving() - multiple "+preProcessorSymbol+"else statements"
 			errorRoutine(errorMessage)
 			return False
 		elif endifCount > 1:
-			errorMessage = "ERROR in checkPreprocessingDirectivesInterleaving() - multiple #endif statement"
+			errorMessage = "ERROR in checkPreprocessingDirectivesInterleaving() - multiple "+preProcessorSymbol+"endif statement"
 			errorRoutine(errorMessage)
 			return False
-		elif elseCount == 1 and returnValue[-2][1] != '#else':
-			errorMessage = "ERROR in checkPreprocessingDirectivesInterleaving() - the #else statement must be the penultimate one"
+		elif elseCount == 1 and returnValue[-2][1] != 'else':
+			errorMessage = "ERROR in checkPreprocessingDirectivesInterleaving() - the "+preProcessorSymbol+"else statement must be the penultimate one"
 			errorRoutine(errorMessage)
 			return False
 
@@ -5263,7 +5273,7 @@ def condenseMultilineMacroIntoOneLine():
 	while i < len(lines):
 		#PRINT ("searching for macro in", lines[i] )
 		currLine = lines[i].strip()					# TO-DO: This could be a problem if a string liternal spans over multiple lines and any such line ends with a space
-		if re.search("^#define\s+.+", currLine): 
+		if re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+.+', currLine): 
 			ongoingMacro = True
 			macroFoundInLine = i
 			while currLine[-1:] == "\\":
@@ -5346,17 +5356,18 @@ def preProcess():
 			if i >= len(lines):
 				break
 		
-			
+			'''
 		
 			# KLUDGE
 			#The very first thing you do to remove any whitespace to the left of right of a # when the line begins with a #
 			#TO-DO: This will fail when we have a multi-line string where a middle line starts with # (Bug)
-			#The only way to do it cleanly is to separate ALL the preprocessor tokens (like '#define') into two tokens (like '#' followed by 'define')
+			#The only way to do it cleanly is to separate ALL the preprocessor tokens (like '#define') into two tokens (like preProcessorSymbol followed by 'define')
 			if re.match('^\s+#\s*',lines[i]) or re.match('^\s*#\s+',lines[i]):
 				PRINT("Before stripping the whitespace around the beginning # for line # %d <%s> "%(i,lines[i]))
 				lines[i] = re.sub('^\s*#\s*','#',lines[i])
 				PRINT("After stripping the whitespace around the beginning # for line # %d <%s> "%(i,lines[i]))
-
+			'''
+			
 			##########################################################
 			##														##
 			##				REMOVE COMMENTS							##
@@ -5453,7 +5464,7 @@ def preProcess():
 					if len(tokenizeLinesOutput) == 0:
 						processCurrentLineAgain = False
 						break
-					elif tokenizeLinesOutput[0] in ('#define', '#undef', '#ifdef', '#ifndef'):
+					elif tokenizeLinesOutput[0] == preProcessorSymbol and len(tokenizeLinesOutput) >= 2 and tokenizeLinesOutput[1] in ('define', 'undef', 'ifdef', 'ifndef'):
 						processCurrentLineAgain = False
 						break
 					
@@ -5508,15 +5519,15 @@ def preProcess():
 								null__VA_ARGS__macroExpansionTextAST = macroProperties["null__VA_ARGS__macroExpansionTextAST"]
 						
 						# Do not replace it if it is a #undef(macroName) / #ifdef(macroName) / #ifndef(macroName), or a defined(macroName) in a #if statement
-						if tokenizeLinesOutput[0] in ('#define', '#undef', '#ifdef', '#ifndef'):
+						if tokenizeLinesOutput[0] == preProcessorSymbol and len(tokenizeLinesOutput) >= 2 and tokenizeLinesOutput[1] in ('define', 'undef', 'ifdef', 'ifndef'):
 							checkForMacroFromTokenIndex = macroNameFoundAtIndex+1
 							PRINT("Found", macroName,"at token index",macroNameFoundAtIndex)
-							if checkForMacroFromTokenIndex != 2:
+							if checkForMacroFromTokenIndex != 3:
 								errorMessage = "Found "+ macroName +"at token index " + STR(macroNameFoundAtIndex) +" , which is an error."
 								errorRoutine(errorMessage)
 								return False
 							continue
-						elif tokenizeLinesOutput[0] in ('#if') and macroNameFoundAtIndex>2 and tokenizeLinesOutput[macroNameFoundAtIndex-2]=='defined' and tokenizeLinesOutput[macroNameFoundAtIndex-1]=='(' and tokenizeLinesOutput[macroNameFoundAtIndex+1]==')' :
+						elif tokenizeLinesOutput[0] == preProcessorSymbol and len(tokenizeLinesOutput) >= 2 and tokenizeLinesOutput[1] == 'if' and macroNameFoundAtIndex>3 and tokenizeLinesOutput[macroNameFoundAtIndex-2]=='defined' and tokenizeLinesOutput[macroNameFoundAtIndex-1]=='(' and tokenizeLinesOutput[macroNameFoundAtIndex+1]==')' :
 							checkForMacroFromTokenIndex = macroNameFoundAtIndex+2
 							PRINT("Found", macroName,"at token index",macroNameFoundAtIndex,", as part of",tokenizeLinesOutput[macroNameFoundAtIndex-2:macroNameFoundAtIndex+2])
 							continue
@@ -5769,21 +5780,21 @@ def preProcess():
 				##########################################################
 				
 				# Handle the include statements
-				if macroTokenList[0] == '#include':
-					if len(macroTokenList) != 2 and len(macroTokenList) != 4:
+				if macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>= 2 and macroTokenList[1]=='include':
+					if len(macroTokenList) != 3 and len(macroTokenList) != 5:
 						errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - #include must have exactly one arguement" %(targetLineNumber,lines[targetLineNumber] )
 						errorRoutine(errorMessage)
 						return False
-					elif len(macroTokenList) == 4 and not (macroTokenList[1] == '<' and macroTokenList[3] == '>') and not (macroTokenList[1] == '"' and macroTokenList[3] == '"'):
+					elif len(macroTokenList) == 5 and not (macroTokenList[2] == '<' and macroTokenList[4] == '>') and not (macroTokenList[2] == '"' and macroTokenList[4] == '"'):
 							errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - must be like #include <filename>" %(targetLineNumber,lines[targetLineNumber] )
 							errorRoutine(errorMessage)
 							return False
-					elif len(macroTokenList) == 2 and (macroTokenList[1][0] != '"' or macroTokenList[1][-1] != '"' or len(macroTokenList[1])<=2):
+					elif len(macroTokenList) == 3 and (macroTokenList[2][0] != '"' or macroTokenList[2][-1] != '"' or len(macroTokenList[2])<=2):
 							errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - must be like #include \"filename\"" %(targetLineNumber,lines[targetLineNumber] )
 							errorRoutine(errorMessage)
 							return False
 					else: 
-						includedFileName = macroTokenList[1][1:-1].strip() if len(macroTokenList) == 2 else macroTokenList[2]
+						includedFileName = macroTokenList[2][1:-1].strip() if len(macroTokenList) == 3 else macroTokenList[3]
 						if not includedFileName:
 							errorMessage = "ERROR in preProcess() - included filename cannot be blank"
 							errorRoutine(errorMessage)
@@ -5898,57 +5909,57 @@ def preProcess():
 			else:
 				macroTokenList = macroTokenListResult[0]
 			
-			if macroTokenList[0] == "#define" :
+			if macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == "define":
 				
 				#  Each row of this macros table will have 4 parts: [macroName, macroArguments, macroExpansionText, macroProperties]
 				# (Recall that multi-line macros have alredy been converted to single-line macros).
 				# Find out if this macro takes parameters or not. Remember that by now ALL multi-line macros have already been converted to single-line macros
 
 				
-				if len(macroTokenList) < 2:
+				if len(macroTokenList) < 3:
 					errorMessage = "ERROR in line <%s> - Macro must have a valid name -- exiting!"%lines[i]
 					errorRoutine(errorMessage)
 					return False
-				elif not re.search("^\s*[a-zA-Z_]+\w*", macroTokenList[1]):
-					PRINT ("ERROR in preProcess() - Macro must have a valid name", macroTokenList[1], " -- exiting!" )
+				elif not re.search("^\s*[a-zA-Z_]+\w*", macroTokenList[2]):
+					PRINT ("ERROR in preProcess() - Macro must have a valid name", macroTokenList[2], " -- exiting!" )
 					return False
-				elif macroTokenList[1] in illegalVariableNames:
-					errorMessage = "ERROR in line <%s> - Macro must have a valid name - <%s> is not allow -- exiting!"%(lines[i],macroTokenList[1])
+				elif macroTokenList[2] in illegalVariableNames:
+					errorMessage = "ERROR in line <%s> - Macro must have a valid name - <%s> is not allow -- exiting!"%(lines[i],macroTokenList[2])
 					errorRoutine(errorMessage)
 					return False
 				
-				macroName = macroTokenList[1]
+				macroName = macroTokenList[2]
 				macroProperties = {}
 				
-				if re.search("^\s*#define\s+[a-zA-Z_]+\w*\s*$", lines[i]): # No argument, no body (basically, a blank macro)
+				if re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\s*$', lines[i]): # No argument, no body (basically, a blank macro)
 					macroArguments = ""		# We do not use [] to differentiate the case when a macro behaves like a function with zero argument, like NEWMACRO()
 					macroExpansionText = ""
 					macroExpansionTextTokenized = []
-				elif re.search("^\s*#define\s+[a-zA-Z_]+\w*\s+\S*", lines[i]): # No argument, but has a macro body
+				elif re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\s+\S*', lines[i]): # No argument, but has a macro body
 					macroArguments = ""		# We do not use [] to differentiate the case when a macro behaves like a function with zero argument, like NEWMACRO()
-					macroExpansionText = re.sub("^#define\s+[a-zA-Z_]+\w*\s+","",lines[i])
-					macroExpansionTextTokenized = macroTokenList[2:]
-				elif re.search("^#define\s+[a-zA-Z_]+\w*\(", lines[i]): # Has arguments
-					if macroTokenList[2] != '(' or ')' not in macroTokenList[3:]:
+					macroExpansionText = re.sub(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\s+',"",lines[i])
+					macroExpansionTextTokenized = macroTokenList[3:]
+				elif re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\(', lines[i]): # Has arguments
+					if macroTokenList[3] != '(' or ')' not in macroTokenList[4:]:
 						errorMessage = "ERROR in preProcess() - No ending parenthesis for macro argument list - exiting!"
 						errorRoutine(errorMessage)
 						return False
-					d = matchingBraceDistance(macroTokenList[2:]) 
+					d = matchingBraceDistance(macroTokenList[3:]) 
 					if d < 0:
 						errorMessage = "ERROR in preProcess() - No matching parenthesis for macro argument list - exiting!"
 						errorRoutine(errorMessage)
 						return False
 					else:
-						macroArguments = macroTokenList[2:2+d]
-						macroExpansionText = re.sub("^#define\s+[a-zA-Z_]+\w*\([\w,]*\)\s+","",lines[i])
-						macroExpansionTextTokenized = macroTokenList[2+d+1:]
+						macroArguments = macroTokenList[3:3+d]
+						macroExpansionText = re.sub(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\([\w,]*\)\s+',"",lines[i])
+						macroExpansionTextTokenized = macroTokenList[3+d+1:]
 
 					variadicMacro = False
 					variadicMacroExplicitArgumentCount = 0
 					variadicMacroArgSpecialName = ""
 				
 					PRINT ("Macro ", macroName,"takes arguments" )
-					temp = re.sub("^\s*#define\s+[a-zA-Z_]+\w*\(", "",lines[i])	# Keep in mind that the temp is missing the first '(' of the argument list
+					temp = re.sub(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\(', "",lines[i])	# Keep in mind that the temp is missing the first '(' of the argument list
 					PRINT ("temp = <",temp,">" )
 					# There cannot be nested parenthesis inside the argument list for macro  definition (it is allowed during invocation, but not during definition)
 					if ")" not in temp:
@@ -6155,16 +6166,17 @@ def preProcess():
 			##														##
 			##########################################################
 
-			elif macroTokenList[0] == "#undef":	# Not a #define statement
-				if len(macroTokenList)<2:
-					errorMessage = "ERROR in preProcess() - #undef must have some valid macroname"
+			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == "undef":	# Not a #define statement
+				if len(macroTokenList)<3:
+					errorMessage = "ERROR in preProcess() - "+preProcessorSymbol+"undef must have some valid macroname"
 					errorRoutine(errorMessage)
 					return False
-				elif macroTokenList[1] not in currentMacroNames:
-					warningMessage = "ERROR in preProcess() - #undef must have some valid macroname"
+				elif macroTokenList[2] not in currentMacroNames:
+					warningMessage = "ERROR in preProcess() - "+preProcessorSymbol+"undef must have some valid macroname"
 					warningRoutine(warningMessage)
 					continue
 				else:
+					macroName = macroTokenList[2]
 					macroIndex = currentMacroNames.index(macroName)
 					# Sanity check once again
 					if len(currentMacroNames) != len(macroDefinitions) or not isinstance(macroDefinitions[macroIndex],list) or macroDefinitions[macroIndex][0] != currentMacroNames[macroIndex]:
@@ -6175,16 +6187,20 @@ def preProcess():
 					del currentMacroNames[macroIndex]
 					del macroDefinitions[macroIndex]
 					
-					if len(currentMacroNames) != len(macroDefinitions) or macroTokenList[1] in currentMacroNames:
-						errorMessage = "ERROR in preProcess() - #undef "+ macroTokenList[1] + " did not work"
+					if len(currentMacroNames) != len(macroDefinitions) or macroTokenList[2] in currentMacroNames:
+						errorMessage = "ERROR in preProcess() - "+preProcessorSymbol+"undef "+ macroTokenList[2] + " did not work"
 						errorRoutine(errorMessage)
 						return False
 						
-			elif macroTokenList[0] == '#error':
-				warningMessage = "This tool currently ignores all #error statements: <"+lines[i]+">"
+				# Finally, remove the #undef statement from lines. Once removed the macro database, its job is done.
+				# Preprocessing is not part of actual C anyway.
+				lines[i] = ""
+						
+			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == 'error':
+				warningMessage = "This tool currently ignores all "+preProcessorSymbol+"error statements: <"+lines[i]+">"
 				warningRoutine(warningMessage)
-			elif macroTokenList[0] == '#line':
-				warningMessage = "This tool currently ignores all #line statements: <"+lines[i]+">"
+			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == 'line':
+				warningMessage = "This tool currently ignores all "+preProcessorSymbol+"line statements: <"+lines[i]+">"
 				warningRoutine(warningMessage)
 
 			
@@ -6195,7 +6211,7 @@ def preProcess():
 			##########################################################
 			
 
-			elif macroTokenList[0] in ('#if','#ifdef','#ifndef','#elif'):
+			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('if','ifdef','ifndef','elif'):
 			
 				# First figure out the which all source code statements are impacted by this if statement.
 				# There might be multiple code blocks between the if-elif-elif-else-endif statements, but only one of them would succeed.
@@ -6237,38 +6253,42 @@ def preProcess():
 							PRINT("tokenizeLinesResult =",tokenizeLinesResult)
 							targetLineTokenList = tokenizeLinesResult[0]
 				
-						if targetLineTokenList[0] in ('#if','#ifdef','#ifndef', '#elif') and len(targetLineTokenList)<2:
-							errorMessage = "ERROR in line #"+targetLineNumber+": an "+ targetLineTokenList[0] +" statement must not be empty"
+						if targetLineTokenList[0] == preProcessorSymbol and len(targetLineTokenList)>=2 and targetLineTokenList[1] in ('if','ifdef','ifndef', 'elif') and len(targetLineTokenList)<3:
+							errorMessage = "ERROR in line #"+targetLineNumber+": an "+ STR(targetLineTokenList[0:2]) +" statement must not be empty"
 							errorRoutine(errorMessage)
 							return False
-						elif targetLineTokenList[0] in ('#ifdef','#ifndef') and len(targetLineTokenList)>2:
-							errorMessage = "ERROR in line #"+targetLineNumber+": an "+ targetLineTokenList[0] +" statement must not supply more than one argument"
+						elif targetLineTokenList[0] == preProcessorSymbol and len(targetLineTokenList)>=2 and targetLineTokenList[1] in ('ifdef','ifndef') and len(targetLineTokenList)!=3:
+							errorMessage = "ERROR in line #"+targetLineNumber+": an "+ STR(targetLineTokenList[0:2]) +" statement must not supply more than one argument"
 							errorRoutine(errorMessage)
 							return False
-						elif targetLineTokenList[0] in ('#else','#endif') and len(targetLineTokenList)>1:
-							errorMessage = "ERROR in line #"+targetLineNumber+": an "+ targetLineTokenList[0] +" statement must not supply more than one argument"
+						elif targetLineTokenList[0] == preProcessorSymbol and len(targetLineTokenList)>=2 and targetLineTokenList[1] in ('else','endif') and len(targetLineTokenList)>2:
+							errorMessage = "ERROR in line #"+targetLineNumber+": an "+ STR(targetLineTokenList[0:2]) +" statement must not supply more than one argument"
 							errorRoutine(errorMessage)
 							return False
 						
-						# Calculate the if condition result (True or False)
+						# Calculate the if condition result (True or False). By here we know that all ifdef etc. things have proper arguments
 						ifConditionEvaluationResult = False	# The default value
 
-						if targetLineTokenList[0] == '#else': 	# If you are falling on an #else, it is by defintion true
+						if targetLineTokenList[0] == preProcessorSymbol and len(targetLineTokenList)>=2 and targetLineTokenList[1] == 'else': 	# If you are falling on an #else, it is by defintion true
 							ifConditionEvaluationResult = True
-							PRINT("The '#else' succeeded")
-						elif targetLineTokenList[0] == '#ifdef': 
-							if targetLineTokenList[1] in currentMacroNames:
+							PRINT("The '"+preProcessorSymbol+"else' succeeded")
+						elif targetLineTokenList[0] == preProcessorSymbol and len(targetLineTokenList)>=2 and targetLineTokenList[1] == 'ifdef':
+							if len(targetLineTokenList)<3: 
+								errorMessage = "ERROR in line #"+targetLineNumber+": an "+ STR(targetLineTokenList[0:2]) +": "+preProcessorSymbol+"ifdef must supply at least one argument"
+								errorRoutine(errorMessage)
+								return False
+							elif targetLineTokenList[2] in currentMacroNames:
 								ifConditionEvaluationResult = True
-								PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' succeeded")
+								PRINT("The '",STR(targetLineTokenList[0:3]),"' succeeded")
 							else:
-								PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' failed")
-						elif targetLineTokenList[0] == '#ifndef': 
-							if targetLineTokenList[1] not in currentMacroNames:
+								PRINT("The '",STR(targetLineTokenList[0:3]),"' failed")
+						elif targetLineTokenList[0] == preProcessorSymbol and len(targetLineTokenList)>=2 and targetLineTokenList[1] == 'ifndef': 
+							if targetLineTokenList[2] not in currentMacroNames:
 								ifConditionEvaluationResult = True
-								PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' succeeded")
+								PRINT("The '",STR(targetLineTokenList[0:3]),"' succeeded")
 							else:
-								PRINT("The '",targetLineTokenList[0],targetLineTokenList[1],"' failed")
-						elif targetLineTokenList[0] in ('#if','#elif'):
+								PRINT("The '",STR(targetLineTokenList[0:3]),"' failed")
+						elif targetLineTokenList[0] == preProcessorSymbol and len(targetLineTokenList)>=2 and targetLineTokenList[1] in ('if','elif'):
 							
 							# Handle one special case - before calling parseArithmeticExpression(), we must resolve the case of defined().
 							# This is because parseArithmeticExpression() is agnostic of exactly where in the source file the code is,
@@ -6296,7 +6316,7 @@ def preProcess():
 								targetLineTokenList = currLineTokenListTransformed
 								
 						
-							parseArithmeticExpressionResult = parseArithmeticExpression(targetLineTokenList[1:])
+							parseArithmeticExpressionResult = parseArithmeticExpression(targetLineTokenList[2:])
 							if parseArithmeticExpressionResult == False:
 								errorMessage = "ERROR in preProcess() parsing <%s>"%tokenizeLinesResult
 								errorRoutine(errorMessage)
@@ -10051,7 +10071,8 @@ def parseRegularNonDeclarationCode(tokenList):
 		
 ###########################################################################################################
 # This function takes in a tokenList and parses it	
-# All #define macro invokations have already been done by preprocess(). So, just ignore any such statement
+# parseCodeSnippet() is called from mainWork(), after calling preProcess() and tokenizeLines(lines)
+# All #define macro invokations have already been done by preProcess(). So, just ignore any such statement
 ###########################################################################################################
 def parseCodeSnippet(tokenListInformation, rootNode):
 	global pragmaPackStack, pragmaPackCurrentValue, typedefs, enums, lines, structuresAndUnionsDictionary, primitiveDatatypeLength, variableDeclarations, dummyVariableCount, totalVariableCount, globalScopes
@@ -10077,13 +10098,19 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 		PRINT ("Processing tokenList[",i,"] = <%s>"%tokenList[i] )
 		if ";" in tokenList[i:]:
 			nextSemicolonIndex = i+1 + tokenList[i+1:].index(";")
-		elif tokenList[i] in ("#define", "#pragma"):
+		elif tokenList[i] == preProcessorSymbol and i+1 < len(tokenList) and tokenList[i+1] in preprocessingDirectives and tokenList[i+1] not in ('line', 'error', 'pragma'):
+			errorMessage = "ERROR in parseCodeSnippet() - preProcessing statements in the current segment <%s> should not have been printed"%(STR(list2string(tokenList[i:])))
+			errorRoutine(errorMessage)
+			return False
+		elif tokenList[i] == preProcessorSymbol and i+1 < len(tokenList) and tokenList[i+1] in ('line', 'error', 'pragma'):
 			# A Compiler directive like #define statement does not necessarily end with a semicolon
+			PRINT("Preprocessing statement starting with",tokenList[i+1],"does not end with a semicolon")
 			pass
 		elif checkIfFunctionDefinition(tokenList[i:])[0] == True:
+			PRINT("Functions starting with",tokenList[i],"does not end with a semicolon")
 			pass
 		else:
-			errorMessage = "ERROR - every non-#define C variable declaration must end with a semicolon - the current segment <%s> doesn't - hence exiting"%(STR(list2string(tokenList[i:])))
+			errorMessage = "ERROR in parseCodeSnippet() - every non-#define C variable declaration must end with a semicolon - the current segment <%s> doesn't - hence exiting"%(STR(list2string(tokenList[i:])))
 			errorRoutine(errorMessage)
 			PRINT ("ERROR in parseCodeSnippet()" )
 			return False
@@ -10641,6 +10668,9 @@ def mainWork():
 	
 	# Note down the token locations (not relevant for batch mode)
 	
+	# Note: tokenLocations() only returns the result of the first occurrence of the tokenList in lines.
+	# So, if there is repeated code, only the very first occurrence would be returned.
+	# In this case below, it works though, since tokenList is nothing but the tokenized version of the whole lines.
 	tokenLocationLinesChars = tokenLocations(lines, tokenList)
 	if tokenLocationLinesChars == False:
 		OUTPUT ("ERROR in mainWork() after calling tokenLocations(lines, tokenList) for lines=",lines," and tokenList =",tokenList )
@@ -11563,6 +11593,8 @@ def calculateSizeOffsetsBatch():
 		beginOffset += variableDeclarations[variableId][1]
 	totalBytesToReadFromDataFile = beginOffset - dataLocationOffset
 	
+	# We want to know what is the total size of the data format. If the dataLocationOffset is ZERO, and the sizeOffsets is sorted ascendingly
+	
 	PRINT("\n\n\nBefore sorting sizeOffsets\n\n")
 	PRINT("sizeOffsets =",sizeOffsets)
 	for item in sizeOffsets:	
@@ -11820,7 +11852,9 @@ class MainWindow:
 				offsetValue = result[1]
 			PRINT ("Data location offset of <",humanReadableOffsetString,"> resolves to ",offsetValue)
 			if offsetValue < 0:
-				errorMessage = STR(humanReadableOffsetString)+ " resolves to "+STR(offsetValue)+", which is not a valid data offset"
+#			if offsetValue + totalBytesToReadFromDataFile <= 0:
+#				errorMessage = STR(humanReadableOffsetString)+ " resolves to "+STR(offsetValue)+", while the total size of the mapped variables ="+STR(totalBytesToReadFromDataFile)+" bytes, which means that none of the data format will get mapped"
+				errorMessage = STR(humanReadableOffsetString)+ " resolves to "+STR(offsetValue)+", while is less than zero"
 				errorRoutine(errorMessage)
 				self.frame.after(1000,lambda: self.dataOffsetEntry.config(validate='focusout'))	
 				return False
