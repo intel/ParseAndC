@@ -387,7 +387,7 @@
 
 ##     HOW  TO  REPORT  A  BUG:		##
 
-  Please email me with a subject line of "ParseAndC bug" along with the following information/attachments:
+  Please email me with a subject line of "ParseAndC bug/feature request" along with the following information/attachments:
 
   1. Your running environment (Windows / Unix / Mac), Python version.
   2. The input files you used for code and data. If the Data file is large, at least send the Code file. If you typed in the code, copy what you typed.
@@ -402,7 +402,7 @@
   If you feel that this tool sucks, I still want to hear about it.
   If you have some feature in mind that you feel would make the tool better, I want to hear about it.
 
-  Please email me with any feedback: Firstname <period> MI <period> Lastname AT company DOT com
+  Please email me with any feedback: ThisToolName AT emailProviderSoundingLikeJeeMel
   
  ##   FREQUENTLY ASKED QUESTIONS      ##
  
@@ -422,8 +422,296 @@
 	   c. I need some more time for doing unit-testing and bug fixes.
 
 '''
+
+################################################################################################################################
+# Changelog :   
+################################################################################################################################
+#
+# 2019-09-05 - findTokenListInLines() now working for match occurring over multiline inputLine
+#				Also macro substitution seems to be working OK
+# 2019-09-06 - Now added '##' operator
+# 2019-09-06 - fixed a bug in the parseArithmeticExpression that did not handle the Right-to-Left associativity
+# 2019-09-16 - Realized that we cannot ERROR out for the AST-->String routine in case the output string does not parse into the same input AST
+#              (because the input AST may not be properly parenthesized). So changed it to a WARNING instead.
+# 2019-09-23 - Added code on how to interpret a variable declaration
+# 2019-10-13 - This version has the GUI integration done, and interpretation is happening properly. This is before I attempt to add the Focus part.
+# 2019-10-18 - This version has the mapping working, typedef done. Before I try to remove the encoding stuff.
+# 2019-10-19 - Now the selection part is working. Before adding messagebox
+# 2019-10-23 - Did upto parseArithmeticExpression (including evaluateArithmeticExpression), outputTextArithmeticExpressionFromAST
+# 2019-11-28 - Now added cursor movement on data window too.
+# 2019-12-03 - Split the variableDescription into a dictionary named variableDescriptionExtended, with various keys of "description", "signedOrUnsigned", "datatype", "arrayDimensions", "arrayElementSize" 
+# 2019-12-04 - Now added bitwise field support in internal value calculations (not in variable declaration yet)
+# 2019-12-15 - Now added highlighting of individual array elements
+# 2019-12-15 - Split the value into Little-Endian and Big-Endian parts
+# 2019-12-17 - Added highligthing all around, fixed bugs regarding enum and function declarations. Next up: typedef resolution (properly)
+# 2019-12-22 - This is the version after which we will split the structure defining part completely. Not that the current form works completely.
+# 2019-12-23 - Nested structure now seem to be working. Next need to work on the Union.
+# 2019-12-24 - Included new fields added to the variableDescriptionExtended. This is just after we removed the 6-th element of variableDescription, which is now variableDescriptionExtended["globalTokenListIndex"] (recall variableDescriptionExtended itself is item[4])
+# 2019-12-24 - Now we are going to change the coloring based on self.dataOffsetsDetail rather than self.dataOffsetsDetail.
+# 2019-12-24 - I think Union is now working.
+# 2019-12-28 - Now the compiler padding addition is working. For size, we need to use the base datatype for array variables.
+# 2019-12-29 - Now typedef is working, but the global index of variable (globalTokenListIndex) is only correct if we have a single variable declared within the declaration statement.
+# 2019-12-29 - Now typedef is working, but only if the original typedef statement created a single type. Now going to change that
+# 2019-12-30 - Typedef now works for multiple-variable declarations, as well as multiple-type-creation-in-a-single-typedef statement
+# 2019-12-31 - Transitioned to PRINT, revamped the type specifier part (no conflicting float/int/char etc.) now going to implement bitfields.
+# 2020-01-01 - Added code to convert human-readable (GB/MB) etc. to decimal. Next intend to change the offset entry variables.
+# 2020-01-02 - Added currentDeclarationSegmentStartIndex, currentDeclarationSegmentEndIndexInclusive, and initializationStartIndex to variableDescriptionExtended{} so that declaration segment identification is easier.
+# 2020-01-02 - Before we start changing the way the validate and focusout routines work
+# 2020-01-03 - Before we split up the Interpreted code display
+# 2020-01-04 - Fixed a bunch of bugs regarding changing the data offset (causes the self.dataOffsetsDetail need to be redone) and file offset (causes the block to be re-read)
+# 2020-01-05 - Fixed the operator precedence bug in parseArithmeticExpression() where - should have higher precedence than +
+# 2020-01-05 - Fixed enum variable declaration bug (still not ready for typedef enum)
+# 2020-01-09 - Just added the bitfield information dictionary into the sruct component and did the overall size calculation. Now will work on the display etc.
+# 2020-01-13 - Bitfield now working for LE packing
+# 2020-01-14 - replaced all checks for isinstance( -x-, basestring) with checkIfString( -x- ) since basestring is no longer available in Python 3
+# 2020-01-18 - Before replacing *.keys() with getKeyList(*). This is because Python 2 gets *.keys() as a list, but Python 3 gets *.keys as class dict_keys (Ugghhh!)
+# 2020-01-18 - Now the "Interpret" is working. But map is failing due to byte-vs-Str mismatch (various invocation of ord() function)
+# 2020-01-19 - Now the map is working too, because earlier it was failing due to Integer division not working in Python 3. 
+# 2020-01-20 - Added README. After fixing the multi-window display data
+# 2020-01-23 - Before adding the fourth Window (created a barebone unraveled list). Next going to add the TreeView
+# 2020-01-23 - Now treeview is working somewhat.
+# 2020-01-27 - Before trying to use the same offsets from the offsetDetails. Now this fixed some bugs regarding functions.
+# 2020-01-27 - After trying to use the same offsets from the offsetDetails. Also fixed the bug in mapStructure where populateDataMap() was getting called before performInterpretedCodeColoring()
+# 2020-01-28 - The Address start and end in the 4th Window now working. Also, fixed the bug in previously not using removeColorTags() so that if we now re-choose, previous colors remain.
+# 2020-01-28 - Now the inserting-into-typedef part has been moved into where it should belong (parseVariableDeclaration() function). Corresponding code in parseStructre() and parseCodeSnippet() are now commented out.
+# 2020-01-28 - Fixed the bug where I was not deducting the offset while reading from the blockRead in populateDataMap(). Previous versions would give wrong result.
+# 2020-01-29 - Now even struct members can use derived type declarations.
+# 2020-01-29 - Now variable description is also part of unravel, so it can decode any kind of value. Next will display the bytes for each field.
+# 2020-01-29 - Now byte values are showing too in the tree view. Next optional Hex display and pretty printing.
+# 2020-01-29 - mandatory Pretty printing of unraveled done. Also fixed small cosmetic bug of extra period on struct name.
+# 2020-01-30 - Now optional ability to display all integral values in Hex is added.
+# 2020-02-02 - BitField now working. Before merging the Big-endian and Little-endian.
+# 2020-02-03 - Merged the Big-endian and Little-endian, and also fixed the bug where a single field might be broken at the beginning or the end of the block.
+# 2020-02-10 - Now it supports sizeof() for simple expressions.
+# 2020-02-12 - Before changing the code so that unraveling doesn't happen only for a file offset change
+# 2020-02-12 - Now unraveling doesn't happen only for a file offset change. Now going to clear up the dataOffset and fileOffset naming mess.
+# 2020-02-13 - Renamed self.dataOffsets to self.variableOffsets and self.dataOffsetsDetail to self.variableOffsetsDetail.
+# 2020-02-14 - Fixed many small things to make sure it runs on both Python 2 and 3.
+# 2020-02-21 - Added the second (faster) routine for findTokenListInLines. Now going to fix the problem of the Data windows getting double-written. 
+# 2020-02-24 - Fixed the bug of Interpreted Code Window variable highlighting remaining in case of Page Up and Down.
+# 2020-02-29 - Added code to support builtin typedefs.
+# 2020-03-02 - Now showing addresses for bitfields.
+# 2020-03-04 - Fixed enum bug where it was not halding expressions. Also added handling of storage qualifiers like volatile.
+# 2020-03-06 - After adding the Hex / Dec toggle feature.
+# 2020-03-07 - After adding Command line parser, and before preparing for the batch mode.
+# 2020-03-08 - From GUI variables, made these variables global: dataLocationOffset, dataFileName, dataFileSizeInBytes, and block
+# 2020-03-09 - From GUI variables, made these variables global: variableOffsets, variableOffsetsDetail
+# 2020-03-09 - From GUI variables, made these variables global: inputIsHexChar, binaryArray, hexCharArray, totalBytesToReadFromDataFile
+# 2020-03-09 - Removed commented out lines due to all those Global-making endeavor.
+# 2020-03-13 - Before doing the massive restructuring.
+# 2020-03-15 - After doing the massive restructuring. Still, when self.fileOffset changes, excess things are happening. 
+# 2020-03-15 - Before committing to use fileDisplayOffset instead of self.fileOffset.
+# 2020-03-16 - After adding code to selectively choose whether to display typedefs or not. Before adding bottom line of options.
+# 2020-03-17 - Everything seems to be working. Removed the inefficient version of findTokenListInLines().
+# 2020-03-18 - Now Help option and batch mode are working.
+# 2020-03-22 - Fixed padding bug. Added more content to README. Removed a lot of commented out lines.
+# 2020-03-25 - Added support for #pragma pack. Just parsed __attribute__(( options )), but yet to take any action.
+# 2020-03-27 - Before processing packed and aligned __attribute__.
+# 2020-03-29 - Added a lot of comments and illustrations regarding packed and aligned __attribute__. Yet to add the code for detecting __attribute__ properly.
+# 2020-04-10 - Now it parses the aligned and packed properly, but yet to take action on those attributes.
+# 2020-04-23 - Now it properly implements the packed and aligned attributes. Next we will implement the bitfields correctly (previous implementation was incorrect).
+# 2020-04-27 - Previous implementation was wrong. Re-did the packed, aligned, and pragma pack. Bitfield still not done.
+# 2021-03-19 - Fixed bug that was causing the program to crash when trying to tab out of the data offset with a blank datablock.
+# 2021-03-29 - Changed tokenizeLines to also create precise token locations. Now going to return both items instead of just tokenList.
+# 2021-03-29 - The new code now gets both tokenList and precise token locations from tokenlizeLines(). It does not use the latter though. Next we will handle ifdefs.
+# 2021-04-04 - After handling preprocessing directives. But going to rewrite the tokenizeLines(), so this backup is just before that.
+# 2021-04-05 - Reimplemented tokenizeLines() that correctly handles all preprocessing directives. This is before handing <include "filename"> statements.
+# 2021-04-05 - Reimplemented preProcess() that now handles <include "filename"> statements.
+# 2021-04-06 - Added feature of centering Data window based on double-clicked variable name.
+# 2021-04-06 - Added routine displayDataWindowFromOffset(), which is used by page up/down and doubleclick (refactored the code)
+# 2021-04-06 - Added more stuff into displayDataWindowFromOffset(), by taking commong things away from page up/down and doubleclick (refactored the code)
+# 2021-04-08 - Added support for variadic macro. Next going to add support for INCLUDE_FILE_PATH
+# 2021-04-19 - Before putting in a "Demo" mode
+# 2021-04-21 - Before renaming the Compiler Padding on to Demo
+# 2021-04-22 - Before adding the Expand/Collapse buttons on the bottom TreeView window
+# 2021-04-26 - After adding code to handle function definitions (not declarations), and removing structure-end-padding button. Before removing extra refernces.
+# 2021-04-28 - Changed the builtin code used for Demo.
+# 2021-04-29 - Added Double-click feature for the Hex and Ascii data windows.
+# 2021-05-05 - Added zero-width bitfield variable (alignment reset) handling
+# 2021-05-09 - Changed the way preProcess() works
+# 2021-06-10 - Before separating the preprocessing directive symbol (#) from all the preprocessing directives.
+# 2021-08-02 - Rearrange the code a little bit, put Changelog at the top
+
+
 ##################################################################################################################################
 ##################################################################################################################################
+
+
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+import os
+import sys
+#reload(sys)
+#sys.setdefaultencoding('utf-8')
+import re
+from collections import OrderedDict 
+
+
+
+# Global settings
+
+IN_DEMO = False			# Runs a demo using some fixed code and data
+BATCHMODE = False
+PRINT_DEBUG_MSG = False		# use True or False ony
+HIGHLIGHT_COLOR = "black"	# "black" or "yellow" works better
+COMPILER_PADDING_ON = True
+STRUCT_END_PADDING_ON = True	# Whether to add additional padding at the end of a structure to make to align to a word boundary
+DISPLAY_INTEGRAL_VALUES_IN_HEX = False	#If True, -17 would now be displayed as -0x11
+SNAPSHOT_FILE_NAME = "snapshot.csv"		# This is the output file name where the formatted data snapshot would be written in the current folder
+MAP_TYPEDEFS_TOO = True	# Usually, we do not create any storage for typedef (so no mapping), but if that's all your structure has and you do not want to create extra declaration, turn it to True
+
+anonymousStructPrefix = "Anonymous#"
+dummyVariableNamePrefix = "DummyVar#"
+dummyUnnamedBitfieldNamePrefix = "dummyUnnamedBitfieldVar#"
+dummyUnnamedBitfieldCount = 0
+preProcessorSymbol = '#'
+
+CHAR_SIZE = 1
+SHORT_SIZE = 2
+INT_SIZE = 4
+LONG_SIZE = 4
+LONG_LONG_SIZE = 8
+POINTER_SIZE = 4
+FLOAT_SIZE = 4
+DOUBLE_SIZE = 8
+BITS_IN_BYTE = 8
+
+ALIGNED_DEFAULT_VALUE = 4
+
+LITTLE_ENDIAN = 0
+BIG_ENDIAN = 1
+
+# The start and end addresses (byte numbers) for bitfields change based on whether we are packing LE or BE. Change it accordingly.
+BITFIELD_DEFAULT_ENDIANNESS = LITTLE_ENDIAN		
+#BITFIELD_DEFAULT_ENDIANNESS = BIG_ENDIAN		
+
+
+# Global variables
+
+TOOL_NAME = "ParseAndC by Parbati Kumar Manna"
+DISPLAY_BLOCK_WIDTH = 16
+DISPLAY_BLOCK_HEIGHT = 32
+BLOCK_SIZE = DISPLAY_BLOCK_WIDTH * DISPLAY_BLOCK_HEIGHT
+ENCODINGS = ("ASCII", "CP037", "CP850", "CP1140", "CP1252", "Latin1", "ISO8859_15", "Mac_Roman", "UTF-8", "UTF-8-sig", "UTF-16", "UTF-32")
+#When you have no more than 10 colors, use this
+COLORS_10 = ['red2','SkyBlue1', 'magenta2','saddle brown', 'cornflower blue','dark green', 'deep pink', 'purple','chocolate1','gold']
+COLORS_20 = ['red2','SkyBlue1', 'magenta2','saddle brown', 'cornflower blue','dark green', 'deep pink', 'purple','chocolate1','gold',
+'DarkGoldenrod2', 'DarkOrange1', 'plum1','DarkOrchid1', 'DeepPink2', 'DeepSkyBlue2', 'orange', 'DodgerBlue2','turquoise','indian red']
+COLORS_ALL = ['DarkGoldenrod2', 'DarkOrange1', 'DarkOrchid1', 'DeepPink2', 'DeepSkyBlue2', 'DodgerBlue2', 
+'HotPink1', 'IndianRed1', 'LightPink1', 'LightSalmon2', 'MediumOrchid1', 'MediumPurple1', 'OrangeRed2', 
+'PaleVioletRed1', 'RoyalBlue1', 'SeaGreen1', 'SkyBlue1', 'SlateBlue1', 'SpringGreen2', 'SteelBlue1', 'VioletRed1', 
+'blue', 'blue violet', 'brown1', 'cadet blue', 'chartreuse2', 'chocolate1', 
+'coral', 'cornflower blue', 'cornsilk2', 'cyan', 'dark goldenrod', 'dark green', 'dark khaki', 'dark olive green', 'dark orange', 'dark orchid', 'dark salmon', 
+'dark sea green', 'dark slate blue', 'dark slate gray', 'dark turquoise', 'dark violet', 'deep pink', 'deep sky blue', 'dim gray', 'dodger blue', 'firebrick1', 
+'forest green', 'gainsboro', 'gold', 'goldenrod', 'gray', 'green yellow', 'honeydew2', 'hot pink', 'indian red', 'ivory2', 'khaki', 'lavender', 'lawn green', 
+'lemon chiffon', 'light blue', 'light coral', 'light cyan', 'light goldenrod', 'light goldenrod yellow', 'light grey', 'light pink', 'light salmon', 'light sea green', 
+'light sky blue', 'light slate blue', 'light slate gray', 'light steel blue', 'light yellow', 'lime green', 'linen', 'magenta2', 'maroon', 'medium aquamarine', 
+'medium blue', 'medium orchid', 'medium purple', 'medium sea green', 'medium slate blue', 'medium spring green', 'medium turquoise', 'medium violet red', 'midnight blue', 
+'misty rose', 'navajo white', 'navy', 'olive drab', 'orange', 'orange red', 'orchid1', 'pale goldenrod', 'pale green', 'pale turquoise', 'pale violet red', 'papaya whip', 
+'peach puff', 'pink', 'pink1', 'plum1', 'powder blue', 'purple', 'red', 'rosy brown', 'royal blue', 'saddle brown', 'salmon', 'sandy brown', 'sea green', 'seashell2', 
+'sienna1', 'sky blue', 'slate blue', 'slate gray', 'snow', 'spring green', 'steel blue', 'tan1', 'thistle', 'tomato', 'turquoise', 'violet red', 'wheat1', 'yellow', 'yellow green']
+#preprocessingDirectives = ('#include', '#if', '#ifdef', '#ifndef', '#else', '#elif', '#endif', '#define', '#undef', '#line', '#error', '#pragma', '...', '__VA_ARGS__','__VA_OPT__')
+preprocessingDirectives = ('include', 'if', 'ifdef', 'ifndef', 'else', 'elif', 'endif', 'define', 'undef', 'line', 'error', 'pragma', '...', '__VA_ARGS__','__VA_OPT__')
+oneCharOperatorList = ('.','+','-','*','/','%', '&', '|', '<', '>', '!', '^', '~', '?', ':', '=', ',','#')
+twoCharOperatorList = ('##','++', '--','()','[]','->','>>', '<<', '<=', '>=', '==', '!=', '&&', '||', '+=', '-=', '*=', '/=', '%=', '&=', '^=', '|=')
+threeCharOperatorList = ('<<=', '>>=')
+derivedOperatorList = ("function()","typecast")
+bracesDict = 		{	"(":")",	"{":"}",	"[":"]",	"<":">",	"?":":"}
+bracesDictReverse = {	")":"(",	"}":"{",	"]":"[",	">":"<",	":":"?"}
+primitiveDatatypeLength = {"char":CHAR_SIZE,"short":SHORT_SIZE,"int":INT_SIZE, "long":LONG_SIZE, "long long":LONG_LONG_SIZE,"pointer":POINTER_SIZE, "float":FLOAT_SIZE,"double":DOUBLE_SIZE}
+
+cDataTypes = ["char","double","float","int", "long","short","void","signed","unsigned"]
+cKeywords = ["auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else", "enum", 
+				"extern", "float", "for", "goto", "if", "inline", "int", "long", "register", "return", "short", "signed", 
+				"sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while"]
+integralDataTypes = ["char","short","int","long","long long"]
+treeViewHeadings = ["Variable Name", "Data Type", "Addr Start", "Addr End", "Raw Hex Bytes", "Value (LE)", "Value (BE)"]
+
+PACKED_STRING 		= "__packed__"
+ALIGNED_STRING 		= "__aligned__"
+ATTRIBUTE_STRING 	= "__attribute__"
+
+illegalVariableNames = list(preprocessingDirectives) + list(oneCharOperatorList) + list(twoCharOperatorList) + list(threeCharOperatorList) + cDataTypes + cKeywords + integralDataTypes
+
+lines = []
+enums = {}		# This is a dictionary that holds yet another dictionary inside {enumDatatype,{enumFields,enumFieldValues}}
+enumFieldValues = {}	# This is a dictionary of ALL enum fields and their values. We can do this because enum field names are globally unique. We keep this separate to cache the enum values
+typedefs = {}
+structuresAndUnionsDictionary = {}	# Each value of this dictionary is a dictionary itself, where the key is its name. The dictionary is of this format: 
+							# "type" : "struct/union", "size":size, "components":[[variable1 name, variable size, variable declaration statement, Extended variable description],...]}
+# Below is a list of 6-Tuple. Each list item is pretty much same as the structuresAndUnionsDictionary["components"] 5-tuple, plus another item which tells where this var name occurs.
+# [variable1 name, variable size, variable declaration statement, variable name relative index within declaration, Extended variable description, absolute Index of variable name in tokenList]							
+variableDeclarations = []
+macroDefinitions = []		# The ordered dictionary for holding all Macro definitions. This changes over time, as we keep on parsing line by line.
+currentMacroNames = []		# Just a cache of macro names
+# This is just the sizes of the selected variables that would be colored
+tokenLocationLinesChars = []
+unraveled = []
+fileDisplayOffset = 0 	# This is the offset from which the file display window starts
+dataLocationOffset = 0	# This is the offset from which the variables under variablesAtGlobalScopeSelected start to map
+codeFileName = None
+dataFileName = None
+dataFileSizeInBytes = None
+displayBlock = []	# This is the block that holds the data for the display window only, starting at fileDisplayOffset
+dataBlock = []		# This is the block that holds the data for the variablesAtGlobalScopeSelected[], starting at dataLocationOffset
+inputIsHexChar = False
+binaryArray = ""
+hexCharArray = []
+totalBytesToReadFromDataFile = 0
+window = None
+dummyVariableCount = 0
+dummyZeroWidthBitfieldVariableCount = 0
+totalVariableCount = 0
+globalScopes = []	# These are the variables that are at the global scope, depending on the user selection
+globalScopesSelected = []	# These are the variables that are at the global scope, depending on the user selection and the MAP_TYPEDEFS_TOO
+variableSelectedIndices = [] # These are the indices of variables that have been selected after the user presses the "Map" button
+variablesAtGlobalScopeSelected = [] # These are the variables that are at the global scope, AND are the top-level parents of variables that have been selected by the user
+sizeOffsets = []	# These tell the beginning offset (absolute, not relative) and length for ALL the variables under variablesAtGlobalScopeSelected[], beginning at dataLocationOffset.
+                    # Each row in sizeOffsets is [variableId,beginOffset,variableSize]
+inputVariables = []	# For batch, the list of the Global variables the user wants to map
+MAINLOOP_STARTED = False
+pragmaPackStack = []
+pragmaPackCurrentValue = None
+pragmaPackDefaultValue = ALIGNED_DEFAULT_VALUE
+
+LARGE_NEGATIVE_NUMBER = -9999999999999999999999999999999		# A number usually associated with default (erroneous) value of Index in an array
+LARGE_POSITIVE_NUMBER = -LARGE_NEGATIVE_NUMBER
+
+# This thing should be moved out since there is no need to repeat this for every tokenizeLines() invocations
+keywordsSorted = list(preprocessingDirectives)
+keywordsSorted.extend(list(twoCharOperatorList))
+keywordsSorted.extend(list(threeCharOperatorList))
+keywordsSorted.sort(key=len)
+keywordsSorted.reverse()
+#PRINT("sorted keyword list =",keywordsSorted)
+
+# There are two methods of calculating the bitfield offsets - Microsoft-style (Old), and GCC-style (new)
+bitFieldOffsetCalculationMethod = "old"
+#bitFieldOffsetCalculationMethod = "New"
+
+
+storageClassSpecifier = [ 'auto','register','static','extern','typedef']
+typeQualifier = ['const','volatile']
+
+# These are the typedefs that will be used if the user fails to explicitly typedef them.
+typedefsBuiltin = {
+					'int8_t'	:	['typedef', 'char', 'int8_t', ';'],
+					'int16_t'	:	['typedef', 'short', 'int16_t', ';'],
+					'int32_t'	: 	['typedef', 'int', 'int32_t', ';'],
+					'int64_t'	: 	['typedef', 'long long', 'int64_t', ';'],
+
+					'uint8_t'	:	['typedef', 'unsigned', 'char', 'uint8_t', ';'],
+					'uint16_t'	:	['typedef', 'unsigned', 'short', 'uint16_t', ';'],
+					'uint32_t'	: 	['typedef', 'unsigned', 'int', 'uint32_t', ';'],
+					'uint64_t'	: 	['typedef', 'unsigned', 'long long', 'uint64_t', ';'],
+
+					'size_t'	:	['typedef', 'unsigned', 'int', 'size_t', ';'],
+					'ptrdiff_t'	:	['typedef', 'unsigned', 'int', 'ptrdiff_t', ';'],
+					
+					'intptr_t'	:	['typedef', 'int', '*', 'intptr_t', ';'],
+					'uintptr_t'	:	['typedef', 'unsigned', 'int', '*', 'uintptr_t', ';']
+					}
+
 ##
 ##
 ## Below is the input structure that I use for demo:
@@ -540,183 +828,7 @@ demoCode = ['enum { Sun, Mon, Tue};\n',
 ##
 
 
-
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-import os
-import sys
-#reload(sys)
-#sys.setdefaultencoding('utf-8')
-import re
-from collections import OrderedDict 
-
-
-################################################################################################################################
-# Changelog :   
-################################################################################################################################
-#
-# 2019-09-05 - findTokenListInLines() now working for match occurring over multiline inputLine
-#				Also macro substitution seems to be working OK
-# 2019-09-06 - Now added '##' operator
-# 2019-09-06 - fixed a bug in the parseArithmeticExpression that did not handle the Right-to-Left associativity
-# 2019-09-16 - Realized that we cannot ERROR out for the AST-->String routine in case the output string does not parse into the same input AST
-#              (because the input AST may not be properly parenthesized). So changed it to a WARNING instead.
-# 2019-09-23 - Added code on how to interpret a variable declaration
-# 2019-10-13 - This version has the GUI integration done, and interpretation is happening properly. This is before I attempt to add the Focus part.
-# 2019-10-18 - This version has the mapping working, typedef done. Before I try to remove the encoding stuff.
-# 2019-10-19 - Now the selection part is working. Before adding messagebox
-# 2019-10-23 - Did upto parseArithmeticExpression (including evaluateArithmeticExpression), outputTextArithmeticExpressionFromAST
-# 2019-11-28 - Now added cursor movement on data window too.
-# 2019-12-03 - Split the variableDescription into a dictionary named variableDescriptionExtended, with various keys of "description", "signedOrUnsigned", "datatype", "arrayDimensions", "arrayElementSize" 
-# 2019-12-04 - Now added bitwise field support in internal value calculations (not in variable declaration yet)
-# 2019-12-15 - Now added highlighting of individual array elements
-# 2019-12-15 - Split the value into Little-Endian and Big-Endian parts
-# 2019-12-17 - Added highligthing all around, fixed bugs regarding enum and function declarations. Next up: typedef resolution (properly)
-# 2019-12-22 - This is the version after which we will split the structure defining part completely. Not that the current form works completely.
-# 2019-12-23 - Nested structure now seem to be working. Next need to work on the Union.
-# 2019-12-24 - Included new fields added to the variableDescriptionExtended. This is just after we removed the 6-th element of variableDescription, which is now variableDescriptionExtended["globalTokenListIndex"] (recall variableDescriptionExtended itself is item[4])
-# 2019-12-24 - Now we are going to change the coloring based on self.dataOffsetsDetail rather than self.dataOffsetsDetail.
-# 2019-12-24 - I think Union is now working.
-# 2019-12-28 - Now the compiler padding addition is working. For size, we need to use the base datatype for array variables.
-# 2019-12-29 - Now typedef is working, but the global index of variable (globalTokenListIndex) is only correct if we have a single variable declared within the declaration statement.
-# 2019-12-29 - Now typedef is working, but only if the original typedef statement created a single type. Now going to change that
-# 2019-12-30 - Typedef now works for multiple-variable declarations, as well as multiple-type-creation-in-a-single-typedef statement
-# 2019-12-31 - Transitioned to PRINT, revamped the type specifier part (no conflicting float/int/char etc.) now going to implement bitfields.
-# 2020-01-01 - Added code to convert human-readable (GB/MB) etc. to decimal. Next intend to change the offset entry variables.
-# 2020-01-02 - Added currentDeclarationSegmentStartIndex, currentDeclarationSegmentEndIndexInclusive, and initializationStartIndex to variableDescriptionExtended{} so that declaration segment identification is easier.
-# 2020-01-02 - Before we start changing the way the validate and focusout routines work
-# 2020-01-03 - Before we split up the Interpreted code display
-# 2020-01-04 - Fixed a bunch of bugs regarding changing the data offset (causes the self.dataOffsetsDetail need to be redone) and file offset (causes the block to be re-read)
-# 2020-01-05 - Fixed the operator precedence bug in parseArithmeticExpression() where - should have higher precedence than +
-# 2020-01-05 - Fixed enum variable declaration bug (still not ready for typedef enum)
-# 2020-01-09 - Just added the bitfield information dictionary into the sruct component and did the overall size calculation. Now will work on the display etc.
-# 2020-01-13 - Bitfield now working for LE packing
-# 2020-01-14 - replaced all checks for isinstance( -x-, basestring) with checkIfString( -x- ) since basestring is no longer available in Python 3
-# 2020-01-18 - Before replacing *.keys() with getKeyList(*). This is because Python 2 gets *.keys() as a list, but Python 3 gets *.keys as class dict_keys (Ugghhh!)
-# 2020-01-18 - Now the "Interpret" is working. But map is failing due to byte-vs-Str mismatch (various invocation of ord() function)
-# 2020-01-19 - Now the map is working too, because earlier it was failing due to Integer division not working in Python 3. 
-# 2020-01-20 - Added README. After fixing the multi-window display data
-# 2020-01-23 - Before adding the fourth Window (created a barebone unraveled list). Next going to add the TreeView
-# 2020-01-23 - Now treeview is working somewhat.
-# 2020-01-27 - Before trying to use the same offsets from the offsetDetails. Now this fixed some bugs regarding functions.
-# 2020-01-27 - After trying to use the same offsets from the offsetDetails. Also fixed the bug in mapStructure where populateDataMap() was getting called before performInterpretedCodeColoring()
-# 2020-01-28 - The Address start and end in the 4th Window now working. Also, fixed the bug in previously not using removeColorTags() so that if we now re-choose, previous colors remain.
-# 2020-01-28 - Now the inserting-into-typedef part has been moved into where it should belong (parseVariableDeclaration() function). Corresponding code in parseStructre() and parseCodeSnippet() are now commented out.
-# 2020-01-28 - Fixed the bug where I was not deducting the offset while reading from the blockRead in populateDataMap(). Previous versions would give wrong result.
-# 2020-01-29 - Now even struct members can use derived type declarations.
-# 2020-01-29 - Now variable description is also part of unravel, so it can decode any kind of value. Next will display the bytes for each field.
-# 2020-01-29 - Now byte values are showing too in the tree view. Next optional Hex display and pretty printing.
-# 2020-01-29 - mandatory Pretty printing of unraveled done. Also fixed small cosmetic bug of extra period on struct name.
-# 2020-01-30 - Now optional ability to display all integral values in Hex is added.
-# 2020-02-02 - BitField now working. Before merging the Big-endian and Little-endian.
-# 2020-02-03 - Merged the Big-endian and Little-endian, and also fixed the bug where a single field might be broken at the beginning or the end of the block.
-# 2020-02-10 - Now it supports sizeof() for simple expressions.
-# 2020-02-12 - Before changing the code so that unraveling doesn't happen only for a file offset change
-# 2020-02-12 - Now unraveling doesn't happen only for a file offset change. Now going to clear up the dataOffset and fileOffset naming mess.
-# 2020-02-13 - Renamed self.dataOffsets to self.variableOffsets and self.dataOffsetsDetail to self.variableOffsetsDetail.
-# 2020-02-14 - Fixed many small things to make sure it runs on both Python 2 and 3.
-# 2020-02-21 - Added the second (faster) routine for findTokenListInLines. Now going to fix the problem of the Data windows getting double-written. 
-# 2020-02-24 - Fixed the bug of Interpreted Code Window variable highlighting remaining in case of Page Up and Down.
-# 2020-02-29 - Added code to support builtin typedefs.
-# 2020-03-02 - Now showing addresses for bitfields.
-# 2020-03-04 - Fixed enum bug where it was not halding expressions. Also added handling of storage qualifiers like volatile.
-# 2020-03-06 - After adding the Hex / Dec toggle feature.
-# 2020-03-07 - After adding Command line parser, and before preparing for the batch mode.
-# 2020-03-08 - From GUI variables, made these variables global: dataLocationOffset, dataFileName, dataFileSizeInBytes, and block
-# 2020-03-09 - From GUI variables, made these variables global: variableOffsets, variableOffsetsDetail
-# 2020-03-09 - From GUI variables, made these variables global: inputIsHexChar, binaryArray, hexCharArray, totalBytesToReadFromDataFile
-# 2020-03-09 - Removed commented out lines due to all those Global-making endeavor.
-# 2020-03-13 - Before doing the massive restructuring.
-# 2020-03-15 - After doing the massive restructuring. Still, when self.fileOffset changes, excess things are happening. 
-# 2020-03-15 - Before committing to use fileDisplayOffset instead of self.fileOffset.
-# 2020-03-16 - After adding code to selectively choose whether to display typedefs or not. Before adding bottom line of options.
-# 2020-03-17 - Everything seems to be working. Removed the inefficient version of findTokenListInLines().
-# 2020-03-18 - Now Help option and batch mode are working.
-# 2020-03-22 - Fixed padding bug. Added more content to README. Removed a lot of commented out lines.
-# 2020-03-25 - Added support for #pragma pack. Just parsed __attribute__(( options )), but yet to take any action.
-# 2020-03-27 - Before processing packed and aligned __attribute__.
-# 2020-03-29 - Added a lot of comments and illustrations regarding packed and aligned __attribute__. Yet to add the code for detecting __attribute__ properly.
-# 2020-04-10 - Now it parses the aligned and packed properly, but yet to take action on those attributes.
-# 2020-04-23 - Now it properly implements the packed and aligned attributes. Next we will implement the bitfields correctly (previous implementation was incorrect).
-# 2020-04-27 - Previous implementation was wrong. Re-did the packed, aligned, and pragma pack. Bitfield still not done.
-# 2021-03-19 - Fixed bug that was causing the program to crash when trying to tab out of the data offset with a blank datablock.
-# 2021-03-29 - Changed tokenizeLines to also create precise token locations. Now going to return both items instead of just tokenList.
-# 2021-03-29 - The new code now gets both tokenList and precise token locations from tokenlizeLines(). It does not use the latter though. Next we will handle ifdefs.
-# 2021-04-04 - After handling preprocessing directives. But going to rewrite the tokenizeLines(), so this backup is just before that.
-# 2021-04-05 - Reimplemented tokenizeLines() that correctly handles all preprocessing directives. This is before handing <include "filename"> statements.
-# 2021-04-05 - Reimplemented preProcess() that now handles <include "filename"> statements.
-# 2021-04-06 - Added feature of centering Data window based on double-clicked variable name.
-# 2021-04-06 - Added routine displayDataWindowFromOffset(), which is used by page up/down and doubleclick (refactored the code)
-# 2021-04-06 - Added more stuff into displayDataWindowFromOffset(), by taking commong things away from page up/down and doubleclick (refactored the code)
-# 2021-04-08 - Added support for variadic macro. Next going to add support for INCLUDE_FILE_PATH
-# 2021-04-19 - Before putting in a "Demo" mode
-# 2021-04-21 - Before renaming the Compiler Padding on to Demo
-# 2021-04-22 - Before adding the Expand/Collapse buttons on the bottom TreeView window
-# 2021-04-26 - After adding code to handle function definitions (not declarations), and removing structure-end-padding button. Before removing extra refernces.
-# 2021-04-28 - Changed the builtin code used for Demo.
-# 2021-04-29 - Added Double-click feature for the Hex and Ascii data windows.
-# 2021-05-05 - Added zero-width bitfield variable (alignment reset) handling
-# 2021-05-09 - Changed the way preProcess() works
-# 2021-06-10 - Before separating the preprocessing directive symbol (#) from all the preprocessing directives.
-# 2021-06-15 - Before allowing negative data offsets.
-
-# Global settings
-
-IN_DEMO = False			# Runs a demo using some fixed code and data
-BATCHMODE = False
-PRINT_DEBUG_MSG = False		# use True or False ony
-HIGHLIGHT_COLOR = "black"	# "black" or "yellow" works better
-COMPILER_PADDING_ON = True
-STRUCT_END_PADDING_ON = True	# Whether to add additional padding at the end of a structure to make to align to a word boundary
-DISPLAY_INTEGRAL_VALUES_IN_HEX = False	#If True, -17 would now be displayed as -0x11
-SNAPSHOT_FILE_NAME = "snapshot.csv"		# This is the output file name where the formatted data snapshot would be written in the current folder
-MAP_TYPEDEFS_TOO = True	# Usually, we do not create any storage for typedef (so no mapping), but if that's all your structure has and you do not want to create extra declaration, turn it to True
-
-anonymousStructPrefix = "Anonymous#"
-dummyVariableNamePrefix = "DummyVar#"
-dummyUnnamedBitfieldNamePrefix = "dummyUnnamedBitfieldVar#"
-dummyUnnamedBitfieldCount = 0
-preProcessorSymbol = '#'
-
-CHAR_SIZE = 1
-SHORT_SIZE = 2
-INT_SIZE = 4
-LONG_SIZE = 4
-LONG_LONG_SIZE = 8
-POINTER_SIZE = 4
-FLOAT_SIZE = 4
-DOUBLE_SIZE = 8
-BITS_IN_BYTE = 8
-
-ALIGNED_DEFAULT_VALUE = 4
-
-LITTLE_ENDIAN = 0
-BIG_ENDIAN = 1
-
-# The start and end addresses (byte numbers) for bitfields change based on whether we are packing LE or BE. Change it accordingly.
-BITFIELD_DEFAULT_ENDIANNESS = LITTLE_ENDIAN		
-#BITFIELD_DEFAULT_ENDIANNESS = BIG_ENDIAN		
-
-storageClassSpecifier = [ 'auto','register','static','extern','typedef']
-typeQualifier = ['const','volatile']
-
-# These are the typedefs that will be used if the user fails to explicitly typedef them.
-typedefsBuiltin = {
-					'int8_t'	:	['typedef', 'char', 'int8_t', ';'],
-					'int16_t'	:	['typedef', 'short', 'int16_t', ';'],
-					'int32_t'	: 	['typedef', 'int', 'int32_t', ';'],
-					'int64_t'	: 	['typedef', 'long long', 'int64_t', ';'],
-
-					'uint8_t'	:	['typedef', 'unsigned', 'char', 'uint8_t', ';'],
-					'uint16_t'	:	['typedef', 'unsigned', 'short', 'uint16_t', ';'],
-					'uint32_t'	: 	['typedef', 'unsigned', 'int', 'uint32_t', ';'],
-					'uint64_t'	: 	['typedef', 'unsigned', 'long long', 'uint64_t', ';'],
-
-					'intptr_t'	:	['typedef', 'int', '*', 'intptr_t', ';'],
-					'uintptr_t'	:	['typedef', 'unsigned', 'int', '*', 'uintptr_t', ';']
-					}
-
-# Put all your include filepaths separated by semicolon here
+# Put all your include filepaths separated by semicolon here; for example, in the windows it might look like this
 INCLUDE_FILE_PATHS = r"C:\Users\yourName\Documents\INCLUDE_FILE_DIR"
 
 sys.stdout.write(str(sys.version_info))
@@ -1140,109 +1252,6 @@ def byte2Bit (byteNumber):
 		sys.exit()
 	else:
 		return byteNumber * BITS_IN_BYTE
-
-# Global variables
-
-TOOL_NAME = "ParseAndC by Parbati Kumar Manna"
-DISPLAY_BLOCK_WIDTH = 16
-DISPLAY_BLOCK_HEIGHT = 32
-BLOCK_SIZE = DISPLAY_BLOCK_WIDTH * DISPLAY_BLOCK_HEIGHT
-ENCODINGS = ("ASCII", "CP037", "CP850", "CP1140", "CP1252", "Latin1", "ISO8859_15", "Mac_Roman", "UTF-8", "UTF-8-sig", "UTF-16", "UTF-32")
-#When you have no more than 10 colors, use this
-COLORS_10 = ['red2','SkyBlue1', 'magenta2','saddle brown', 'cornflower blue','dark green', 'deep pink', 'purple','chocolate1','gold']
-COLORS_20 = ['red2','SkyBlue1', 'magenta2','saddle brown', 'cornflower blue','dark green', 'deep pink', 'purple','chocolate1','gold',
-'DarkGoldenrod2', 'DarkOrange1', 'plum1','DarkOrchid1', 'DeepPink2', 'DeepSkyBlue2', 'orange', 'DodgerBlue2','turquoise','indian red']
-COLORS_ALL = ['DarkGoldenrod2', 'DarkOrange1', 'DarkOrchid1', 'DeepPink2', 'DeepSkyBlue2', 'DodgerBlue2', 
-'HotPink1', 'IndianRed1', 'LightPink1', 'LightSalmon2', 'MediumOrchid1', 'MediumPurple1', 'OrangeRed2', 
-'PaleVioletRed1', 'RoyalBlue1', 'SeaGreen1', 'SkyBlue1', 'SlateBlue1', 'SpringGreen2', 'SteelBlue1', 'VioletRed1', 
-'blue', 'blue violet', 'brown1', 'cadet blue', 'chartreuse2', 'chocolate1', 
-'coral', 'cornflower blue', 'cornsilk2', 'cyan', 'dark goldenrod', 'dark green', 'dark khaki', 'dark olive green', 'dark orange', 'dark orchid', 'dark salmon', 
-'dark sea green', 'dark slate blue', 'dark slate gray', 'dark turquoise', 'dark violet', 'deep pink', 'deep sky blue', 'dim gray', 'dodger blue', 'firebrick1', 
-'forest green', 'gainsboro', 'gold', 'goldenrod', 'gray', 'green yellow', 'honeydew2', 'hot pink', 'indian red', 'ivory2', 'khaki', 'lavender', 'lawn green', 
-'lemon chiffon', 'light blue', 'light coral', 'light cyan', 'light goldenrod', 'light goldenrod yellow', 'light grey', 'light pink', 'light salmon', 'light sea green', 
-'light sky blue', 'light slate blue', 'light slate gray', 'light steel blue', 'light yellow', 'lime green', 'linen', 'magenta2', 'maroon', 'medium aquamarine', 
-'medium blue', 'medium orchid', 'medium purple', 'medium sea green', 'medium slate blue', 'medium spring green', 'medium turquoise', 'medium violet red', 'midnight blue', 
-'misty rose', 'navajo white', 'navy', 'olive drab', 'orange', 'orange red', 'orchid1', 'pale goldenrod', 'pale green', 'pale turquoise', 'pale violet red', 'papaya whip', 
-'peach puff', 'pink', 'pink1', 'plum1', 'powder blue', 'purple', 'red', 'rosy brown', 'royal blue', 'saddle brown', 'salmon', 'sandy brown', 'sea green', 'seashell2', 
-'sienna1', 'sky blue', 'slate blue', 'slate gray', 'snow', 'spring green', 'steel blue', 'tan1', 'thistle', 'tomato', 'turquoise', 'violet red', 'wheat1', 'yellow', 'yellow green']
-#preprocessingDirectives = ('#include', '#if', '#ifdef', '#ifndef', '#else', '#elif', '#endif', '#define', '#undef', '#line', '#error', '#pragma', '...', '__VA_ARGS__','__VA_OPT__')
-preprocessingDirectives = ('include', 'if', 'ifdef', 'ifndef', 'else', 'elif', 'endif', 'define', 'undef', 'line', 'error', 'pragma', '...', '__VA_ARGS__','__VA_OPT__')
-oneCharOperatorList = ('.','+','-','*','/','%', '&', '|', '<', '>', '!', '^', '~', '?', ':', '=', ',','#')
-twoCharOperatorList = ('##','++', '--','()','[]','->','>>', '<<', '<=', '>=', '==', '!=', '&&', '||', '+=', '-=', '*=', '/=', '%=', '&=', '^=', '|=')
-threeCharOperatorList = ('<<=', '>>=')
-derivedOperatorList = ("function()","typecast")
-bracesDict = 		{	"(":")",	"{":"}",	"[":"]",	"<":">",	"?":":"}
-bracesDictReverse = {	")":"(",	"}":"{",	"]":"[",	">":"<",	":":"?"}
-primitiveDatatypeLength = {"char":CHAR_SIZE,"short":SHORT_SIZE,"int":INT_SIZE, "long":LONG_SIZE, "long long":LONG_LONG_SIZE,"pointer":POINTER_SIZE, "float":FLOAT_SIZE,"double":DOUBLE_SIZE}
-
-cDataTypes = ["char","double","float","int", "long","short","void","signed","unsigned"]
-cKeywords = ["auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else", "enum", 
-				"extern", "float", "for", "goto", "if", "inline", "int", "long", "register", "return", "short", "signed", 
-				"sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while"]
-integralDataTypes = ["char","short","int","long","long long"]
-treeViewHeadings = ["Variable Name", "Data Type", "Addr Start", "Addr End", "Raw Hex Bytes", "Value (LE)", "Value (BE)"]
-
-PACKED_STRING 		= "__packed__"
-ALIGNED_STRING 		= "__aligned__"
-ATTRIBUTE_STRING 	= "__attribute__"
-
-illegalVariableNames = list(preprocessingDirectives) + list(oneCharOperatorList) + list(twoCharOperatorList) + list(threeCharOperatorList) + cDataTypes + cKeywords + integralDataTypes
-
-lines = []
-enums = {}		# This is a dictionary that holds yet another dictionary inside {enumDatatype,{enumFields,enumFieldValues}}
-enumFieldValues = {}	# This is a dictionary of ALL enum fields and their values. We can do this because enum field names are globally unique. We keep this separate to cache the enum values
-typedefs = {}
-structuresAndUnionsDictionary = {}	# Each value of this dictionary is a dictionary itself, where the key is its name. The dictionary is of this format: 
-							# "type" : "struct/union", "size":size, "components":[[variable1 name, variable size, variable declaration statement, Extended variable description],...]}
-# Below is a list of 6-Tuple. Each list item is pretty much same as the structuresAndUnionsDictionary["components"] 5-tuple, plus another item which tells where this var name occurs.
-# [variable1 name, variable size, variable declaration statement, variable name relative index within declaration, Extended variable description, absolute Index of variable name in tokenList]							
-variableDeclarations = []
-macroDefinitions = []		# The ordered dictionary for holding all Macro definitions. This changes over time, as we keep on parsing line by line.
-currentMacroNames = []		# Just a cache of macro names
-# This is just the sizes of the selected variables that would be colored
-tokenLocationLinesChars = []
-unraveled = []
-fileDisplayOffset = 0 	# This is the offset from which the file display window starts
-dataLocationOffset = 0	# This is the offset from which the variables under variablesAtGlobalScopeSelected start to map
-codeFileName = None
-dataFileName = None
-dataFileSizeInBytes = None
-displayBlock = []	# This is the block that holds the data for the display window only, starting at fileDisplayOffset
-dataBlock = []		# This is the block that holds the data for the variablesAtGlobalScopeSelected[], starting at dataLocationOffset
-inputIsHexChar = False
-binaryArray = ""
-hexCharArray = []
-totalBytesToReadFromDataFile = 0
-window = None
-dummyVariableCount = 0
-dummyZeroWidthBitfieldVariableCount = 0
-totalVariableCount = 0
-globalScopes = []	# These are the variables that are at the global scope, depending on the user selection
-globalScopesSelected = []	# These are the variables that are at the global scope, depending on the user selection and the MAP_TYPEDEFS_TOO
-variableSelectedIndices = [] # These are the indices of variables that have been selected after the user presses the "Map" button
-variablesAtGlobalScopeSelected = [] # These are the variables that are at the global scope, AND are the top-level parents of variables that have been selected by the user
-sizeOffsets = []	# These tell the beginning offset (absolute, not relative) and length for ALL the variables under variablesAtGlobalScopeSelected[], beginning at dataLocationOffset.
-                    # Each row in sizeOffsets is [variableId,beginOffset,variableSize]
-inputVariables = []	# For batch, the list of the Global variables the user wants to map
-MAINLOOP_STARTED = False
-pragmaPackStack = []
-pragmaPackCurrentValue = None
-pragmaPackDefaultValue = ALIGNED_DEFAULT_VALUE
-
-LARGE_NEGATIVE_NUMBER = -9999999999999999999999999999999		# A number usually associated with default (erroneous) value of Index in an array
-LARGE_POSITIVE_NUMBER = -LARGE_NEGATIVE_NUMBER
-
-# This thing should be moved out since there is no need to repeat this for every tokenizeLines() invocations
-keywordsSorted = list(preprocessingDirectives)
-keywordsSorted.extend(list(twoCharOperatorList))
-keywordsSorted.extend(list(threeCharOperatorList))
-keywordsSorted.sort(key=len)
-keywordsSorted.reverse()
-PRINT("sorted keyword list =",keywordsSorted)
-
-# There are two methods of calculating the bitfield offsets - Microsoft-style (Old), and GCC-style (new)
-bitFieldOffsetCalculationMethod = "old"
-#bitFieldOffsetCalculationMethod = "New"
 
 
 def errorRoutine(message):
@@ -5780,27 +5789,35 @@ def preProcess():
 				##########################################################
 				
 				# Handle the include statements
+				# Recall that when there is user-level included files, they are enclosed in double-quotes. So the parser would include the whole thing as a solitary
+				# double-quoted string.
+				# On the other hand, if the include statement is like #include <a.txt>, then the parser would break up <a.txt> as '<','a','.','txt','>'. 
+				# So, you would want to join all the tokens in between the <...>
 				if macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>= 2 and macroTokenList[1]=='include':
-					if len(macroTokenList) != 3 and len(macroTokenList) != 5:
-						errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - #include must have exactly one arguement" %(targetLineNumber,lines[targetLineNumber] )
+					if "<" not in macroTokenList and len(macroTokenList) != 3:
+						errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - #include must have exactly one arguement" %(i,lines[i] )
 						errorRoutine(errorMessage)
 						return False
-					elif len(macroTokenList) == 5 and not (macroTokenList[2] == '<' and macroTokenList[4] == '>') and not (macroTokenList[2] == '"' and macroTokenList[4] == '"'):
-							errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - must be like #include <filename>" %(targetLineNumber,lines[targetLineNumber] )
+					elif "<" in macroTokenList and ">" in macroTokenList and len(macroTokenList) < 5:
+						errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - #include must have exactly one arguement" %(i,lines[i] )
+						errorRoutine(errorMessage)
+						return False
+					elif len(macroTokenList) >= 5 and not (macroTokenList[2] == '<' and macroTokenList[-1] == '>'):
+							errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - must be like #include <filename>" %(i,lines[i] )
 							errorRoutine(errorMessage)
 							return False
 					elif len(macroTokenList) == 3 and (macroTokenList[2][0] != '"' or macroTokenList[2][-1] != '"' or len(macroTokenList[2])<=2):
-							errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - must be like #include \"filename\"" %(targetLineNumber,lines[targetLineNumber] )
+							errorMessage = "ERROR in preProcess() after calling tokenizeLines() for line # %d = <%s> - must be like #include \"filename\"" %(i,lines[i] )
 							errorRoutine(errorMessage)
 							return False
 					else: 
-						includedFileName = macroTokenList[2][1:-1].strip() if len(macroTokenList) == 3 else macroTokenList[3]
+						includedFileName = macroTokenList[2][1:-1].strip() if len(macroTokenList) == 3 else ''.join(macroTokenList[3:-1])
 						if not includedFileName:
 							errorMessage = "ERROR in preProcess() - included filename cannot be blank"
 							errorRoutine(errorMessage)
 							return False
 							
-						PRINT("includedFileName =",includedFileName)
+						MUST_PRINT("includedFileName =",includedFileName)
 						slash = "\\" if "\\" in os.getcwd() else "/" if "/" in os.getcwd() else ""
 						includeFilePaths = returnFilePathList(INCLUDE_FILE_PATHS)
 						fileFound = False
@@ -5832,8 +5849,9 @@ def preProcess():
 								except ValueError: # Empty file
 									includedLines = [""]
 						else:
-							OUTPUT("ERROR - cannot open included code file",includedFileName)
-							sys.exit()
+							errorMessage = "ERROR - cannot open included code file <"+includedFileName+">"
+							errorRoutine(errorMessage)
+							return False
 							
 						PRINT ("Included code file has",len(includedLines),"lines, which contains:", includedLines )
 						PRINT ("Before inserting, len(lines) =",len(lines))
@@ -6172,9 +6190,8 @@ def preProcess():
 					errorRoutine(errorMessage)
 					return False
 				elif macroTokenList[2] not in currentMacroNames:
-					warningMessage = "ERROR in preProcess() - "+preProcessorSymbol+"undef must have some valid macroname"
+					warningMessage = "ERROR in preProcess() - "+preProcessorSymbol+"undef must have some valid macroname (<"+macroTokenList[2]+"> is not a valid macro name)"
 					warningRoutine(warningMessage)
-					continue
 				else:
 					macroName = macroTokenList[2]
 					macroIndex = currentMacroNames.index(macroName)
@@ -9578,7 +9595,7 @@ def parseStructure(tokenList, i, parentStructName, level):
 			else:
 				N = N + 1
 				
-#			PRINT("Manna After calculating the amount of compiler padding for structMemberName =",structMemberName,", bytesToPad =",bytesToPad,", Current structSizeBytes =",structSizeBytes)
+#			PRINT("After calculating the amount of compiler padding for structMemberName =",structMemberName,", bytesToPad =",bytesToPad,", Current structSizeBytes =",structSizeBytes)
 			PRINT("After calculating the amount of compiler padding for structMemberName =",structMemberName,", trailingPadSizeBytes =",trailingPadSizeBytes,", Current structSizeBytes =",structSizeBytes)
 
 		# Now add the struct-level traling bytes, if required
