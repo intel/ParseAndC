@@ -531,8 +531,17 @@
 # 2021-05-09 - Changed the way preProcess() works
 # 2021-06-10 - Before separating the preprocessing directive symbol (#) from all the preprocessing directives.
 # 2021-08-02 - Rearrange the code a little bit, put Changelog at the top
-
-
+# 2021-10-21 - Changed calculateSizeOffsetsBatch() so that it can now operate on any subset of variablesAtGlobalScopeSelected[] rather than the whole of it.
+# 2021-10-22 - Before changing how to read the data file incrementally.
+# 2021-10-27 - After changing how to read the data file incrementally.
+# 2021-11-03 - Before renaming routines so that we know exactly what routine does what. This is a working version.
+# 2021-11-03 - Renamed populateDataMap() to displayBottomTreeWindow(). Also renamed populateDataMap() to displayBottomTreeWindow(). 
+#              Earlier performInterpretedCodeColoring() used to call showDataBlock() at its end. Now took it out and made sure it gets explicitly called by 
+#			   the callers of performInterpretedCodeColoring(), which are fileOffsetChange() and mapStructureToData(). Renamed showDataBlock() to displayAndColorDataWindows().
+#			   Created calculateSizeOffsetsAndReadDataBlockAndPopulateUnraveled(variablesAtGlobalScopeSelected) that is common to both GUI and batch. This version is still working. 
+# 2021-11-04 - Renamed openDataFileRoutineBatch() to checkIfDataFileIsValidAndGetItsLength()
+# 2021-11-05 - Fixed the bug that when Data file is changed the Data mapping was not being redone.
+# 2021-11-05 - This version processes the variablesAtGlobalScopeSelected[] list one by one (calculates sizeOffsets, reads dataBlock, and populates unraveled)
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -1455,8 +1464,8 @@ def parseCommandLineArguments():
 	else:
 		PRINT ("Chosen Data file name = ",DATAFILENAME)
 		# This will automatically populate the dataFileName, dataFileSizeInBytes, and inputIsHexChar
-		if not openDataFileRoutineBatch(DATAFILENAME):
-			OUTPUT ("Error opening",DATAFILENAME)
+		if not checkIfDataFileIsValidAndGetItsLength(DATAFILENAME):
+			OUTPUT ("Error finding datafile ",DATAFILENAME)
 			sys.exit()
 		
 		
@@ -9665,6 +9674,7 @@ def parseStructure(tokenList, i, parentStructName, level):
 		return structName
 
 # Custom print function for the unraveled list since we do not want to print the whole of variableDescription dictionary, which is the third item in each row
+# This will ONLY get printed in Debug mode, since it uses PRINT
 def printUnraveled():
 	PRINT ("\n\n","=="*100,"\nunraveled (level, variable, datatype, starting offset (inclusive), ending offset+1 (exclusive) \n","=="*100,"\n", )
 	for row in unraveled:
@@ -9683,11 +9693,11 @@ def printUnraveled():
 	PRINT ("\n\n","=="*100 )
 
 #######################################################################################################
-# unravelNestedStruct(structName, prefix)
+# unravelNestedStruct(structName, prefix, unraveledSupplied)
 ########################################################################################################
-def unravelNestedStruct(level, structName, prefix, offset):
-	global unraveled
-	PRINT ("\n\nInside unravelNestedStruct(",structName,",",prefix,",",STR(offset),"), unraveled = ")
+def unravelNestedStruct(level, structName, prefix, offset, unraveledSupplied):
+#	global unraveled
+	PRINT ("\n\nInside unravelNestedStruct(",structName,",",prefix,",",STR(offset),"), global unraveled = ", unraveled, "unraveledSupplied = ",unraveledSupplied)
 	printUnraveled()
 	
 	if structName not in getDictKeyList(structuresAndUnionsDictionary):
@@ -9697,7 +9707,7 @@ def unravelNestedStruct(level, structName, prefix, offset):
 
 	structOrUnion = structuresAndUnionsDictionary[structName]["type"]
 	structSizeBytes = structuresAndUnionsDictionary[structName]["size"]
-	unraveled.append([level,prefix+" is of type "+structOrUnion,structName, offset, offset+structSizeBytes])
+	unraveledSupplied.append([level,prefix+" is of type "+structOrUnion,structName, offset, offset+structSizeBytes])
 
 	PRINT("Going to iterate over",len(structuresAndUnionsDictionary[structName]["components"]),"components of",structName)
 	N = 0
@@ -9727,7 +9737,7 @@ def unravelNestedStruct(level, structName, prefix, offset):
 			
 			dataTypeText = "unsigned" + " " + datatype if datatype != "pointer" and structMemberDescription["signedOrUnsigned"] == "unsigned" else datatype
 			arrayDescriptionText = prefix + "." + variableName + " - Array of "+ dimensionsText + " " + dataTypeText + "s"
-			unraveled.append([level+1,arrayDescriptionText,structMemberDescription, offset+offsetWithinStruct, offset+offsetWithinStruct+arrayElementSize*totalNumberOfArrayElements])
+			unraveledSupplied.append([level+1,arrayDescriptionText,structMemberDescription, offset+offsetWithinStruct, offset+offsetWithinStruct+arrayElementSize*totalNumberOfArrayElements])
 			for position in range(totalNumberOfArrayElements):
 				arrayIndices = calculateArrayIndicesFromPosition(arrayDimensions, position)
 				arrayIndicesCStyle = ""	# We convert the [i,j,k] to C-style [i][j][k]
@@ -9736,12 +9746,24 @@ def unravelNestedStruct(level, structName, prefix, offset):
 				arrayElementIndexDescription = STR(variableName) + arrayIndicesCStyle
 				elementOffset = offset + offsetWithinStruct + position * arrayElementSize
 				if datatype in getDictKeyList(structuresAndUnionsDictionary):
-					unravelNestedStruct(level+2, datatype, prefix+"."+arrayElementIndexDescription, elementOffset)
+					unravelNestedStructResult = unravelNestedStruct(level+2, datatype, prefix+"."+arrayElementIndexDescription, elementOffset, unraveledSupplied)
+					if unravelNestedStructResult == False:
+						errorMessage = "ERROR: calling unravelNestedStruct("+STR(level+2)+", "+ datatype + ", " + prefix + ".+"+arrayElementIndexDescription+", "+STR(elementOffset)+", unraveledSupplied)"
+						errorRoutine(errorMessage)
+						return False
+					else:
+						unraveledSupplied = unravelNestedStructResult
 				else:
-					unraveled.append([level+2,prefix + "." + arrayElementIndexDescription,structMemberDescription, elementOffset, elementOffset+arrayElementSize])
+					unraveledSupplied.append([level+2,prefix + "." + arrayElementIndexDescription,structMemberDescription, elementOffset, elementOffset+arrayElementSize])
 		elif datatype in getDictKeyList(structuresAndUnionsDictionary):
 			PRINT("\ndatatype is struct/union - calling unravelNestedStruct() recursively.")
-			unravelNestedStruct(level+1, datatype, prefix+"."+variableName, offset + offsetWithinStruct)
+			unravelNestedStructResult = unravelNestedStruct(level+1, datatype, prefix+"."+variableName, offset + offsetWithinStruct,unraveledSupplied)
+			if unravelNestedStructResult == False:
+				errorMessage = "ERROR: calling unravelNestedStruct("+STR(level+1)+", "+ datatype + ", " + prefix + ".+"+variableName+", "+STR(offset + offsetWithinStruct)+", unraveledSupplied)"
+				errorRoutine(errorMessage)
+				return False
+			else:
+				unraveledSupplied = unravelNestedStructResult
 		elif structMemberDescription["isBitField"]:
 			if "bitOffsetWithinStruct" not in getDictKeyList(structMemberDescription):
 				OUTPUT("For",variableName,"structMemberDescription =",structMemberDescription)
@@ -9754,27 +9776,27 @@ def unravelNestedStruct(level, structName, prefix, offset):
 			# Yes, this means the Big-Endian values would be garbage.
 			if integerDivision(bitOffsetWithinStruct, primitiveDatatypeLength[datatype]*BITS_IN_BYTE) < integerDivision(bitOffsetWithinStruct+bitFieldWidth-1, primitiveDatatypeLength[datatype]*BITS_IN_BYTE):
 				PRINT("Bitfield",variableName,"seems to be a packed variable that spreads over two",datatype,"containers (from ",bit2ByteAndBit(bitOffsetWithinStruct)," through ", bit2ByteAndBit(bitOffsetWithinStruct+bitFieldWidth-1),"). Its Big-Endian value is not implemented yet and should be considered garbage")
-				unraveled.append([level+1, prefix+"."+variableName,structMemberDescription, offset+bit2Byte(bitOffsetWithinStruct), offset+bit2Byte(bitOffsetWithinStruct)+primitiveDatatypeLength[datatype] ])
+				unraveledSupplied.append([level+1, prefix+"."+variableName,structMemberDescription, offset+bit2Byte(bitOffsetWithinStruct), offset+bit2Byte(bitOffsetWithinStruct)+primitiveDatatypeLength[datatype] ])
 			else:
-				unraveled.append([level+1, prefix+"."+variableName,structMemberDescription, offset+offsetWithinStruct, offset+offsetWithinStruct+structMemberSizeBytes ])
+				unraveledSupplied.append([level+1, prefix+"."+variableName,structMemberDescription, offset+offsetWithinStruct, offset+offsetWithinStruct+structMemberSizeBytes ])
 		else:
-			PRINT("\ndatatype is",datatype," Adding to unraveled.")
-			unraveled.append([level+1, prefix+"."+variableName,structMemberDescription, offset+offsetWithinStruct, offset+offsetWithinStruct+structMemberSizeBytes ])
+			PRINT("\ndatatype is",datatype," Adding to unraveledSupplied.")
+			unraveledSupplied.append([level+1, prefix+"."+variableName,structMemberDescription, offset+offsetWithinStruct, offset+offsetWithinStruct+structMemberSizeBytes ])
 		N += 1
-	PRINT ("\n\nJust before returning from unravelNestedStruct(",structName,",",prefix,",",STR(offset),"), unraveled = ")
+	PRINT ("\n\nJust before returning from unravelNestedStruct(",structName,",",prefix,",",STR(offset),"), unraveledSupplied = ")
 	printUnraveled()
-	return True	
+	return unraveledSupplied
 
 ########################################################################################################################################################
-# The logic behind this is the following. It adds the entry for the variableId to the sizeOffsets list, then if this variable is actually overlapping
+# The logic behind this is the following. It adds the entry for the variableId to the sizeOffsetsLocal list, then if this variable is actually overlapping
 # with some other struct, then it adds the struct members too.
 ############################################################################################################################
-def getOffsetsRecursively(variableId, sizeOffsets, beginOffset):
+def getOffsetsRecursively(variableId, sizeOffsetsLocal, beginOffset):
 	variableName = variableDeclarations[variableId][0]
 	variableSize = variableDeclarations[variableId][1]
 	datatype     = variableDeclarations[variableId][4]['datatype']
 	
-	sizeOffsets.append([variableId,beginOffset,variableSize])
+	sizeOffsetsLocal.append([variableId,beginOffset,variableSize])
 	
 	if variableDeclarations[variableId][4]["DataOverlapWithStructMembers"]:
 		if datatype not in getDictKeyList(structuresAndUnionsDictionary):
@@ -9794,9 +9816,9 @@ def getOffsetsRecursively(variableId, sizeOffsets, beginOffset):
 					errorMessage = "Error - for variableId = " + variableId + " the struct/datatype = " + datatype + " does not have 'offsetWithinStruct' in its component"
 					return False
 				else:
-					sizeOffsets = getOffsetsRecursively(component[4]["variableId"], sizeOffsets, beginOffset+component[4]['offsetWithinStruct'])
+					sizeOffsetsLocal = getOffsetsRecursively(component[4]["variableId"], sizeOffsetsLocal, beginOffset+component[4]['offsetWithinStruct'])
 				
-	return sizeOffsets
+	return sizeOffsetsLocal
 
 
 ###############################################################################################################
@@ -11136,10 +11158,10 @@ def inputFileIsHexText():
 ##############################################################################################
 # This function populates the unraveled list
 ##############################################################################################
-def populateUnraveled():
-	global unraveled
+def populateUnraveled(variablesAtGlobalScopeSelected):
+#	global unraveled
 	
-	del unraveled[:]
+	unraveledSupplied = []
 	
 	for N in range(len(variablesAtGlobalScopeSelected)):
 		itemFound = False
@@ -11152,10 +11174,10 @@ def populateUnraveled():
 				itemFound = True
 				break;
 		if not itemFound:
-			OUTPUT("ERROR - did not find variablesAtGlobalScopeSelected[",N,"] =",variablesAtGlobalScopeSelected[N])
+			OUTPUT("ERROR - did not find variablesAtGlobalScopeSelected[",N,"] =",variablesAtGlobalScopeSelected[N]," in sizeOffsets =",STR(sizeOffsets))
 			sys.exit()
-		PRINT (N,". Inside mapStructureToData(), Processing selectedVariable =",selectedVariable )
-#			PRINT ("unraveled = ",unraveled)
+		PRINT (N,". Inside populateUnraveled(), Processing selectedVariable =",selectedVariable )
+#			PRINT ("unraveledSupplied = ",unraveledSupplied)
 		printUnraveled()
 		variableName 					= selectedVariable[0]
 		variableSize 					= selectedVariable[1]
@@ -11176,7 +11198,7 @@ def populateUnraveled():
 			dataTypeText = "unsigned" + " " + datatype if datatype != "pointer" and variableDescription["signedOrUnsigned"] == "unsigned" else datatype
 			arrayDescriptionText = variableName + " - Array of "+ dimensionsText + " " + dataTypeText + "s"
 			
-			unraveled.append([level,arrayDescriptionText,variableDescription, currentOffset, currentOffset+arrayElementSize*totalNumberOfArrayElements])
+			unraveledSupplied.append([level,arrayDescriptionText,variableDescription, currentOffset, currentOffset+arrayElementSize*totalNumberOfArrayElements])
 			
 			for position in range(totalNumberOfArrayElements):
 				arrayIndices = calculateArrayIndicesFromPosition(arrayDimensions, position)
@@ -11188,70 +11210,75 @@ def populateUnraveled():
 				if datatype in getDictKeyList(structuresAndUnionsDictionary):
 					PRINT ("datatype = ",datatype, "is a struct")
 					
-					unravelNestedStructResult = unravelNestedStruct(level+1, datatype, arrayElementIndexDescription, elementOffset)
-					
+					unravelNestedStructResult = unravelNestedStruct(level+1, datatype, arrayElementIndexDescription, elementOffset, unraveledSupplied)
 					if unravelNestedStructResult == False:
-						warningMessage = "WARNING - false return result from unravelNestedStruct()!" 
-						warningRoutine(warningMessage)
+						errorMessage = "ERROR: calling unravelNestedStruct("+STR(level+1)+", "+ datatype + ", " + arrayElementIndexDescription + ", "+STR(elementOffset)+", unraveledSupplied)"
+						errorRoutine(errorMessage)
+						return False
+					else:
+						unraveledSupplied = unravelNestedStructResult
 				else:
 					PRINT ("datatype = ",datatype, "is NOT a struct")
 					
-					unraveled.append([level+1,arrayElementIndexDescription,variableDescription, elementOffset, elementOffset+arrayElementSize])
+					unraveledSupplied.append([level+1,arrayElementIndexDescription,variableDescription, elementOffset, elementOffset+arrayElementSize])
 					
 		elif datatype in getDictKeyList(structuresAndUnionsDictionary):
 			PRINT ("datatype = ",datatype, "is a struct")
 			
-			unravelNestedStructResult = unravelNestedStruct(level, datatype, variableName, currentOffset)
-			
+			unravelNestedStructResult = unravelNestedStruct(level, datatype, variableName, currentOffset, unraveledSupplied)
 			if unravelNestedStructResult == False:
-				warningMessage = "WARNING - false return result from unravelNestedStruct()!" 
-				warningRoutine(warningMessage)
+				errorMessage = "ERROR: calling unravelNestedStruct("+STR(level)+", "+ datatype + ", " + variableName + ", " + STR(currentOffset) + ", unraveledSupplied)"
+				errorRoutine(errorMessage)
+				return False
+			else:
+				unraveledSupplied = unravelNestedStructResult
+
 		else:
 			PRINT ("datatype = ",datatype, "is NOT a struct")
 			
-			unraveled.append([level,variableName, variableDescription, currentOffset, currentOffset+currentlength])
+			unraveledSupplied.append([level,variableName, variableDescription, currentOffset, currentOffset+currentlength])
 			
 
-	PRINT ("\n\nBefore adding value to unraveled, unraveled =")
+	PRINT ("\n\nBefore adding value to unraveledSupplied, unraveledSupplied =")
 	PRINT ("\n","=="*100,"\n\n" )
 		
 	printUnraveled();
 	
-	# Now that unraveled list has been populated, lets fill out their values. First read the block
+	# Now that unraveledSupplied list has been populated, lets fill out their values. First read the block
 	
 	if len(dataBlock) == 0:
 		OUTPUT("\n\nWARNING - dataBlock is empty - Nothing to show")
 #		sys.exit()
 		return
 	else:
-		PRINT("Before populating unraveled with data from dataBlock, len(dataBlock) = ",len(dataBlock))
+		PRINT("Before populating unraveledSupplied with data from dataBlock, len(dataBlock) = ",len(dataBlock))
 
-		PRINT ("Before adding value to unraveled, extended unraveled =")
-		for N in range(len(unraveled)):
-			PRINT ("unraveled[",N,"] =",unraveled[N])
-			if N<len(unraveled)-1 and unraveled[N][0]==unraveled[N+1][0]-1:	# The current node is a parent
-				unraveled[N].extend(["","",""])
-				parentName = unraveled[N][2]
+		PRINT ("Before adding value to unraveledSupplied, extended unraveledSupplied =")
+		for N in range(len(unraveledSupplied)):
+			PRINT ("unraveledSupplied[",N,"] =",unraveledSupplied[N])
+			if N<len(unraveledSupplied)-1 and unraveledSupplied[N][0]==unraveledSupplied[N+1][0]-1:	# The current node is a parent
+				unraveledSupplied[N].extend(["","",""])
+				parentName = unraveledSupplied[N][2]
 			else:
-				if isinstance(unraveled[N][2],dict) and unraveled[N][2]["datatype"].startswith("function "):
-					unraveled[N].extend(["","",""])
+				if isinstance(unraveledSupplied[N][2],dict) and unraveledSupplied[N][2]["datatype"].startswith("function "):
+					unraveledSupplied[N].extend(["","",""])
 				else:
-					variableName = unraveled[N][1]	# Recall that this variable may or may not be a struct member
+					variableName = unraveledSupplied[N][1]	# Recall that this variable may or may not be a struct member
 					
 					# Don't forget to deduct the dataLocationOffset, since the dataBlock is essentially a block with indices 0 through totalBytesToReadFromDataFile-1
-					if unraveled[N][2]["isBitField"]:
-						if "offsetWithinStruct" not in getDictKeyList(unraveled[N][2]) or "bitOffsetWithinStruct" not in getDictKeyList(unraveled[N][2]):
-							OUTPUT("\n\nFor variableName",variableName,", unraveled[N =",N,"] =",unraveled[N])
+					if unraveledSupplied[N][2]["isBitField"]:
+						if "offsetWithinStruct" not in getDictKeyList(unraveledSupplied[N][2]) or "bitOffsetWithinStruct" not in getDictKeyList(unraveledSupplied[N][2]):
+							OUTPUT("\n\nFor variableName",variableName,", unraveledSupplied[N =",N,"] =",unraveledSupplied[N])
 							errorMessage = "For variableName "+variableName+" the byte/bit offsets within the struct is missing"
 							errorRoutine(errorMessage)
 							return False
 						else:
-							offsetWithinStruct = unraveled[N][2]["offsetWithinStruct"]		# Recall that this is constructed using the old method. The new method calculated bits
-							bitOffsetWithinStruct = unraveled[N][2]["bitOffsetWithinStruct"]
+							offsetWithinStruct = unraveledSupplied[N][2]["offsetWithinStruct"]		# Recall that this is constructed using the old method. The new method calculated bits
+							bitOffsetWithinStruct = unraveledSupplied[N][2]["bitOffsetWithinStruct"]
 
-						bitFieldWidth = unraveled[N][2]["bitFieldWidth"]
+						bitFieldWidth = unraveledSupplied[N][2]["bitFieldWidth"]
 					
-						datatypeNew = unraveled[N][2]["datatype"]
+						datatypeNew = unraveledSupplied[N][2]["datatype"]
 						# It is guaranteed that a bitfield width cannot be larger than its container type, hence we can trust numBytesToRead
 						numBytesToReadNew = primitiveDatatypeLength[datatypeNew]
 						# The problem is that, there is no guarantee that this bitfield would not cross the alignment boundary (it might have been packed)
@@ -11270,10 +11297,10 @@ def populateUnraveled():
 						if integerDivision(bitIndexStartNew, numBytesToReadNew*BITS_IN_BYTE) < integerDivision(bitIndexEndInclusiveNew, numBytesToReadNew*BITS_IN_BYTE):
 							numBytesToReadNew *= 2
 						
-						datatypeOld = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceContainerDatatype"]
-						numBytesToReadOld = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceContainerSizeInBytes"]
-						bitIndexStartOld = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexStart"]
-						bitIndexEndInclusiveOld = unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexEndInclusive"]
+						datatypeOld = unraveledSupplied[N][2]["bitFieldInfo"]["currentBitFieldSequenceContainerDatatype"]
+						numBytesToReadOld = unraveledSupplied[N][2]["bitFieldInfo"]["currentBitFieldSequenceContainerSizeInBytes"]
+						bitIndexStartOld = unraveledSupplied[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexStart"]
+						bitIndexEndInclusiveOld = unraveledSupplied[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexEndInclusive"]
 						
 						PRINT("Performing sanity check for struct parentName =",parentName,", variableName=",variableName)
 						
@@ -11284,7 +11311,7 @@ def populateUnraveled():
 								if datatypeOld != datatypeNew or numBytesToReadOld != numBytesToReadNew or bitIndexStartOld != bitIndexStartNew or bitIndexEndInclusiveOld != bitIndexEndInclusiveNew:
 									OUTPUT("\n\nWARNING! For bitfield member variable",variableName,"in struct",parentName,", values calculated by old and new methods for are mismatching!!")
 									OUTPUT("bitOffsetWithinStruct =",bitOffsetWithinStruct)
-									OUTPUT("\nunraveled[",N,"] =",unraveled[N])
+									OUTPUT("\nunraveled[",N,"] =",unraveledSupplied[N])
 									OUTPUT("datatypeOld =",datatypeOld, "datatypeNew =",datatypeNew,"numBytesToReadOld =",numBytesToReadOld,"numBytesToReadNew =",numBytesToReadNew,"bitIndexStartOld =",bitIndexStartOld,"bitIndexStartNew =",bitIndexStartNew,"bitIndexEndInclusiveOld =",bitIndexEndInclusiveOld,"bitIndexEndInclusiveNew =",bitIndexEndInclusiveNew)
 									sys.exit()
 								else:
@@ -11310,28 +11337,29 @@ def populateUnraveled():
 					else: #Not bitfield
 						bitFieldWidth = 0
 						bitIndexStart = 0
-						datatype = unraveled[N][2]["datatype"]
+						datatype = unraveledSupplied[N][2]["datatype"]
 						numBytesToRead = primitiveDatatypeLength[datatype]
 
 					# Full data is there
-#					if unraveled[N][3]-dataLocationOffset+numBytesToRead < len(dataBlock):		# Left to show bug - if there is a single item, this check will fail
-					if unraveled[N][3]-dataLocationOffset+numBytesToRead <= len(dataBlock):		
-						valueBytes = dataBlock[unraveled[N][3]-dataLocationOffset : unraveled[N][3]-dataLocationOffset+numBytesToRead]
-						signedOrUnsigned = unraveled[N][2]["signedOrUnsigned"]
-						PRINT ("Calling internalValueLittleEndian()/internalValueBigEndian() for variable ",unraveled[N][0],"datatype =",datatype, "bitFieldWidth =",bitFieldWidth,"bitIndexStart =",bitIndexStart)
+#					if unraveledSupplied[N][3]-dataLocationOffset+numBytesToRead < len(dataBlock):		# Left to show bug - if there is a single item, this check will fail
+					if unraveledSupplied[N][3]-dataLocationOffset+numBytesToRead <= len(dataBlock):		
+						valueBytes = dataBlock[unraveledSupplied[N][3]-dataLocationOffset : unraveledSupplied[N][3]-dataLocationOffset+numBytesToRead]
+						signedOrUnsigned = unraveledSupplied[N][2]["signedOrUnsigned"]
+						PRINT ("Calling internalValueLittleEndian()/internalValueBigEndian() for variable ",unraveledSupplied[N][0],"datatype =",datatype, "bitFieldWidth =",bitFieldWidth,"bitIndexStart =",bitIndexStart)
 						valueLE = calculateInternalValue(valueBytes, LITTLE_ENDIAN, datatype, signedOrUnsigned,bitFieldWidth,bitIndexStart)
 						valueBE = calculateInternalValue(valueBytes, BIG_ENDIAN, datatype, signedOrUnsigned,bitFieldWidth,bitIndexStart)
-						unraveled[N].extend([printHexStringWord(valueBytes),valueLE,valueBE])
+						unraveledSupplied[N].extend([printHexStringWord(valueBytes),valueLE,valueBE])
 					# Partial data is there
-					elif unraveled[N][3]-dataLocationOffset < len(dataBlock):
-						valueBytes = dataBlock[unraveled[N][3]-dataLocationOffset : unraveled[N][3]-dataLocationOffset+numBytesToRead]
-						unraveled[N].extend([printHexStringWord(valueBytes),"Incomplete","Incomplete"])
+					elif unraveledSupplied[N][3]-dataLocationOffset < len(dataBlock):
+						valueBytes = dataBlock[unraveledSupplied[N][3]-dataLocationOffset : unraveledSupplied[N][3]-dataLocationOffset+numBytesToRead]
+						unraveledSupplied[N].extend([printHexStringWord(valueBytes),"Incomplete","Incomplete"])
 					else:
-						unraveled[N].extend(["No data","Unknown","Unknown"])
+						unraveledSupplied[N].extend(["No data","Unknown","Unknown"])
 
-		PRINT ("\n\nAfter adding value to unraveled, unraveled =")
+		PRINT ("\n\nAfter adding value to unraveledSupplied, unraveledSupplied =")
 		printUnraveled()
-
+		
+	return unraveledSupplied
 
 ##############################################################################################
 # This function does a pretty printing of the unraveled list
@@ -11507,7 +11535,7 @@ def dumpDetailsForDebug(MUST=False):
 		PRINT_DEBUG_MSG = PRINT_DEBUG_MSG_backed_up
 
 
-def openDataFileRoutineBatch(dataFileNameInput):
+def checkIfDataFileIsValidAndGetItsLength(dataFileNameInput):
 	global dataFileName, dataFileSizeInBytes, inputIsHexChar
 	
 	if dataFileNameInput and os.path.exists(dataFileNameInput):
@@ -11538,7 +11566,8 @@ def readBytesFromFile(startAddress, numBytesToRead):
 		with open(dataFileName, "rb") as file:
 			try:
 				file.seek(startAddress, os.SEEK_SET)
-				blockRead = file.read(numBytesToRead)
+				blockRead = file.read(numBytesToRead)	
+				PRINT("type(blockRead) =",type(blockRead))	# This is of type "bytes" in Python3 but "str" in Python2
 			except ValueError: 
 				PRINT ("ValueError on trying to read ",numBytesToRead,"bytes from file offset",startAddress )
 				return False
@@ -11554,6 +11583,93 @@ def readBytesFromFile(startAddress, numBytesToRead):
 		#return False
 		#sys.exit()
 	return blockRead
+
+
+##################################################################################################################################################################
+# This routine does three things for an input selectedVariables: 1) Calculate the sizeOffsets, 2) Read the dataBlock, and 3) Populate the unraveled.
+##################################################################################################################################################################
+
+def calculateSizeOffsetsAndReadDataBlockAndPopulateUnraveled(selectedVariablesList):
+	global sizeOffsets, totalBytesToReadFromDataFile, dataBlock, unraveled
+	# First, reset the sizeOffsets[], dataBlock[], and unraveled[]
+	sizeOffsets = []
+	totalBytesToReadFromDataFile = 0
+	dataLocationOffsetForCurrentSetOfVariables = dataLocationOffset
+	unraveled = []
+
+	# ABSOLUTELY DO NOT DELETE THE COMMENT BELOW
+	# Do NOT do dataBlock = []
+	dataBlock = readBytesFromFile(0,0) # The reason we do it like this is because it returns "str" in Python2 and "bytes" in Python3. We want to keep it that way.
+	MUST_PRINT("type(dataBlock) =",type(dataBlock))
+
+	# Now, for each entry in the selectedVariables, do the following:
+	# 1. Call the calculateSizeOffsetsBatch() to add to the sizeOffsets[]
+	# 2. Call the readBytesFromFile() to add to the dataBlock[]
+	# 3. Call the populateUnraveled() to add to the unraveled[]
+	
+	
+	MUST_PRINT("selectedVariablesList =",STR(selectedVariablesList))
+	
+	for item in selectedVariablesList:
+	
+		# Each of the routine expects a list of variableIds, hence we create a list artificially
+		selectedVariables = [item]
+
+		MUST_PRINT("selectedVariables =",STR(selectedVariables))
+	
+		PRINT ("Before calling calculateSizeOffsetsBatch() from calculateSizeOffsets(),  totalBytesToReadFromDataFile =",totalBytesToReadFromDataFile," and sizeOffsets =",sizeOffsets)
+		PRINT("Now going to execute calculateSizeOffsetsBatch()")
+		calculateSizeOffsetsBatchResult = calculateSizeOffsetsBatch(selectedVariables)
+		
+		if calculateSizeOffsetsBatchResult == False or not isinstance(calculateSizeOffsetsBatchResult,list) or len(calculateSizeOffsetsBatchResult) != 2:
+			errorMessage = "ERROR in calculateSizeOffsetsBatch(): Error after calling calculateSizeOffsetsBatch() with selectedVariables = "+STR(selectedVariables)
+			errorRoutine(errorMessage)
+			return False
+		else:
+			sizeOffsetsForCurrentSetOfVariables = calculateSizeOffsetsBatchResult[0]
+			totalBytesToReadFromDataFileForCurrentSetOfVariables = calculateSizeOffsetsBatchResult[1]
+			PRINT("The return value for the offsets is", STR(sizeOffsetsForCurrentSetOfVariables), "and totalBytesToReadFromDataFileForCurrentSetOfVariables =",totalBytesToReadFromDataFileForCurrentSetOfVariables)
+			sizeOffsets.extend(sizeOffsetsForCurrentSetOfVariables)
+			totalBytesToReadFromDataFile += totalBytesToReadFromDataFileForCurrentSetOfVariables
+			PRINT ("After calling calculateSizeOffsetsBatch() from calculateSizeOffsets(), now totalBytesToReadFromDataFile =",totalBytesToReadFromDataFile," and sizeOffsets =",sizeOffsets)
+
+
+		PRINT("Now going to read", totalBytesToReadFromDataFile, "bytes from the data file")
+		if not dataFileName:
+			return False
+
+		if dataFileSizeInBytes < totalBytesToReadFromDataFileForCurrentSetOfVariables:
+			PRINT("WARNING: Input file smaller than provided file format/structure - not all values would be displayable")
+			
+		dataBlockForCurrentSetOfVariables = readBytesFromFile(dataLocationOffsetForCurrentSetOfVariables, totalBytesToReadFromDataFileForCurrentSetOfVariables)
+		
+		if len(dataBlockForCurrentSetOfVariables) != min(totalBytesToReadFromDataFileForCurrentSetOfVariables, dataFileSizeInBytes-dataLocationOffsetForCurrentSetOfVariables):
+			OUTPUT("ERROR in reading data file, was able to read only",len(dataBlockForCurrentSetOfVariables),"bytes of data while trying to read",totalBytesToReadFromDataFileForCurrentSetOfVariables,"bytes from",dataFileSizeInBytes,"-byte-sized data file")
+			sys.exit()
+		elif len(dataBlockForCurrentSetOfVariables)==0:
+			OUTPUT("somehow for selectedVariables =",STR(selectedVariables), "len(dataBlockForCurrentSetOfVariables) = 0")
+		else:
+			PRINT("Adding len(dataBlockForCurrentSetOfVariables) =",len(dataBlockForCurrentSetOfVariables),"bytes to the exiting len(dataBlock) =",len(dataBlock))
+	#		dataBlock.extend(dataBlockForCurrentSetOfVariables)
+			dataBlock += dataBlockForCurrentSetOfVariables
+			PRINT("The new len(dataBlock) =",len(dataBlock))
+			# Reset it for the next round
+			dataLocationOffsetForCurrentSetOfVariables = dataLocationOffsetForCurrentSetOfVariables + totalBytesToReadFromDataFileForCurrentSetOfVariables
+
+	#	dataBlock = readBytesFromFile(dataLocationOffset, totalBytesToReadFromDataFile)
+		PRINT("Now going to populate the unraveled")
+
+		# Populate the unraveled
+		populateUnraveledResult = populateUnraveled(selectedVariables)
+		if populateUnraveledResult == False:
+			errorMessage = "ERROR in calculateSizeOffsetsAndReadDataBlockAndPopulateUnraveled(): Error after calling populateUnraveled() with selectedVariables = "+STR(selectedVariables)
+			errorRoutine(errorMessage)
+			return False
+		else:
+			unraveled.extend(populateUnraveledResult)
+		
+	return True
+
 
 ############################################################################################################################
 ############################################################################################################################
@@ -11592,38 +11708,16 @@ def interpretBatch():
 		OUTPUT ("ERROR in interpretBatch() after calling mainWork() - exiting" )
 		return False
 
-def calculateSizeOffsetsBatch():
-	global sizeOffsets, totalBytesToReadFromDataFile
+def checkIfSizeOffsetsIsInSyncWithTotalBytesToReadFromDataFile():
 	
-	sizeOffsets = []
-	
-	if not variablesAtGlobalScopeSelected:
-		PRINT("No variable at Global scope selected")
-		#if sizeOffsets:
-		#	OUTPUT("Something fishy: variablesAtGlobalScopeSelected is empty but sizeOffsets is not - exiting")
-		#	sys.exit()
-		return
-		
-	beginOffset = dataLocationOffset
-	for variableId in variablesAtGlobalScopeSelected:
-		sizeOffsets = getOffsetsRecursively(variableId, sizeOffsets, beginOffset)
-		beginOffset += variableDeclarations[variableId][1]
-	totalBytesToReadFromDataFile = beginOffset - dataLocationOffset
-	
-	# We want to know what is the total size of the data format. If the dataLocationOffset is ZERO, and the sizeOffsets is sorted ascendingly
-	
-	PRINT("\n\n\nBefore sorting sizeOffsets\n\n")
-	PRINT("sizeOffsets =",sizeOffsets)
-	for item in sizeOffsets:	
-		PRINT(variableDeclarations[item[0]][0],"<",item[1],",",item[1]+item[2],"> (length", item[2],") <start (inclusive), end (not inclusive)>")
-	sizeOffsets.sort(key=lambda list3rdItem: list3rdItem[2], reverse=True)
-	PRINT("\n\n\ntotalBytesToReadFromDataFile =",totalBytesToReadFromDataFile,"\n\n")
-	PRINT("\n\n\nAfter sorting sizeOffsets\n\n")
-	for item in sizeOffsets:	
-		PRINT(variableDeclarations[item[0]][0],"<",item[1],",",item[1]+item[2],"> (length", item[2],") <start (inclusive), end (not inclusive)>")
-	#PRINT("variableDeclarations =",variableDeclarations)
-	dumpDetailsForDebug()
-
+	if totalBytesToReadFromDataFile == 0:
+		if not sizeOffsets:
+			return
+		else:
+			for item in sizeOffsets:
+				if item[2] != 0:
+					OUTPUT("totalBytesToReadFromDataFile =",totalBytesToReadFromDataFile,", yet sizeOffsets =",STR(sizeOffsets))
+				
 	hasBitfields = False
 	for item in sizeOffsets:
 		if variableDeclarations[item[0]][4]['isBitField']== True:
@@ -11638,12 +11732,62 @@ def calculateSizeOffsetsBatch():
 		if item[1]+item[2] > max:
 			max = item[1]+item[2]
 	if min != dataLocationOffset:
+		OUTPUT("totalBytesToReadFromDataFile =",totalBytesToReadFromDataFile,"sizeOffsets =",STR(sizeOffsets))
 		OUTPUT("min (",min,") != dataLocationOffset (",dataLocationOffset,") - exiting")
 		sys.exit()
 	if max != dataLocationOffset+totalBytesToReadFromDataFile and hasBitfields == False:
+		OUTPUT("totalBytesToReadFromDataFile =",totalBytesToReadFromDataFile,"sizeOffsets =",STR(sizeOffsets))
 		OUTPUT("max (",max,") != dataLocationOffset (",dataLocationOffset,") + totalBytesToReadFromDataFile (",totalBytesToReadFromDataFile,")")
 		sys.exit()
+	return
 
+# This routine does NOT change either of the two global variables sizeOffsets and totalBytesToReadFromDataFile.
+# That is done via its caller routine.
+def calculateSizeOffsetsBatch(variablesAtGlobalScopeSelectedInput):
+
+	# A local variable, not to be confused with the global sizeOffsets
+	sizeOffsetsReturned = []
+	
+	if not variablesAtGlobalScopeSelectedInput:
+		PRINT("No variable at Global scope selected")
+		#if sizeOffsets:
+		#	OUTPUT("Something fishy: variablesAtGlobalScopeSelectedInput is empty but sizeOffsets is not - exiting")
+		#	sys.exit()
+		return False
+
+	checkIfSizeOffsetsIsInSyncWithTotalBytesToReadFromDataFile()
+	
+	# This assumes that sizeOffsets and totalBytesToReadFromDataFile are in sync
+	if sizeOffsets:
+		beginOffsetOriginal = dataLocationOffset + totalBytesToReadFromDataFile
+	else:
+		beginOffsetOriginal = dataLocationOffset
+
+	sizeOffsetsReturned = []
+	beginOffset = beginOffsetOriginal 
+		
+	for variableId in variablesAtGlobalScopeSelectedInput:
+		sizeOffsetsReturned = getOffsetsRecursively(variableId, sizeOffsetsReturned, beginOffset)
+		beginOffset += variableDeclarations[variableId][1]
+	totalBytesToReadFromDataFileForCurrentSetOfVariables = beginOffset - beginOffsetOriginal
+
+	# We want to know what is the total size of the data format. If the dataLocationOffset is ZERO, and the sizeOffsets is sorted ascendingly
+	
+	PRINT("\n\n\nBefore sorting sizeOffsetsReturned\n\n")
+	PRINT("sizeOffsetsReturned =",sizeOffsetsReturned)
+	for item in sizeOffsetsReturned:	
+		PRINT(variableDeclarations[item[0]][0],"<",item[1],",",item[1]+item[2],"> (length", item[2],") <start (inclusive), end (not inclusive)>")
+	sizeOffsetsReturned.sort(key=lambda list3rdItem: list3rdItem[2], reverse=True)
+	PRINT("\n\n\ntotalBytesToReadFromDataFile =",totalBytesToReadFromDataFile,"\n\n")
+	PRINT("\n\n\ntotalBytesToReadFromDataFileForCurrentSetOfVariables =",totalBytesToReadFromDataFileForCurrentSetOfVariables,"\n\n")
+	PRINT("\n\n\nAfter sorting sizeOffsets\n\n")
+	for item in sizeOffsetsReturned:
+		PRINT(variableDeclarations[item[0]][0],"<",item[1],",",item[1]+item[2],"> (length", item[2],") <start (inclusive), end (not inclusive)>")
+	#PRINT("variableDeclarations =",variableDeclarations)
+	dumpDetailsForDebug()
+
+
+	return [sizeOffsetsReturned, totalBytesToReadFromDataFileForCurrentSetOfVariables]
 ############################################################################################
 #  
 #  process in the Batch mode
@@ -11651,8 +11795,8 @@ def calculateSizeOffsetsBatch():
 ############################################################################################
 
 def processBatch():
-	global lines, variablesAtGlobalScopeSelected, dataBlock, PRINT_DEBUG_MSG
-
+	global lines, variablesAtGlobalScopeSelected, PRINT_DEBUG_MSG
+	global sizeOffsets, totalBytesToReadFromDataFile, dataBlock, unraveled
 	PRINT("Inside processBatch()")
 	
 	if not BATCHMODE:
@@ -11718,30 +11862,16 @@ def processBatch():
 			variablesAtGlobalScopeSelected = globalsToKeep
 		else:
 			OUTPUT("None of the user-supplied variables are in the global list - hence displaying ALL global variables")
-	
-	PRINT("Now going to execute calculateSizeOffsetsBatch()")
-	calculateSizeOffsetsBatch()
-	PRINT("Now going to read", totalBytesToReadFromDataFile, "bytes from the data file")
 
-	# Now read the data file - possibly delete
-	if not openDataFileRoutineBatch(dataFileName):
+	if not checkIfDataFileIsValidAndGetItsLength(dataFileName):
 		OUTPUT("Error opening data file",dataFileName)
 		sys.exit()
-	
-	if dataFileSizeInBytes < totalBytesToReadFromDataFile:
-		PRINT("WARNING: Input file smaller than provided file format/structure - not all values would be displayable")
-	dataBlock = readBytesFromFile(dataLocationOffset, totalBytesToReadFromDataFile)
-	if len(dataBlock) != min(totalBytesToReadFromDataFile,dataFileSizeInBytes-dataLocationOffset):
-		OUTPUT("ERROR in reading data file, was able to read only",len(dataBlock),"bytes of data while trying to read",totalBytesToReadFromDataFile,"bytes from",dataFileSizeInBytes,"-byte-sized data file")
+
+	returnStatus = calculateSizeOffsetsAndReadDataBlockAndPopulateUnraveled(variablesAtGlobalScopeSelected)
+	if returnStatus == False:
+		OUTPUT("Error in processBatch() after calling calculateSizeOffsetsAndReadDataBlockAndPopulateUnraveled()")
 		sys.exit()
-#	PRINT_DEBUG_MSG = True
-#	dumpDetailsForDebug()
-#	PRINT_DEBUG_MSG = False
-
-	PRINT("Now going to populate the unraveled")
-
-	# Populate the unraveled
-	populateUnraveled()
+	
 	PRINT("Now going to print the unraveled")
 	prettyPrintUnraveled()
 	PRINT("THE END")
@@ -11883,7 +12013,7 @@ class MainWindow:
 			else:
 				PRINT("\n"*3,"=="*50,"\n Now going to re-display data for data location offset %d\n"%offsetValue,"=="*50,"\n"*2)
 				self.dataOffset.set(offsetValue)
-				self.showDataBlock()
+				self.displayAndColorDataWindows()
 				return True
 
 	def validateRoutineFileOffsetEntry(self, P):	
@@ -11928,7 +12058,7 @@ class MainWindow:
 				PRINT ("After inserting the value of", offsetValue,"into the self.fileOffsetSpinbox, self.fileOffsetSpinbox.get() =",self.fileOffsetSpinbox.get(),"self.fileOffset.get() =",self.fileOffset.get())
 				self.fileOffset.set(offsetValue)
 				PRINT ("After performing self.fileOffset.set(offsetValue) where offsetValue =", offsetValue,"self.fileOffsetSpinbox.get() =",self.fileOffsetSpinbox.get(),"self.fileOffset.get() =",self.fileOffset.get())
-				self.showDataBlock()
+				self.displayAndColorDataWindows()
 				return True
 	
 	def toggleDebug(self):
@@ -12296,7 +12426,7 @@ class MainWindow:
 			return
 		
 		# When we change the displayed data window, which all Interpreted Code Window variables will get highlighted (based on cursor movement)
-		# also changes. Hence, first we need to remove all those color tags.
+		# also changes. Hence, first we need to remove all those transient color tags.
 		PRINT(self.interpretedCodeVariablesHighlightedStartEndCoordinates)
 		for item in self.interpretedCodeVariablesHighlightedStartEndCoordinates:
 			codeVarStart = item[0]
@@ -12542,7 +12672,6 @@ class MainWindow:
 	# Anytime self.dataOffset changes, this gets called indirectly (via dataOffsetChange).
 	def fileOffsetChange(self, *args):
 		global fileDisplayOffset
-	
 		
 		if self.OK2reDisplayDataWindows == False:
 			PRINT("self.OK2reDisplayDataWindows is False - returning from fileOffsetChange()")
@@ -12551,33 +12680,27 @@ class MainWindow:
 		PRINT("Updating fileDisplayOffset to self.fileOffset.get() =",self.fileOffset.get())
 		fileDisplayOffset = self.fileOffset.get()
 			
-		# Very important - when we change the data/file offset, which order the display routine for Code or Data gets executed matters.
-		#
-		# If the file offset changes, the displayBlock (the display window data) needs to be re-retrieved. The sizeOffsets etc. does not change.
-		# So, in this case, first the Data and then the Code needs to be 
-		# If the data offset changes, the displayBlock (the display window data) does NOT need to be re-retrieved. But sizeOffsets etc. changes.
-		
 		PRINT("Inside fileOffsetChange(), going to call self.updateDisplayBlock()")
 		self.updateDisplayBlock()
 		PRINT("Inside fileOffsetChange(), came back after calling self.updateDisplayBlock()")
 		if sizeOffsets:
-#			self.calculateSizeOffsets()
 			self.performInterpretedCodeColoring()
-#			self.populateDataMap()
+			self.displayAndColorDataWindows()
 		else:
-			self.showDataBlock()
-#		self.showDataBlock()	# Redundant?
-#		self.populateDataMap()		# We need to call this ONLY after calling self.performInterpretedCodeColoring(), because it depends on populating the sizeOffsets[]
+			self.displayAndColorDataWindows()
 
 	# Anytime self.dataOffset changes, this gets called directly.
+	# Now, when the data offset changes, if there is dynamic code, the code itself (and resultingly sizeOffsets) will change too.
 	def dataOffsetChange(self, *args):
 		global dataLocationOffset
 		PRINT("Previous value of dataLocationOffset =",dataLocationOffset)
 		dataLocationOffset = self.dataOffset.get()
 		PRINT("Current value of dataLocationOffset =",dataLocationOffset)
-		self.calculateSizeOffsets()
-		self.fileOffsetChange()
-		self.populateDataMap()
+		
+		if sizeOffsets:	# Without this, it will even try to calculate the sizeOffsets for a Interpreted Code window where nothing has been selected
+			self.calculateSizeOffsets()
+			self.fileOffsetChange()
+			self.displayBottomTreeWindow()
 		
 	def dataPageUp(self, *args):
 		if not dataFileName or not dataFileSizeInBytes:
@@ -12669,6 +12792,27 @@ class MainWindow:
 		return [[startStrHex,endStrHex],[startStrAscii,endStrAscii]]
 
 
+	############################################################################################################################
+	# The setDataOffsetToZeroIfBlank() sets the dataOffset.
+	############################################################################################################################
+	def setDataOffsetToZeroIfBlank(self):
+		PRINT("Entered setDataOffsetToZeroIfBlank(), currently self.fileOffset = ",self.fileOffset.get(), "self.dataOffset = ",self.dataOffset.get())
+		# If dataLocationOffsetEntryVariable is blank, set it to zero
+		PRINT("Inside setDataOffsetToZeroIfBlank(), going to zeroize self.dataOffset if blank")
+		try:
+			PRINT("Inside setDataOffsetToZeroIfBlank(), currently self.dataOffset.get() = <",self.dataOffset.get(),">")
+			if STR(self.dataOffset.get()).strip() == '':
+				PRINT ("WARNING - Blank self.dataOffset!!" )
+				PRINT("Inside setDataOffsetToZeroIfBlank(), currently self.dataOffset.get() = <",self.dataOffset.get(),"> going to perform self.dataOffset.set(0)")
+				self.dataOffset.set(0)
+				PRINT("Inside setDataOffsetToZeroIfBlank(), just performed self.dataOffset.set(0), now self.dataOffset.get() =",self.dataOffset.get())
+		except ValueError: 
+			PRINT ("WARNING - Blank self.dataOffset - setting it to 0!!" )
+			PRINT("Inside setDataOffsetToZeroIfBlank(), going to perform self.dataOffset.set(0) for ValueError")
+			self.dataOffset.set(0)
+			PRINT("Inside setDataOffsetToZeroIfBlank(), just performed self.dataOffset.set(0) for ValueError")
+			PRINT("Inside setDataOffsetToZeroIfBlank(), zeroized self.dataOffset if it was blank")
+
 
 	############################################################################################################################
 	# The updateDataBlock() populates a global variable-size dataBlock variable. It does not return the dataBlock.
@@ -12678,6 +12822,7 @@ class MainWindow:
 		if not dataFileName:
 			return False
 
+		'''
 		PRINT("Entered updateDataBlock(), currently self.fileOffset = ",self.fileOffset.get(), "self.dataOffset = ",self.dataOffset.get())
 		# If dataLocationOffsetEntryVariable is blank, set it to zero
 		PRINT("Inside updateDataBlock(), going to zeroize self.dataOffset if blank")
@@ -12694,7 +12839,10 @@ class MainWindow:
 			self.dataOffset.set(0)
 			PRINT("Inside updateDataBlock(), just performed self.dataOffset.set(0) for ValueError")
 			PRINT("Inside updateDataBlock(), zeroized self.dataOffset if it was blank")
-			
+		'''
+		
+		self.setDataOffsetToZeroIfBlank()
+		
 		dataBlock = readBytesFromFile(dataLocationOffset, totalBytesToReadFromDataFile)
 
 	############################################################################################################################
@@ -12731,26 +12879,50 @@ class MainWindow:
 		return True	
 
 	###############################################################################################################################
-	# The biggest routine
+	# Displays the Data Window (Address, Hex, ASCII) with the data. Colors the Hex and ASCII windows. 
+	# Also adds transient tags on Code window based on cursor movements in the Data windows.
 	###############################################################################################################################
 
-	def showDataBlock(self, *args):
+	def displayAndColorDataWindows(self, *args):
 		
 		if not dataFileName:
 			return False
 
-		PRINT("\nEntered showDataBlock()")
-			
+		PRINT("\nEntered displayAndColorDataWindows()")
+
+		# There is a subtle differnce between how the Interpreted Code window and the Data windows are displayed. For Interpreted code window, the whole code is pasted 
+		# inside the window, irrespective of how big the code size is (we use scrollbars to go up or down). So, there is no question of re-pasting the Code, even if
+		# the data offset or data file itself changes. The only thing that changes are the colors (depends on the data). That is why there is "display" in the routine
+		# performInterpretedCodeColoring() - the code is already displayed, it just does the coloring. In contrast, for the Data window, we need to fetch and display
+		# the data first. That being said, there is a twist on how we do it.
+		#
+		# For the Data window, we could easily be dealing with a 5GB data file. Hence, we designed our program to NOT to load the whole of the datafile to memory.
+		# We only fetch the specific data that can fit wtihin the display window (Hex or ASCII). We call this fixed-size data block as displayData[], and it changes every
+		# time the fileOffset changes (e.g. when we do a PgUp/PgDn). So, we need to retrieve this displayData every time, and then print it in the Hex and ASCII windows.
+		# And upto this point it is just like any other ordinary Hex viewer - it is ablivious to the Interpreted Code (doesn't matter if there is none).
+		
+		# After that, depending on the Interpreted code and selected variables, we will have to color this displayed data.
+		
+		# We start by wiping the slate clean.
 		self.addressColumnText.delete("1.0", "end")
 		self.viewDataHexText.delete("1.0", "end")
 		self.viewDataAsciiText.delete("1.0", "end")
 		
+		# When we change the fileOffset via PgUp/PgDn, a new block of data gets displayed on the Data window.
+		# Now, suppose the cursor was in the Hex or ASCII window. If it was hovering over a mapped variable, then the corresponding variable in the 
+		# interpreted Code window was also getting highlighted via a transient yellowbg tag. When you pressed the PhUp or PgDn via the keyboard,
+		# your cursor now hovers over a different part of the data block that is exactly BLOCK_SIZE away, and chances that the the data corresponding to the 
+		# new position of the cursor corresponds to the exact same variable is very low (unless the variable is a big array or structure whose data spans over
+		# multiple data display blocks. Hence, whenever we do a PgUp/PgDn, we need to clear all the transient yellowbg tags from the Interpreted Code window first.
+		# (This problem does not exist if we click on the Spinbox or Data Offset box and explicitly enter the data offset there. Because then the cursor will
+		# NOT be hovering on the data (because it will hover over the spinbox or data offset), so no variable in the Interpreted Code window will get highlighted anyway.
 		self.interpretedCodeVariablesHighlightedStartEndCoordinates = []
 		
-		PRINT("Inside showDataBlock(), deleted Address/Hex/Ascii windows")
+		PRINT("Inside displayAndColorDataWindows(), deleted Address/Hex/Ascii windows")
 		
-		PRINT ("\n"*3,"=="*50,"\n Inside showDataBlock(), for data Offset =",dataLocationOffset,"File Offset =",fileDisplayOffset,"\n","=="*50,"\n"*3)
+		PRINT ("\n"*3,"=="*50,"\n Inside displayAndColorDataWindows(), for data Offset =",dataLocationOffset,"File Offset =",fileDisplayOffset,"\n","=="*50,"\n"*3)
 
+		# this merely updates the block of data that gets displayed
 		self.updateDisplayBlock()
 
 		
@@ -12769,7 +12941,7 @@ class MainWindow:
 		rows = [displayBlock[i:i + DISPLAY_BLOCK_WIDTH] for i in range(0, len(displayBlock), DISPLAY_BLOCK_WIDTH)]
 		
 		if len(rows) > DISPLAY_BLOCK_HEIGHT:
-			PRINT("ERROR in showDataBlock() - len(rows) =", len(rows), ", which is  > DISPLAY_BLOCK_HEIGHT =", DISPLAY_BLOCK_HEIGHT)
+			PRINT("ERROR in displayAndColorDataWindows() - len(rows) =", len(rows), ", which is  > DISPLAY_BLOCK_HEIGHT =", DISPLAY_BLOCK_HEIGHT)
 			sys.exit()
 			
 		for rowNum in range(len(rows)):
@@ -12838,7 +13010,10 @@ class MainWindow:
 						strCodeWindowVariableEnd   = str(tokenEndLineNum  +1)+"."+str(tokenEndCharNum+1)		# Remember that on Text the line number starts from 1, not 0
 
 
-						#Add the start and end coordinates to this array. These are pretty much ALL the coordinates of the selected 
+						# Depending on the fileOffset, not all mapped variables will have their data highlighted within the Data windows.
+						# So, this array below is a list of the coordiates for variables (within the Code window) for which the data is indeed getting highlighted.
+						# We do not do anything with the array in THIS routine, but it is useful for other places. For example, when we do PgUp/PgDn,
+						# we have to first clear all the transient background tags from the Interpreted Code window.
 						self.interpretedCodeVariablesHighlightedStartEndCoordinates.append([strCodeWindowVariableStart,strCodeWindowVariableEnd])
 
 
@@ -12900,6 +13075,7 @@ class MainWindow:
 										arrayElementByteStart = sizeOffsets[j][1] + byteOffsetWithinArrayVariable					 # Inclusive
 										arrayElementByteEnd   = sizeOffsets[j][1] + byteOffsetWithinArrayVariable + arrayElementSize # Not inclusive
 
+										# We only color the data corresponding to an array element if it is wintin the current display window
 										if ((firstByteDisplayedOffset <= arrayElementByteStart < lastByteDisplayedOffsetPlusOne) or 
 											(firstByteDisplayedOffset <  arrayElementByteEnd   <= lastByteDisplayedOffsetPlusOne)): # This is data to be colored differently
 
@@ -12965,7 +13141,6 @@ class MainWindow:
 												# Apply the tag to the Hex window
 												PRINT ("Going to apply the tag",self.colorTagsData[j][position],"in Hex window from",startStrHex,"to", endStrHex, "(",startEndStrHex,") for Array variable",j,variableDeclarations[sizeOffsets[j][0]][0],", with variableDescription =",variableDescriptionArrayElement )
 												self.viewDataHexText.tag_add(self.colorTagsData[j][position], startStrHex, endStrHex)
-#												self.viewDataHexText.tag_add(self.colorTagsData[j][position], startStrHex, startEndStrHex)
 
 												# This is no real list. We just create a fake list so that individual list items (each one is a statement) gets executed.
 												# This is a dirty hack, but I don't know how to do it the pythonic way to make multi-statement Lambda functions.
@@ -13001,7 +13176,6 @@ class MainWindow:
 												
 												PRINT ("Going to apply the tag",self.colorTagsData[j][position],"in ASCII window from",startStrAscii,"to", endStrAscii, "(",startEndStrAscii,") for Array variable",j,variableDeclarations[sizeOffsets[j][0]][0],", with variableDescription =",variableDescriptionArrayElement )
 												self.viewDataAsciiText.tag_add (self.colorTagsData[j][position], startStrAscii, endStrAscii)
-#												self.viewDataAsciiText.tag_add (self.colorTagsData[j][position], startStrAscii, startEndStrAscii)
 
 												self.viewDataAsciiText.tag_bind(self.colorTagsData[j][position], "<Enter>", 
 													lambda event, textValue=variableDescriptionArrayElement, addrValueStart=actualDataAddrStart, addrValueEnd=actualDataAddrEnd, 
@@ -13089,7 +13263,7 @@ class MainWindow:
 									valueBytes = readBytesFromFile(sizeOffsets[j][1], numBytesToRead)
 									
 								if len(valueBytes) < numBytesToRead and not notEnoughDataToMap:
-									OUTPUT("Error in showDataBlock() - len(valueBytes) =",len(valueBytes)," < numBytesToRead (",numBytesToRead,")")
+									OUTPUT("Error in displayAndColorDataWindows() - len(valueBytes) =",len(valueBytes)," < numBytesToRead (",numBytesToRead,")")
 									sys.exit()
 									break
 							else:
@@ -13114,7 +13288,7 @@ class MainWindow:
 							elif (len(valueBytes) == 0):
 								PRINT ("datatype =%s"%datatype)
 								if len(datatype) < len("function") or datatype[:len("function")] != "function":
-									errorMessage = "ERROR in showDataBlock(): For variableName =",variableName,"Unknown zero-length non-function datatype = "+ datatype
+									errorMessage = "ERROR in displayAndColorDataWindows(): For variableName =",variableName,"Unknown zero-length non-function datatype = "+ datatype
 									errorRoutine(errorMessage)
 									return False
 							elif (len(valueBytes) in (1,2,4,8)) and (signedOrUnsigned in ("signed","unsigned")):
@@ -13131,7 +13305,7 @@ class MainWindow:
 								valueBE = calculateInternalValue(valueBytes, BIG_ENDIAN,    datatype, signedOrUnsigned, bitFieldSize, bitStartPosition)
 								valueLE = calculateInternalValue(valueBytes, LITTLE_ENDIAN, datatype, signedOrUnsigned, bitFieldSize, bitStartPosition)
 							else:
-								warningMessage = "WARNING - unhandled case in showDataBlock() for non-array variable <%s> - need to code, len(valueBytes)= %d, current datatype =%s"%(variableName,len(valueBytes),STR(datatype))
+								warningMessage = "WARNING - unhandled case in displayAndColorDataWindows() for non-array variable <%s> - need to code, len(valueBytes)= %d, current datatype =%s"%(variableName,len(valueBytes),STR(datatype))
 								warningRoutine(warningMessage)
 							
 							valueBEStr = str(valueBE)
@@ -13146,7 +13320,6 @@ class MainWindow:
 							# Apply the tag to the Hex window
 							PRINT ("Going to apply the tag",self.colorTagsData[j],"in Hex window from",startStrHex,"to", endStrHex, "(",startEndStrHex,") for variable",j,variableDeclarations[sizeOffsets[j][0]][0],", with variableDescription =",variableDescription )
 							self.viewDataHexText.tag_add(self.colorTagsData[j], startStrHex, endStrHex)
-	#						self.viewDataHexText.tag_add(self.colorTagsData[j], startStrHex, startEndStrHex)
 
 							# This is no real list. We just create a fake list so that individual list items (each one is a statement) gets executed.
 							# This is a dirty hack, but I don't know how to do it the pythonic way to make multi-statement Lambda functions.
@@ -13176,7 +13349,7 @@ class MainWindow:
 
 							# Apply the tag to the ASCII window
 							self.viewDataAsciiText.tag_add(self.colorTagsData[j], startStrAscii, endStrAscii)
-	#						self.viewDataAsciiText.tag_add(self.colorTagsData[j], startStrAscii, startEndStrAscii)
+							
 							self.viewDataAsciiText.tag_bind(self.colorTagsData[j], "<Enter>", 
 								lambda event, textValue=variableDescription, addrValueStart=actualDataAddrStart, addrValueEnd=actualDataAddrEnd, 
 								lengthValue=dataLengthValue, dataValueLEValue=valueLEStr, dataValueBEValue=valueBEStr, 
@@ -13208,7 +13381,7 @@ class MainWindow:
 					return False
 			if tagIndex == -1:
 				dumpDetailsForDebug()
-				errorMessage = "ERROR inside showDataBlock() - Invalid tag, exiting"
+				errorMessage = "ERROR inside displayAndColorDataWindows() - Invalid tag, exiting"
 				errorRoutine(errorMessage)
 				return False
 			else:
@@ -13216,7 +13389,7 @@ class MainWindow:
 #				tags = (self.colorTagsData[tagIndex],)
 		
 
-		PRINT("Exiting showDataBlock()\n")
+		PRINT("Exiting displayAndColorDataWindows()\n")
 		
 		return True
 
@@ -13333,20 +13506,28 @@ class MainWindow:
 		self.viewDataHexText.delete("1.0", "end")
 		self.viewDataAsciiText.delete("1.0", "end")
 		
-		if openDataFileRoutineBatch(dataFileNameInput) == True:
+		PRINT("Control inside openDataFile(dataFileNameInput=",dataFileNameInput,")")
+		if checkIfDataFileIsValidAndGetItsLength(dataFileNameInput) == True:
 			size = (dataFileSizeInBytes - BLOCK_SIZE if dataFileSizeInBytes > BLOCK_SIZE else dataFileSizeInBytes - DISPLAY_BLOCK_WIDTH)
 			self.parent.title("%s - %s"%(dataFileName, TOOL_NAME))
 			self.fileOffsetSpinbox.config(to=max(size, 0))
 	
 			# MannaManna - BEGIN
-			# If the code is already there, and we are just changing the data file, update the data and display block
+			# If the code is already there, and we are just changing the data file, then we need to run the whole shebang
 			if sizeOffsets:
 				dataBlock = readBytesFromFile(dataLocationOffset, totalBytesToReadFromDataFile)
 				displayBlock = readBytesFromFile(fileDisplayOffset, BLOCK_SIZE)
 			# MannaManna - END
 			
+			# Since changing dataOffset gives us new data (on which the selected variables are mapped), it's not different for having a new data file 
+			if sizeOffsets:
+				PRINT("Changing data file - run everything")
+				self.dataOffsetChange()
+			else:
+				PRINT("No previous map")
+				self.displayAndColorDataWindows()
 			
-			self.showDataBlock()
+				
 			if inputIsHexChar:
 				warningMessage = "It appears that the input file is not a binary but rather a text file containing Hex representation of of binary data. Treating it accordingly."
 				warningRoutine(warningMessage)
@@ -13384,6 +13565,12 @@ class MainWindow:
 
 	def clearTreeView(self, event=None):
 		
+#		treeChildrenList = self.treeView.get_children()
+#		for treeItem in treeChildrenList:
+#			self.treeView.delete(treeItem)
+#		selected_item = self.treeView.selection()[0] ## get selected item
+#		self.treeView.delete(selected_item)
+		
 		PRINT ("Currently self.treeView.get_children() = ",self.treeView.get_children(), "len(self.treeView.get_children()) = ",len(self.treeView.get_children()))
 		if len(self.treeView.get_children()) > 0:
 			PRINT ("Deleting self.treeView.get_children()")
@@ -13406,29 +13593,8 @@ class MainWindow:
 			PRINT ("After deleting,  self.treeView.get_children() = ",self.treeView.get_children())
 		return True
 
-	
-	##############################################################################################
-	# This function should get called every time the data offset changes, but not the file offset
-	##############################################################################################
-
-	def populateDataMap(self, event=None):
-		
-		PRINT("\n\n\n","==="*50,"\nInside populateDataMap()\n","==="*50)
-		
-		if lines==[]:
-			return True
-			
-		
-#		treeChildrenList = self.treeView.get_children()
-#		for treeItem in treeChildrenList:
-#			self.treeView.delete(treeItem)
-#		selected_item = self.treeView.selection()[0] ## get selected item
-#		self.treeView.delete(selected_item)
-		self.clearTreeView()
-
-		populateUnraveled()
-		
-		PRINT ("Inside populateDataMap(), going to write the Root node")
+	def populateTreeView(self, event=None):
+		PRINT ("Inside populateTreeView(), going to write the Root node")
 		# The parameter in an insert statement are (parent, index, iid=None, **kw)	
 		# Creates a new item and returns the item identifier of the newly created item.
 		# parent is the item ID of the parent item, or the empty string to create a new top-level item. 
@@ -13474,13 +13640,29 @@ class MainWindow:
 				treeViewRowValues = (levelIndent+unraveled[N][1],dataTypeText,addrStart,addrEnd,unraveled[N][5],unraveled[N][6],unraveled[N][7])
 				id = self.treeView.insert(hierarchy[-1], "end", iid=None, values=treeViewRowValues)
 			except IndexError:
-				OUTPUT ("IndexError in populateDataMap(): List index out of range for N = ",N)
+				OUTPUT ("IndexError in populateTreeView(): List index out of range for N = ",N)
 				OUTPUT (unraveled[N])
 				sys.exit()
 			PRINT ("After adding, self.treeView.get_children() =",self.treeView.get_children())
 		
+	
+	##############################################################################################
+	# This function should get called every time the data offset changes, but not the file offset
+	##############################################################################################
+
+	def displayBottomTreeWindow(self, event=None):
+		
+		
+		PRINT("\n\n\n","==="*50,"\nInside displayBottomTreeWindow()\n","==="*50)
+		
+		if lines==[]:
+			return True
+
+		self.clearTreeView()	# Moved from earlier place
+		PRINT("\n","=="*50,"\n","Now going to populate the treeview")
+		self.populateTreeView()
+		
 		# Print it on the console and the CSV file
-#		self.prettyPrintUnraveled()
 		prettyPrintUnraveled()
 		return True
 			
@@ -13697,7 +13879,8 @@ class MainWindow:
 		self.selectVariablesAtGlobalScope()
 		self.calculateSizeOffsets()
 		self.performInterpretedCodeColoring()
-		self.populateDataMap()
+		self.displayAndColorDataWindows()
+		self.displayBottomTreeWindow()
 		
 	#####################################################################################################################################
 	#                                                                                                                        			#
@@ -13758,13 +13941,17 @@ class MainWindow:
 		
 	def calculateSizeOffsets(self, event=None):
 		PRINT("\n\n\n","==="*50,"\nInside calculateSizeOffsets()\n","==="*50)
-		self.removeColorTags()
 		
-		calculateSizeOffsetsBatch()
-	
-		PRINT ("Going to read totalBytesToReadFromDataFile =", totalBytesToReadFromDataFile,"bytes from file ", dataFileName,"from offset",dataLocationOffset)
-#		dataBlock = readBytesFromFile(dataLocationOffset, totalBytesToReadFromDataFile)
-		self.updateDataBlock()
+		# Extra for GUI BEGIN
+		self.removeColorTags()
+		self.setDataOffsetToZeroIfBlank()
+		# Extra for GUI END
+
+		returnStatus = calculateSizeOffsetsAndReadDataBlockAndPopulateUnraveled(variablesAtGlobalScopeSelected)
+		if returnStatus == False:
+			OUTPUT("Error in calculateSizeOffsets() after calling calculateSizeOffsetsAndReadDataBlockAndPopulateUnraveled()")
+			sys.exit()
+		
 		return True
 		
 	##########################################################################################################################
@@ -13790,14 +13977,70 @@ class MainWindow:
 			self.COLORS = COLORS_20
 		else:
 			self.COLORS = COLORS_ALL
-				
-		# Figure out how many different colored tags one would need to create
+
+		# We must color the Code window first before we color the Data window. Why? Read below.
+		#
+		# There are two kinds of color tags we use for both the Code and Data windows (by "Data", we mean both "Hex" and "ASCII" windows since they go in lockstep):
+		# 
+		#  1. Fixed Foreground color tags - they change only the foreground color, and they are not transient (not dependent on cursor movement). They apply to both Code and Data. 
+		#                                   They are different for different variables (the color changes). However, when the number of variables become too high, we reuse.
+		#  2. Transient Background color tags - they change the background color, and they are transient (depends on cursor movement). They apply to both Code and Data.
+		#                                       We use one single background color (Yellow) for ALL such tags.
+		#
+		# Since there is only ONE tag for ALL the transient tags, we do not need to give it any special treatment. However, for fixed tags, there are many of them.
+		# Hence we must create an array (of color tags) to store them. Just for clarity, we store the color tags for Code and Data windows separately.
+		# 
+		# 	Code window - tags are stored in the array colorTagsCode[]
+		# 	Data window - tags are stored in the array colorTagsData[]. 
+		#
+		# The dimension of both these colorTagsCode[] and colorTagsData[] is same (basically, both have same number of entries as sizeOffsets). 
+		# However, if the variable is an array, then there is one slight difference. For an array variable, on the colorTagsCode[] side we will have exactly on entry, 
+		# but on the colorTagsData[] side, the entry is not a single item ... it is an array itself (of the same dimension as the array dimension).
+		#
+		# One crucial point to remember - these two arrays do not store the actual tags - they just store the tag name strings to help as a reference.
+		# In order words, just adding an entry to this array does not create the actual tag, and removing it from the array does not delete it.
+		# 
+		#
+		# As an example, suppose we have the following code where sizeOffsets contain these 4 variables: i, c, f and s.
+		#   _____________________________________________________________________________________________________________________________________
+		#   |  Code                            |    colorTagsCode[]           |          colorTagsData[]
+		#   |__________________________________|______________________________|__________________________________________________________________
+		#   |                                  |   [                          |     [
+		#   |  int i;                          |     "tag0",                  |       "tag0",
+		#   |  char c[2];                      |     "tag1",                  |       ["tag1_0","tag1_1"],
+		#   |  float f;                        |     "tag2",                  |       "tag2",
+		#   |  short s[2][3];                  |     "tag3"                   |       ["tag3_0","tag3_1","tag3_2","tag3_3","tag3_4","tag3_5"]
+		#   |__________________________________|____]_________________________|______]____________________________________________________________
+		#    
+		#
+		# Observe that we are using the same color tag (from colorTagsData[]) for both the Hex and ASCII window. That works, because Hex and ASCII go in lockstep.
+		#
+		# Now, there are same number of fixed color tags in the Code and Data (assuming the Data size and Data offset allows mapping all chosen variables to the data ).
+		# Regarding the Transient tags, when you hover cursor in the Code window, it causes transient tags to appear in the Data windows, and vice versa. 
+		# So, in terms of the Transient tags, it does not matter whether you execute the routine of coloring the Code or Data first. However, about the fixed color tags,
+		# you have to know how many tags to generate, and if it an array variable then there are multiple tags on the Data window for one single variable.
+		# So, this is why we need to execute this routine first - so that we know which all Fixed color tags (for different variables) are to be generated.
+		# And for this very reason performInterpretedCodeColoring() must be run before displayBottomTreeWindow().
+		
+		# Now, for each mapped variable in the Code window, we want certain data to be displayed (Address start/end, LE/BE value, length, Description etc.). 
+		# So, for each tag in colorTagsCode[], we bind the tag with "Enter" and "Leave" actions, which represent the actions to be taken when the cursor 
+		# "enters" or "leaves" the variable space within the Code window. 
+		#  - "Enter" - display  the information related to that variable (Address start/end, LE/BE value, length, Description etc.) just above the tree window.
+		#  - "Leave" - Wipe out the information related to that variable (Address start/end, LE/BE value, length, Description etc.) just above the tree window.
+		# Recall that this actions above has absolutely nothing to do with whether the data corresponding to the variable is currently being displayed in the Data window or not.
+		# However, if the variable's data DOES get displayed within the current Data window, then we do the ADDITIONAL actions for the "Enter" and "Leave" events:
+		#  - "Enter" - Add the "yellowbg" tag to a certain area of the Data windows (ASCII and Hex) that represents the the data corresponds to the variable
+		#  - "Leave" - Delete the "yellowbg" tag from a certain area of the Data windows (ASCII and Hex) that represents the the data corresponds to the variable
+		
+		# Now, as stated earlier, just by storing the tag name in a user-defined array means nothing. If we want to see the effect of the tag, we have to do this:
+		#  - tag_configure - this pretty much creates a color tag for a GUI object like the viewDataHexText. You tell what's the tag's names, what's its property (like color etc.)
+		#  - tag_add       - this actually "applies" the tag (shows its effect) to that GUI object, for the area mentioned (start line/col #, end line/col #)
+		#  - tag_remove    - this actually "removes" the tag (remotes its effect) from that GUI object, for the area mentioned (start line/col #, end line/col #)
+		
+		
 		PRINT ("Number of color tags to be created = ", len(sizeOffsets) )
 		
-		# TO-DO: I am not fully sure if this will work below. If it does not, just explicitly clear them (the 2 lines below it)
 		self.removeColorTags()
-#		self.colorTagsCode = []
-#		self.colorTagsData = []
 		
 		for i in range(len(sizeOffsets)):
 		
@@ -13811,7 +14054,10 @@ class MainWindow:
 			
 			PRINT("Coloring variable",variableName,"with",self.COLORS[i%len(self.COLORS)])
 			
-			# Handle the Data windows. Remember that if the variable is an array, there will be multiple same-color tags (but with different hovertexts) for the same variable
+			# Create the tags for the Data windows. Remember that if the variable is an array, there will be multiple same-color tags (but with different hovertexts) 
+			# for the same variable. Here, all we are doing is CONFIGURING (basically creating) the tags for the Hex and ASCII windows. We are NOT applying them to the 
+			# individual data elements in the Hex or ASCII windows. So, look carefully - we are populating the "colorTagsData" array, NOT the "colorTagsCode" array.
+			
 			if isArray:		# The item is an array
 				PRINT ("Creating multiple Data tags for Array item",variableDeclarations[sizeOffsets[i][0]][0] )
 				totalNumberOfArrayElements = listItemsProduct(arrayDimensions)
@@ -13827,6 +14073,7 @@ class MainWindow:
 					PRINT ("Before adding tags for array variable", variableName, ", self.colorTagsData =",self.colorTagsData)
 					self.colorTagsData.append(colorTagsForArrayVariable)
 					PRINT ("After adding tags for array variable", variableName, ", self.colorTagsData =",self.colorTagsData)
+					# Every array element in the Data window will have the same foreground color as the array variable in the Code window
 					for position in range(totalNumberOfArrayElements):
 						self.viewDataHexText.tag_configure  (self.colorTagsData[i][position], foreground=self.COLORS[i%len(self.COLORS)])
 						self.viewDataAsciiText.tag_configure(self.colorTagsData[i][position], foreground=self.COLORS[i%len(self.COLORS)])
@@ -13837,7 +14084,15 @@ class MainWindow:
 				PRINT ("After adding tags for non-array variable", variableName, ", self.colorTagsData =",self.colorTagsData)
 				self.viewDataHexText.tag_configure  (self.colorTagsData[i], foreground=self.COLORS[i%len(self.COLORS)])
 				self.viewDataAsciiText.tag_configure(self.colorTagsData[i], foreground=self.COLORS[i%len(self.COLORS)])
+
+			# Create the tag for the Interpreted code window
+			PRINT ("Before adding, self.colorTagsCode = ",self.colorTagsCode)
+			self.colorTagsCode.append("tag"+str(i))
+			self.interpretedCodeText.tag_configure(self.colorTagsCode[i], foreground=self.COLORS[i%len(self.COLORS)])
+			PRINT ("\n\n\nCreated",self.colorTagsCode[i],"with foreground=",self.COLORS[i%len(self.COLORS)],"for the Code window" )
+			PRINT ("After adding, self.colorTagsCode = ",self.colorTagsCode)
 				
+			# Now, up to this point, we have merely created ALL the fixed color tags for the Code and Data window. But we do not know exactly where they will apply.
 			
 			# For the Interpreted code window, find out the locations of the variable names (to which the tags would apply)
 			tokenStartLineNum = tokenLocationLinesChars[variableDeclarations[sizeOffsets[i][0]][4]["globalTokenListIndex"]][0][0]
@@ -13847,12 +14102,7 @@ class MainWindow:
 			strStart = str(tokenStartLineNum+1)+"."+str(tokenStartCharNum)		# Remember that on Text the line number starts from 1, not 0
 			strEnd   = str(tokenEndLineNum  +1)+"."+str(tokenEndCharNum+1)		# Remember that on Text the line number starts from 1, not 0
 			
-			# Create the tag for the Interpreted code window
-			PRINT ("Before adding, self.colorTagsCode = ",self.colorTagsCode)
-			self.colorTagsCode.append("tag"+str(i))
-			self.interpretedCodeText.tag_configure(self.colorTagsCode[i], foreground=self.COLORS[i%len(self.COLORS)])
-			PRINT ("\n\n\nCreated",self.colorTagsCode[i],"with foreground=",self.COLORS[i%len(self.COLORS)],"for the Code window" )
-			PRINT ("After adding, self.colorTagsCode = ",self.colorTagsCode)
+			# Now, up to this point, we know exactly where the fixed tags of the Interpreted Code window will apply, but we haven't associated that with the tags yet.
 			
 			# BEGIN Value added here
 			
@@ -13920,10 +14170,15 @@ class MainWindow:
 			# If the return value from getDataCoordinates() is False, that means the data corresponding to this variable does not exist within the current display window.
 
 			getDataCoordinatesResult = self.getDataCoordinates( sizeOffsets[i][1], sizeOffsets[i][1]+sizeOffsets[i][2] )
+			
 			if getDataCoordinatesResult == False:
+				# If the data corresponding to the variable is not within the Displayed Hex/ASCII window, just color the variable in the Code window, and 
+				# populate the hovertexts (like start- and end-address, BE/LE values, length etc.)
 				PRINT ("Data for Variable <",variableName,"> located at File[",  sizeOffsets[i][1],":", sizeOffsets[i][1]+sizeOffsets[i][2], "] is NOT displayable within current window.")
 				PRINT ("data offset = ",dataLocationOffset,"file offset =",fileDisplayOffset,"Hence just being content with the variable description.")
 				PRINT ("Going to apply the tag",self.colorTagsCode[i],"in interpreted code window from",strStart,"to", strEnd, "for variable #",i,variableDeclarations[sizeOffsets[i][0]][0],", with variableDescription =",variableDescription )
+				
+				# We only add the tag for the Code window, since there is nothing to color for the Hex/ASCII windows wihtin the current displayed data window
 				self.interpretedCodeText.tag_add(self.colorTagsCode[i], strStart, strEnd)
 
 				self.interpretedCodeText.tag_bind(self.colorTagsCode[i], "<Enter>", 
@@ -13956,15 +14211,14 @@ class MainWindow:
 				startStrAscii = getDataCoordinatesResult[1][0]
 				endStrAscii   = getDataCoordinatesResult[1][1]
 				
+
+				# We add the tags for not just the Code window, but also for the Hex/ASCII windows.
+				# since when we hover over a variable, the data also gets highlighted
 				
 				PRINT ("Going to apply the tag",self.colorTagsData[i],"in Hex window from",startStrHex,"to", endStrHex, "for variable",i,variableDeclarations[sizeOffsets[i][0]][0],", with variableDescription =",variableDescription )
 				self.viewDataHexText.tag_add(self.colorTagsData[i], startStrHex, endStrHex)
-#				self.viewDataHexText.tag_add(self.colorTagsData[i], startStrHex, startEndStrHex)
-
-				# Did we forget to do this earlier?
 				PRINT ("Going to apply the tag",self.colorTagsData[i],"in Ascii window from",startStrAscii,"to", endStrAscii, "for variable",i,variableDeclarations[sizeOffsets[i][0]][0],", with variableDescription =",variableDescription )
 				self.viewDataAsciiText.tag_add(self.colorTagsData[i], startStrAscii, endStrAscii)
-
 				PRINT ("Going to apply the tag",self.colorTagsCode[i],"in interpreted code window from",strStart,"to", strEnd, "for variable",i,variableDeclarations[sizeOffsets[i][0]][0],", with variableDescription =",variableDescription )
 				self.interpretedCodeText.tag_add(self.colorTagsCode[i], strStart, strEnd)
 			
@@ -14002,10 +14256,11 @@ class MainWindow:
 			errorMessage("Mismatching size of self.colorTagsCode, self.colorTagsData and sizeOffsets")
 			errorRoutine(errorMessage)
 			return False
-			
-		if dataFileName:
-			PRINT ("Re-displaying the data displayBlock" )
-			self.showDataBlock()
+
+#		Now moved out of performInterpretedCodeColoring()			
+#		if dataFileName:
+#			PRINT ("Re-displaying the data displayBlock" )
+#			self.displayAndColorDataWindows()
 
 		return True
 
@@ -14104,3 +14359,28 @@ class MainWindow:
 
 if __name__ == "__main__":
 	main()
+
+
+'''
+The Batch flow:
+
+processBatch() - gets called from main() if BATCHMODE. No other invocation. So exclusive for batch.
+ - reads code file, calls interpretBatch(), which also gets called from GUI routine interpret()
+ - creates variablesAtGlobalScopeSelected[] from globalScopes[] and inputVariables[] (if provided). globalScopes[] comes from parseCodeSnippet().
+   variablesAtGlobalScopeSelected[] also gets populated by GUI routine selectVariablesAtGlobalScope(), which is called from mapStructureToData()
+ - calls calculateSizeOffsetsBatch(), which also gets called from GUI routine calculateSizeOffsets(), which gets called from dataOffsetChange() and mapStructureToData()
+ - calls checkIfDataFileIsValidAndGetItsLength(dataFileName) 
+ - populates dataBlock by calling readBytesFromFile(dataLocationOffset, totalBytesToReadFromDataFile)
+ - calls populateUnraveled(),    which is also called from GUI routine displayBottomTreeWindow(), which is called from dataOffsetChange() and mapStructureToData()
+ - calls prettyPrintUnraveled(), which is also called from GUI routine displayBottomTreeWindow(), which is called from dataOffsetChange() and mapStructureToData()
+
+
+
+BUG:
+
+Gives an error if put a value in the Data offset before even interpreting.
+
+
+
+
+'''
