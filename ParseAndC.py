@@ -10221,8 +10221,14 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 		####   P R A G M A     ####
 		###########################
 
+		# This is a kludge. When I separated the '#' as a separate token from all the #define, #include etc., I forgot to split '#pragma'.
+		# Hence, here I am just advancing the pointer by 1 so that it gets picked up by the next round
+		elif tokenList[i] == preProcessorSymbol and i<len(tokenList)-1 and tokenList[i+1] == "pragma":
+			i = i + 1
+
 		# Currently it only supports #prgama(push), #prgama(pop), and #prgama(some value)
-		elif tokenList[i] == "#pragma":
+#		elif tokenList[i] == "#pragma":
+		elif tokenList[i] == "pragma":
 			if tokenList[i+1] == "pack":
 				if tokenList[i+2] != "(":
 					errorMessage = "ERROR in parseCodeSnippet() - must supply the parenthesized alignment value after a #pragma pack statement - no beginning parenthesis"
