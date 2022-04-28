@@ -5903,7 +5903,7 @@ def parseVariableDeclaration(inputList):
 						initializationEndIndex = nextSemicolonIndex-1;
 					initializationValue = inputList[rightCounter:initializationEndIndex+1]
 					
-					MUST_PRINT ("variableName ",variableName,"is initialized to the value",initializationValue )
+					PRINT ("variableName ",variableName,"is initialized to the value",initializationValue )
 					rightCounter = initializationEndIndex+1
 					if initializationEndIndex == nextSemicolonIndex-1:
 						declarationStatementEndReached = True
@@ -5929,12 +5929,12 @@ def parseVariableDeclaration(inputList):
 		if initializationValue != "":
 			variableDescription = variableDescription + ", which is initialized to the value " + list2plaintext(initializationValue,"")
 			if len(initializationValue)==1 and checkIfString(initializationValue[0]) and initializationValue[0][0]=='"' and initializationValue[0][-1]=='"':
-				MUST_PRINT("String initialization, The characters are",initializationValue[0][1:-1])
+				PRINT("String initialization, The characters are",initializationValue[0][1:-1])
 				tempList = []
 				for x in initializationValue[0][1:-1]:
 					tempList.extend(["'"+x+"'",','])
 				decomposedString = ['{']+tempList+['0','}']
-				MUST_PRINT("initializationValue =",initializationValue,"has been decomposed into",decomposedString)
+				PRINT("initializationValue =",initializationValue,"has been decomposed into",decomposedString)
 				initializationValue = decomposedString
 		PRINT ("For variable <", variableName, ">, variableDescription = ",variableDescription )
 
@@ -6011,7 +6011,7 @@ def parseVariableDeclaration(inputList):
 				return False
 			elif arrayDimensions[0] == ["TBD"]:
 				if isInitialized:	# Initialialized
-					MUST_PRINT("initializationValue =",initializationValue)
+					PRINT("initializationValue =",initializationValue)
 					if initializationValue[0] != '{' or initializationValue[-1] != '}':
 						errorMessage = "ERROR in parseVariableDeclaration() - the initialization value for array  <%s> allows TBD only as the topmost dimension!"%STR(initializationValue)
 						errorRoutine(errorMessage)
@@ -6298,7 +6298,7 @@ def totalItemCountInStruct(structName):
 		individualItemCount = 1 # should only 
 		if structMemberBaseType == structMemberDatatype and structMemberDatatype in getDictKeyList(suDict):
 			status = totalItemCountInStruct(structMemberDatatype)
-			MUST_PRINT("totalItemCountInStruct(",structMemberDatatype,") =",status)
+			PRINT("totalItemCountInStruct(",structMemberDatatype,") =",status)
 			if status[0] == False or not checkIfIntegral(status[1]):
 				errorMessage = "ERROR in totalItemCountInStruct() - error after calling totalItemCountInStruct("+structMemberDatatype+")"
 				errorRoutine(errorMessage)
@@ -11747,7 +11747,7 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 				PRINT("From calculateStructureLength(), invoking addVariableToUnraveled()")
 				PRINT("\nInput to addVariableToUnraveled() - level =",level+1, ", variableId =", variableId, "(",variableDeclarations[variableId][0], ", prefix =",prefix, ", offset =",offset,"ancestry =",STR(ancestry),", arrayAlreadyUnraveled =","True, " if arrayAlreadyUnraveled else "False, ",", speculativeArrayDimensions =", "None" if not speculativeArrayDimensions else STR(speculativeArrayDimensions))
 #				addVariableToUnraveledResult = addVariableToUnraveled(level+1, variableId, prefix, offset+offsetWithinStructBytes, unraveledSupplied, ancestry+[variableId], False, speculativeArrayDimension)	# BUG?
-				addVariableToUnraveledResult = addVariableToUnraveled(level+1, variableId, prefix, offset+offsetWithinStructBytes, unraveledSupplied, ancestry, False, speculativeArrayDimensions)
+				addVariableToUnraveledResult = addVariableToUnraveled(level+1, structDetails["components"][N][4], prefix, offset+offsetWithinStructBytes, unraveledSupplied, ancestry, False, speculativeArrayDimensions)
 				if addVariableToUnraveledResult == False:
 					errorMessage = "ERROR in calculateStructureLength() after calling addVariableToUnraveled("+STR(level+1)+", "+ STR(variableId) + ", " + prefix + ", "+STR(offset + offsetWithinStructBytes)+", unraveledSupplied, "+STR(ancestry+[variableId])+", False)"
 					errorRoutine(errorMessage)
@@ -13050,25 +13050,34 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 	return [True, True, lastRowNumConsumed]
 
 ###############################################################################################################
-# This routine takes a variableId and adds all the "unraveled" variables to the supplied unraveled recursively.
+# This routine takes a variableId / variableDescription / full variableDeclarations entry, and adds all the "unraveled" variables to the supplied unraveled recursively.
 # unraveled = [level, variable, datatype/Description, starting offset (inclusive), ending offset+1 (exclusive), Raw Hex Bytes, Value (LE), Value (BE), Ancestry]
 # The last item in any row in unraveled - the ancestry - contains the variableId as the last item.
 # However, the input ancestry to this routine does NOT have the variableId as the last item. Rather, it gets filled here only.
 ################################################################################################################
-def addVariableToUnraveled(level, variableIdOrDescription, prefix, offset, unraveledSupplied, ancestry=[], arrayAlreadyUnraveled = False, speculativeArrayDimensions=None):
+def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset, unraveledSupplied, ancestry=[], arrayAlreadyUnraveled = False, speculativeArrayDimensions=None):
 #	PRINT=OUTPUT	# Will make ALL the PRINT statements execute
 	global speculativeExecutionStack	# this list will contain a dict of keys {"variableId", "arrayDimensionValue", "lastValidUnraveledRowNum" etc.}
 	initResult = None	# Result of any initialialization check
-	if checkIfIntegral(variableIdOrDescription):
-		variableId = variableIdOrDescription
-	elif isinstance(variableIdOrDescription, dict):
-		variableId = variableIdOrDescription["variableId"]
+	if checkIfIntegral(variableIdOrDescriptionOrEntry):
+		if variableId >= len(variableDeclarations):
+			errorMessage = "ERROR in calling addVariableToUnraveled("+STR(level+1)+", "+ STR(variableId) + ", " + prefix + ", "+STR(offset)+","+STR(ancestry),", unraveledSupplied)"
+			errorRoutine(errorMessage)
+			return False
+		variableId = variableIdOrDescriptionOrEntry
+		variableDeclarationsEntry = deepCopy(variableDeclarations[variableId])
+		variableDescription = variableDeclarationsEntry[4]
+	elif isinstance(variableIdOrDescriptionOrEntry, dict):
+		variableId = variableIdOrDescriptionOrEntry["variableId"]
+		variableDeclarationsEntry = deepCopy(variableDeclarations[variableId])
+		variableDeclarationsEntry[4] = variableIdOrDescriptionOrEntry
+		variableDescription = variableDeclarationsEntry[4]
+	elif isinstance(variableIdOrDescriptionOrEntry, list):
+		variableDeclarationsEntry = variableIdOrDescriptionOrEntry
+		variableDescription = variableDeclarationsEntry[4]
+		variableId = variableDescription["variableId"]
 	else:
-		EXIT("Coding ERROR in addVariableToUnraveled: Passed variableIdOrDescription is neither an integer nor a dictionary")
-	if variableId >= len(variableDeclarations):
-		errorMessage = "ERROR in calling addVariableToUnraveled("+STR(level+1)+", "+ STR(variableId) + ", " + prefix + ", "+STR(offset)+","+STR(ancestry),", unraveledSupplied)"
-		errorRoutine(errorMessage)
-		return False
+		EXIT("Coding ERROR in addVariableToUnraveled: Passed variableIdOrDescription is neither an integer nor a list or dictionary")
 	PRINT("\n\n","---"*50,"\nEntering addVariableToUnraveled (for level",level,", variable =",variableDeclarations[variableId][0]," (variableId =",variableId,"), prefix=<", prefix,">, ancestry =",ancestry, ")")
 	PRINT("---"*50,"\nInput to addVariableToUnraveled() - level =",level, ", variableId =", variableId, ", type(variableId) = ",type(variableId), ", prefix =",prefix, ", offset =",offset,"ancestry =",STR(ancestry),", arrayAlreadyUnraveled =","True, " if arrayAlreadyUnraveled else "False, ",", speculativeArrayDimensions =", "None" if not speculativeArrayDimensions else STR(speculativeArrayDimensions))
 	PRINT("\nunraveledSupplied (input to addVariableToUnraveled() routine) =\n\n")
@@ -13076,9 +13085,12 @@ def addVariableToUnraveled(level, variableIdOrDescription, prefix, offset, unrav
 		PRINT(row)
 	PRINT("\n\n")
 
-	
 	dottedPrefixOrBlank = prefix + "." if prefix != "" else ""	#We do not blindly add the dot if the incoming prefix is blank
-	
+
+	variableName = variableDeclarationsEntry[0]
+	variableSize = variableDeclarationsEntry[1]
+	variableIsDynamic = variableDescription["isDynamic"]
+	'''
 	selectedVariable = deepCopy(variableDeclarations[variableId])
 	if isinstance(variableIdOrDescription, dict):
 		selectedVariable[4] = variableIdOrDescription
@@ -13086,6 +13098,7 @@ def addVariableToUnraveled(level, variableIdOrDescription, prefix, offset, unrav
 	variableSize 					= selectedVariable[1]	# May be dynamic
 	variableDescription 			= selectedVariable[4]	# May be dynamic
 	variableIsDynamic				= selectedVariable[4]["isDynamic"]
+	'''
 	variableBaseType				= variableDescription["baseType"]	# For a declaration like int * pInt; baseType is int, but datatype is pointer
 	variableDatatype				= variableDescription["datatype"]   # That's the difference between baseType and datatype
 	if variableDescription["isArray"] and variableDescription["arrayDimensions"][0]==['TBD']: 
@@ -13227,7 +13240,7 @@ def addVariableToUnraveled(level, variableIdOrDescription, prefix, offset, unrav
 			# Either ALL the array elements gets added and their individual values calcualted, or none. So, doing it collectively in one go is fine.
 			# This is different from struct, because in case of a struct we may not execute all the struct members due to runtime conditions.
 			
-			addVariableToUnraveledResult = addVariableToUnraveled(level+1, variableDescription, arrayElementIndexDescription, elementOffset, unraveledSupplied, ancestry, True, speculativeArrayDimensions)
+			addVariableToUnraveledResult = addVariableToUnraveled(level+1, variableDeclarationsEntry, arrayElementIndexDescription, elementOffset, unraveledSupplied, ancestry, True, speculativeArrayDimensions)
 			if addVariableToUnraveledResult == False:
 				errorMessage = "ERROR in addVariableToUnraveled() - for array variable " + variableName + ", encountered error while trying to add the array element "+arrayElementIndexDescription
 				errorRoutine(errorMessage)
@@ -13361,7 +13374,7 @@ def addVariableToUnraveled(level, variableIdOrDescription, prefix, offset, unrav
 				modifiedOffsetValue = offset if structMemberDescription["isBitField"] else offset + offsetWithinStruct
 
 				PRINT("Calling addVariableToUnraveled(level="+STR(level+1)+", structMemberVariableId="+ STR(structMemberVariableId) + "("+structMemberVariableName+"), modifiedPrefix=" + modifiedPrefix,", modifiedOffsetValue ="+STR(modifiedOffsetValue)+", unraveledSupplied, ancestryStructMember =",STR(ancestry+[variableId]),")")
-				addVariableToUnraveledResult = addVariableToUnraveled(level+1, structMemberDescription, modifiedPrefix, modifiedOffsetValue, unraveledSupplied, ancestry+[variableId])
+				addVariableToUnraveledResult = addVariableToUnraveled(level+1, structMember, modifiedPrefix, modifiedOffsetValue, unraveledSupplied, ancestry+[variableId])
 				
 				if addVariableToUnraveledResult == False:
 					errorMessage = "ERROR in addVariableToUnraveled(): calling addVariableToUnraveled("+STR(level+1)+", "+ STR(structMemberVariableId) + ", " + modifiedPrefix + ", "+STR(modifiedOffsetValue)+", unraveledSupplied"+STR(ancestry+[variableId])+")"
@@ -13619,6 +13632,7 @@ def addVariableToUnraveled(level, variableIdOrDescription, prefix, offset, unrav
 	PRINT("\n\n","--"*100,"\nreturning the following unraveledSupplied from addVariableToUnraveled(level=",level,", variableId=",variableId," (",variableName,")...)\n","--"*100)
 	for row in unraveledSupplied:
 		PRINT(row)
+	PRINT("\nReturning from addVariableToUnraveled(level=",level,", variableId=",variableId," (",variableName,"), initResult =","True" if initResult else "False" if initResult == False else "None" if initResult == None else "Garbage")
 	return [unraveledSupplied, initResult]
 
 
@@ -15943,7 +15957,12 @@ def populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize():
 
 		# From this point, we are not dealing with #RUNTIME statements	
 		variableId = statementOrVarIdOrStructId[n]
-		
+		if variableDeclarations[variableId][4]["isDynamic"]:
+			variableDeclarationsEntry = deepCopy(variableDeclarations[variableId])
+		else:	# Regular
+			variableDeclarationsEntry = 		 variableDeclarations[variableId]
+
+		speculativeArrayDimensions = []
 		
 		PRINT("\n\nInside populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize(), for n =",n, ", variableId =",variableId,", statementOrVarIdOrStructId =",statementOrVarIdOrStructId)
 		
@@ -16163,12 +16182,14 @@ def populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize():
 							PRINT("identifierRecord has changed - restoring it")
 							identifierRecord = deepCopy(localVariables["identifierRecord"])
 
+						speculativeArrayDimensions = [[speculativeValue]]+variableDeclarations[variableId][4]["arrayDimensions"][1:]
+						
 					else:
 						# The stack is not empty, but the top entry is not what we expect. So, it is the first time; Save the current execution state
 #						PRINT("The blankArrayDimensionStack[] is not empty, but the top of the blankArrayDimensionStack now has NO speculative array dimension for the blank array variable",variableDeclarations[blankDimensionArrayVariableId][0])
 						PRINT("The executionStateStack[] is not empty, but the top of the executionStateStack now has NO speculative array dimension for the blank array variable",variableDeclarations[blankDimensionArrayVariableId][0])
 						speculativeValue = 1
-						speculativeArrayDimensions = [[speculativeValue]]+structDetails["components"][N][4]["arrayDimensions"][1:]
+						speculativeArrayDimensions = [[speculativeValue]]+variableDeclarations[variableId][4]["arrayDimensions"][1:]
 						PRINT("\n\n","///"*50,"\n","\t"*8, "speculativeValue =",speculativeValue,"\n","\\\\\\"*50,"\n\n")
 						saveExecutionState(identifierRecord, speculativeValue, locals())
 						executionStateStack[-1]["callerFunctionName"] = "populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize()"
@@ -16178,7 +16199,7 @@ def populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize():
 #					PRINT("The blankArrayDimensionStack[] is currently empty, so obviously the top of the blankArrayDimensionStack now has NO speculative array dimension for the blank array variable",variableDeclarations[blankDimensionArrayVariableId][0])
 					PRINT("The executionStateStack[] is currently empty, so obviously the top of the executionStateStack now has NO speculative array dimension for the blank array variable",variableDeclarations[blankDimensionArrayVariableId][0])
 					speculativeValue = 1
-					speculativeArrayDimensions = [[speculativeValue]]+structDetails["components"][N][4]["arrayDimensions"][1:]
+					speculativeArrayDimensions = [[speculativeValue]]+variableDeclarations[variableId][4]["arrayDimensions"][1:]
 					PRINT("\n\n","///"*50,"\n","\t"*8, "speculativeValue =",speculativeValue,"\n","\\\\\\"*50,"\n\n")
 #					saveExecutionState(locals())
 					saveExecutionState(identifierRecord, speculativeValue, locals())
@@ -16193,16 +16214,17 @@ def populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize():
 		PRINT("For selected variableId =",STR(variableId),", variable name =",variableName,"calling addVariableToUnraveled(0,",variableId,'"", dataLocationOffsetForCurrentSetOfVariables =',dataLocationOffsetForCurrentSetOfVariables,", unraveled)")
 		PRINT("\nBefore invoking addVariableToUnraveled(0,",variableId,'"", dataLocationOffsetForCurrentSetOfVariables =',dataLocationOffsetForCurrentSetOfVariables,", unraveled), unraveled =")
 		printUnraveled(unraveled)
-		
+		PRINT("Passing speculativeArrayDimensions =",speculativeArrayDimensions)
 		# Add this to unraveled
-		addVariableToUnraveledResult = addVariableToUnraveled(0, variableId, "", dataLocationOffsetForCurrentSetOfVariables, unraveled)
+		addVariableToUnraveledResult = addVariableToUnraveled(0, variableDeclarationsEntry, "", dataLocationOffsetForCurrentSetOfVariables, unraveled, [], False, speculativeArrayDimensions)
 		if addVariableToUnraveledResult == False:
 			errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize(): Error after calling addVariableToUnraveled() with variableId = "+STR(variableId)
 			errorRoutine(errorMessage)
 			return False
 		else:
 			unraveled = addVariableToUnraveledResult[0]
-			initResult = False if initResult == False else addVariableToUnraveledResult[1] if addVariableToUnraveledResult[1] in (True, False) else initResult
+			initResult = addVariableToUnraveledResult[1]
+		PRINT("After calling addVariableToUnraveled() for",variableName," (variableId =",variableId,", speculativeArrayDimensions =",speculativeArrayDimensions, ", initResult = ", "True" if initResult else "False")
 		
 		PRINT("\nAfter invoking addVariableToUnraveled(0,",variableId,'"", dataLocationOffsetForCurrentSetOfVariables =',dataLocationOffsetForCurrentSetOfVariables,", unraveled), unraveled =")
 		printUnraveled(unraveled)
@@ -18267,8 +18289,8 @@ class MainWindow:
 #					addrEnd   = hex(unraveled[N][4]-1) + "." + STR((unraveled[N][2]["bitOffsetWithinStruct"]+unraveled[N][2]["bitFieldWidth"]-1)%BITS_IN_BYTE)
 					addrEnd   = hex(unraveled[N][3]+bit2Byte((unraveled[N][2]["bitOffsetWithinStruct"]%BITS_IN_BYTE)+unraveled[N][2]["bitFieldWidth"]-1))+"." + STR((unraveled[N][2]["bitOffsetWithinStruct"]+unraveled[N][2]["bitFieldWidth"]-1)%BITS_IN_BYTE)
 					
-					MUST_PRINT("\n\n\n\n\n\n\n","===="*50,"\n","***"*50,"\n","===="*50,"\n\n\n\n")
-					MUST_PRINT("For variable",variableDeclarations[unraveled[N][8][-1]][0],"unraveled[N][3] =",unraveled[N][3], "unraveled[N][4] =",unraveled[N][4], "addrStart =",addrStart,", addrEnd =",addrEnd)
+					PRINT("\n\n\n\n\n\n\n","===="*50,"\n","***"*50,"\n","===="*50,"\n\n\n\n")
+					PRINT("For variable",variableDeclarations[unraveled[N][8][-1]][0],"unraveled[N][3] =",unraveled[N][3], "unraveled[N][4] =",unraveled[N][4], "addrStart =",addrStart,", addrEnd =",addrEnd)
 					'''
 					addrStartOld = hex(unraveled[N][3]+integerDivision(unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexStart"],BITS_IN_BYTE)) + "." + STR(unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexStart"]%BITS_IN_BYTE)
 					addrEndOld = hex(unraveled[N][3]+integerDivision(unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexEndInclusive"],BITS_IN_BYTE)) + "." + STR(unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexEndInclusive"]%BITS_IN_BYTE)
