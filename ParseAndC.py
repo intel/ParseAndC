@@ -598,6 +598,7 @@
 # 2022-04-25 - Before changing the way we might load internal data.
 # 2022-04-25 - Before passing variableDescription to addVariableToUnraveled().
 # 2022-04-06 - Added the demo part.
+# 2022-04-06 - Before removing the #RUNTIME.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -950,8 +951,9 @@ demoCode = [
 #
 [
 'struct dynamic_struct {\n',
-'  int num_tax_filers;\n',
-'#RUNTIME if num_tax_filers == 1 \n',
+'//Fliing status is 1 for single, 0 for joint \n',
+'  unsigned int filing_status;\n',
+'#RUNTIME if filing_status & 1 == 1 \n',
 '  int income;\n',
 '#RUNTIME else \n',
 '  int incomeSpouseA; \n',
@@ -978,10 +980,10 @@ demoCode = [
 #
 #
 [
+'\n',
+'int fiiler_junk[]; // No dimension specified\n'
+'\n',
 'struct Initialization_tester {\n',
-'\n',
-'  int fiiler_junk[]; // No dimension specified\n'
-'\n',
 '  int preamble; \n',
 '  int magic_number=0x0400FEFF;\n',
 '  int size; \n',
@@ -1995,10 +1997,12 @@ def calculateArrayIndicesFromPosition(arrayDimensions, position):
 	
 #	PRINT ("inside calculateArrayIndices(arrayDimensions=",arrayDimensions, "position=",position,")" )
 	if not isinstance(arrayDimensions,list):
-		PRINT ("ERROR: Illegal input array dimension value",arrayDimensions )
+		errorMessage = "ERROR: Illegal input array dimension value = "+STR(arrayDimensions)
+		errorRoutine(errorMessage)
 		return False
 	elif (not isinstance(position,int)) or (position < 0):	
-		PRINT ("ERROR: Illegal input array position value",position )
+		errorMessage = "ERROR: Illegal input array position value of "+STR(position)
+		errorRoutine(errorMessage)
 		return False
 	else:
 		totalCount = 1
@@ -2008,7 +2012,8 @@ def calculateArrayIndicesFromPosition(arrayDimensions, position):
 		for i in range(len(arrayDimensionsReversed)):
 			d = arrayDimensionsReversed[i]
 			if (not isinstance (d, int)) or (d <1):
-				PRINT ("ERROR: Illegal input array dimension value",d )
+				errorMessage = "ERROR: Illegal input array dimension value of "+STR(d)
+				errorRoutine(errorMessage)
 				return False
 			else:
 				totalCount *= d
@@ -2019,7 +2024,8 @@ def calculateArrayIndicesFromPosition(arrayDimensions, position):
 				cumulativeProduct *= d
 				
 		if position >= totalCount:
-			PRINT ("ERROR: Illegal input array position value", position," - it cannot be bigger than", totalCount-1, "for array dimensions",arrayDimensions )
+			errorMessage = "ERROR: Illegal input array position value "+STR(position)+" - it cannot be bigger than "+STR(totalCount-1)+" for array dimensions "+STR(arrayDimensions)
+			errorRoutine(errorMessage)
 			return False
 	
 		arrayDimensionSizes = reverseIndex[::-1]
@@ -2034,7 +2040,8 @@ def calculateArrayIndicesFromPosition(arrayDimensions, position):
 #		PRINT ("For arrayDimensions =",arrayDimensions,"position=",position,"arrayIndices =",arrayIndices )
 
 		if position != calculateArrayPositionFromIndices(arrayDimensions, arrayIndices):
-			PRINT ("ERROR!!!For arrayDimensions =",arrayDimensions,"position=",position,"calculated arrayIndices =",arrayIndices,"does not match" )
+			errorMessage = "ERROR!!!For arrayDimensions = "+STR(arrayDimensions)+" position = "+STR(position)+" calculated arrayIndices = "+STR(arrayIndices)+" does not match"
+			errorRoutine(errorMessage)
 			return False
 		else:
 			return arrayIndices
@@ -2049,28 +2056,35 @@ def calculateArrayPositionFromIndices(arrayDimensions, arrayIndices):
 	
 #	PRINT ("inside calculateArrayPositionFromIndices(arrayDimensions=",arrayDimensions, "arrayIndices=",arrayIndices,")" )
 	if (not isinstance(arrayDimensions,list)) or (not isinstance(arrayIndices,list)):
-		PRINT ("ERROR: Illegal value for input array dimension (",arrayDimensions,") or index (",arrayIndices,")" )
+		errorMessage = "ERROR: Illegal value for input array dimension ("+STR(arrayDimensions)+") or index ("+STR(arrayIndices)+")"
+		errorRoutine(errorMessage)
 		return False
 	elif len(arrayDimensions) != len(arrayIndices):
-		PRINT ("ERROR: Length of input array dimension (",arrayDimensions,") does not match length of array index length(",arrayIndices,")" )
+		errorMessage = "ERROR: Length of input array dimension ("+STR(arrayDimensions)+") does not match length of array index length("+STR(arrayIndices)+")"
+		errorRoutine(errorMessage)
 		return False
 	else:
 		for i in range(len(arrayDimensions)):
 			if not isinstance(arrayDimensions[i], int):
-				PRINT ("ERROR: non-integral array dimension (",arrayDimensions,") " )
+				errorMessage = "ERROR: non-integral array dimension ("+STR(arrayDimensions)+") "
+				errorRoutine(errorMessage)
 				return False
 			elif arrayDimensions[i] <1:
-				PRINT ("ERROR: array dimension size must at least be 1 - arrayDimensions[",i,"] =",arrayDimensions[i] )
+				errorMessage = "ERROR: array dimension size must at least be 1 - arrayDimensions["+STR(i)+"] ="+STR(arrayDimensions[i])
+				errorRoutine(errorMessage)
 				return False
 		for i in range(len(arrayIndices)):
 			if not isinstance(arrayIndices[i], int):
-				PRINT ("ERROR: non-integral array index (",arrayIndices,") " )
+				errorMessage="ERROR: non-integral array index ("+STR(arrayIndices)+") "
+				errorRoutine(errorMessage)
 				return False
 			elif arrayIndices[i] <0:
-				PRINT ("ERROR: array index must at least be 0 - currently, arrayIndices[",i,"] =",arrayIndices[i] )
+				errorMessage = "ERROR: array index must at least be 0 - currently, arrayIndices["+STR(i)+"] ="+STR(arrayIndices[i])
+				errorRoutine(errorMessage)
 				return False
 			elif arrayIndices[i] >= arrayDimensions[i]:
-				PRINT ("ERROR: array index ", arrayIndices[i]," cannot be numerically equal or bigger than its dimension size (",arrayDimensions[i],") " )
+				errorMessage = "ERROR: array index "+STR(arrayIndices[i])+" cannot be numerically equal or bigger than its dimension size ("+STR(arrayDimensions[i])+") "
+				errorRoutine(errorMessage)
 				return False
 				
 		cumulativeProduct = 1
@@ -12028,8 +12042,9 @@ def terminalVariableId (variableId):	# variableId is the variable with a blank d
 			if variableDeclarations[v][4]["isInitialized"]:	# Take the very first variable with an initialization specified and return that
 				PRINT("For input variable",variableDeclarations[variableId][0],"( variable id =",variableId,"), the terminal variable is",variableDeclarations[v][0],"(variable id =",v,")")
 				return v
-		errorMessage = "ERROR in terminalVariableId() - could not find any terminal initialization condition for the passed variableId <%s> (variable name <%s>)"%(STR(variableId),variableDeclarations[variableId][0])
-		errorRoutine(errorMessage)
+		warningMessage = "Could not find any terminal initialization condition for the passed variable "+variableDeclarations[variableId][0]+" - which means it will not stop mapping until the whole data is exhausted!"
+		if not IN_DEMO:
+			warningRoutine(warningMessage)
 		return False
 #########################################################################################################################################################
 # This routine returns an ancestry history for a variable. The returned ancestry list starts with a global variable and ends with the given variableId
@@ -13103,9 +13118,11 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 	variableDatatype				= variableDescription["datatype"]   # That's the difference between baseType and datatype
 	if variableDescription["isArray"] and variableDescription["arrayDimensions"][0]==['TBD']: 
 		if not speculativeArrayDimensions or not isinstance(speculativeArrayDimensions,list):
-			errorMessage = "ERROR in addVariableToUnraveled(): For variableName "+variableName+", array dimension is "+STR(variableDescription["arrayDimensions"])+", but no speculativeArrayDimensions is supplied"
-			errorRoutine(errorMessage)
-			return False
+			if not arrayAlreadyUnraveled:	# We only flash this warning once
+				warningMessage = "For variableName "+variableName+", array dimension is unspecified, but no speculativeArrayDimensions is supplied."	\
+								+"\n\nWhich means, we will treat variableName "+variableName+" as an infinite array and keep mapping it until there is no more data to map."
+				warningRoutine(warningMessage)
+				variableDescription["arrayDimensions"][0] = LARGE_POSITIVE_NUMBER		# Basically, infinity
 		elif not checkIfIntegral(speculativeArrayDimensions[0][0]) or speculativeArrayDimensions[0][0] <0:
 			errorMessage = "ERROR in addVariableToUnraveled(): For variableName "+variableName+", array dimension is "+STR(variableDescription["arrayDimensions"])+", but the supplied speculativeArrayDimensions ("+STR(speculativeArrayDimensions[0][0])+")is illegal"
 			errorRoutine(errorMessage)
@@ -13150,13 +13167,14 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 			if checkIfIntegral(dimension):
 				PRINT("For variable",variableId,"(",variableName,") array dimension", dimension,"is integral - no need to evaluate")
 				continue
-			elif dimension == "TBD":
+			elif dimension == LARGE_POSITIVE_NUMBER or dimension == ['TBD']:		# Basically, infinity:
 				if arrayIndex != 0:
 					errorMessage = "ERROR in addVariableToUnraveled() - array index of 'TBD' only allowed as the first dimension (arrayDimensions = %s)"%STR(arrayDimensions)
 					errorRoutine(errorMessage)
 					return False
 				else:
 					PRINT("For variable",variableId,"(",variableName,"), we have a 'TBD' array dimension, so we will be doing speculative execution on that one")
+					arrayDimensions[arrayIndex] = LARGE_POSITIVE_NUMBER		# Basically, infinity
 					continue
 			else:
 				PRINT("For variable",variableId,"(",variableName,") array dimension", dimension,"is NOT integral - need to evaluate")
@@ -13183,14 +13201,14 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				
 		
 		# Once possible dynamic values have been resolved, plug it back to the local copy of variableDescription immediately
+		PRINT("After resolving possible runtime values, arrayDimensions =",arrayDimensions,", and speculativeArrayDimensions =","None" if speculativeArrayDimensions == None else speculativeArrayDimensions)
 		variableDescription["arrayDimensions"] = arrayDimensions
-		listItemsProductResult = listItemsProduct(arrayDimensions)	# Now, arrayDimensions must have all resolved, integral values. Only hard constants, no more variables
-		if listItemsProductResult == False:
-			errorMessage = "ERROR in addVariableToUnraveled("+STR(level+1)+", "+ STR(variableId) + ", " + prefix + ", "+STR(ffset)+","+STR(ancestry),", unraveledSupplied) - for array variable "+variableName+", we have indeterminate dimensions: "+STR(arrayDimensions)
+		totalNumberOfArrayElements = listItemsProduct(arrayDimensions)	# Now, arrayDimensions must have all resolved, integral values. Only hard constants, no more variables
+		if totalNumberOfArrayElements == False:
+			errorMessage = "ERROR in addVariableToUnraveled("+STR(level+1)+", "+ STR(variableId) + ", " + prefix + ", "+STR(offset)+","+STR(ancestry),", unraveledSupplied) - for array variable "+variableName+", we have indeterminate dimensions: "+STR(arrayDimensions)
 			errorRoutine(errorMessage)
 			return False
-		totalNumberOfArrayElements = listItemsProductResult
-		dimensionsText = STR(arrayDimensions[0])
+		dimensionsText = "infinite" if arrayDimensions[0] == LARGE_POSITIVE_NUMBER else STR(arrayDimensions[0])
 		for d in range(1,len(arrayDimensions)):
 			dimensionsText += " X "+ STR(arrayDimensions[d])
 		dataTypeText = "unsigned" + " " + variableDatatype if variableDatatype != "pointer" and variableDescription["signedOrUnsigned"] == "unsigned" else variableDatatype
@@ -13207,8 +13225,12 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 			unraveledSupplied.append([level,arrayDescriptionText,variableDescription, offset, "","","","", ancestry+[variableId]])	# Must be updated later.
 		rowNumberOfArrayHeaderRowWithBlankEndAddr = len(unraveledSupplied)-1	# We need to note this so that we can come back later to update this row
 		PRINT("Kept a note of the header row #",rowNumberOfArrayHeaderRowWithBlankEndAddr,"for  variable" + variableName)
-		
-		for position in range(totalNumberOfArrayElements):
+
+		position = 0
+		while True:
+			PRINT("position = ",position)
+			if position >= totalNumberOfArrayElements:
+				break
 			arrayIndices = calculateArrayIndicesFromPosition(arrayDimensions, position)
 			arrayIndicesCStyle = ""	# We convert the [i,j,k] to C-style [i][j][k]
 			for item in arrayIndices:
@@ -13231,6 +13253,9 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				else:
 					maxEndAddrInUnraveledSupplied = minOrMaxValueInColumnResult[1]
 					elementOffset = maxEndAddrInUnraveledSupplied
+					PRINT("maxEndAddrInUnraveledSupplied = ",maxEndAddrInUnraveledSupplied, ", dataFileSizeInBytes =",dataFileSizeInBytes)
+					if arrayDimensions[0] == LARGE_POSITIVE_NUMBER and maxEndAddrInUnraveledSupplied >= dataFileSizeInBytes:
+						break
 	
 			# For an array, we have to directly add ALL the array elements to unraveled right here. Why can't we call addVariableToUnraveled() recursively?
 			# That's because, when we will pass the variableId to addVariableToUnraveled(), it will again see that variableId is an array, so we will get
@@ -13247,8 +13272,11 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				return False
 			else:
 				unraveledSupplied = addVariableToUnraveledResult[0]
+				PRINT("Last unraveled row added was row #",len(unraveledSupplied)," =\n", unraveledSupplied[-1])
 				initResult = False if initResult == False else addVariableToUnraveledResult[1] if addVariableToUnraveledResult[1] in (True, False) else initResult
 
+			position += 1	# Increment the loop counter
+			
 		# Where the array element itself is of variable size, we go back and update the array header row with the max end Addr
 #		if not checkIfIntegral(arrayElementSize) or variableIsDynamic:
 		if unraveledSupplied[rowNumberOfArrayHeaderRowWithBlankEndAddr][4] == "":	# The end addr column for the array header row is blank
@@ -13461,7 +13489,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 		if variableSize != primitiveDatatypeLength[variableDatatype]:
 			EXIT("\n\nERROR in addVariableToUnraveled() - for variable", variableName,"( variableId =",variableId,"), variableSize (",variableSize,") != primitiveDatatypeLength[variableDatatype=",variableDatatype,"] = ",primitiveDatatypeLength[variableDatatype],"\n\n")
 		else:
-			OUTPUT("\n\nFor variable", variableName,"( variableId =",variableId,"), variableSize (",variableSize,") == primitiveDatatypeLength[variableDatatype=",variableDatatype,"] = ",primitiveDatatypeLength[variableDatatype],"\n\n")
+			PRINT("\n\nFor variable", variableName,"( variableId =",variableId,"), variableSize (",variableSize,") == primitiveDatatypeLength[variableDatatype=",variableDatatype,"] = ",primitiveDatatypeLength[variableDatatype],"\n\n")
 
 		
 	else:
@@ -14829,9 +14857,9 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 		if item[4]["isArray"] and item[4]["arrayDimensions"][0]==['TBD']:
 			partner = terminalVariableId(k)
 			if partner == False:
-				errorMessage = "Error in parseCodeSnippet(): for blank-dimension array variable "+ item[0] + ", could not find the corresponding initialization condition"
-				errorRoutine(errorMessage)
-				return False
+				warningMessage = "Warning: for blank-dimension array variable "+ item[0] + ", could not find the corresponding terminating initialization condition"
+				warningRoutine(warningMessage)
+				break
 			siblingAncestors = findSiblingAncestors(k)
 			if siblingAncestors == False:
 				errorMessage = "Error in parseCodeSnippet(): for blank-dimension array variable "+ item[0] + ", could find the partner variable "+variableDeclarations[partner][0]+"(variable id of "+STR(partner)+") corresponding initialization condition, but failed to find their ancestors that are siblings"
@@ -15602,7 +15630,7 @@ def checkIfDataFileIsValidAndGetItsLength(dataFileNameInput):
 		else:
 			dataFileSizeInBytes = os.path.getsize(dataFileName)
 		return True
-	else:
+	elif dataFileNameInput:
 		OUTPUT ("dataFileName = ",dataFileNameInput,"is not valid - exiting!")
 		return False
 
@@ -18185,7 +18213,8 @@ class MainWindow:
 				
 			if inputIsHexChar:
 				warningMessage = "It appears that the input file is not a binary but rather a text file containing Hex representation of of binary data. Treating it accordingly."
-				warningRoutine(warningMessage)
+				if not IN_DEMO:
+					warningRoutine(warningMessage)
 			
 			self.dataOffsetEntry.config(state=tk.NORMAL)
 			self.fileOffsetEntry.config(state=tk.NORMAL)
@@ -18951,17 +18980,29 @@ class MainWindow:
 		global IN_DEMO
 		IN_DEMO = True
 		# 1.0 features
-		warningMessage = "First we are going to use an arbitrary datastream to be parsed (contained within this program). Press OK to continue."
+		warningMessage = "First we are going to demonstrate the ParseAndC 1.0 features. \n\n(This is for users who may not be familiar with this tool beforehand)."		\
+						+"\n\nThere will be a lot of pop-up messages, but I would really appreciate if you actually read the entirety of those messages before "		\
+						+"pressing the OK to continue."
+		warningRoutine(warningMessage)
+		warningMessage = "The biggest problem with writing a C parser is that even when you use the correct input data format (a C structure), there is no guarantee that "	\
+						+"the parser's output will be correct. This is because while C allows to read a whole structure in one go, it does not have any function that can "	\
+						+"print all the contents of a structure individually - one must manually write individual printf() statements for each struct member "				\
+						+"(and do it recursively if the struct member is a struct itself)."																					\
+						+"\n\nThis process is error-prone. What we want is a way where just by giving a correct input structure, we are somehow guaranteed to be able to "	\
+						+"see all the individual struct member values correctly.\n\nThis is not a trivial problem, and it is exactly what we solved in 1.0 version."
+		warningRoutine(warningMessage)
+		warningMessage = "Let's see that in action. First we are going to use an arbitrary datastream to be parsed (contained within this program). \n\nPress OK to continue."
 		warningRoutine(warningMessage)
 		demoIndex = 0
 		self.openDataFile(demoIndex)
-		warningMessage = "Next we are going to use some code as the input format of the datastream to be parsed. Press OK to continue."
+		warningMessage = "You can see that the datastream has been loaded on the Data windows on the right. "		\
+						+"\n\nNext we are going to use some code as the input format of the datastream to be parsed. \n\nPress OK to continue."
 		warningRoutine(warningMessage)
 		self.openCodeFile(demoIndex)
-		warningMessage = "Now that you can see the code on the left and the data on the right, we are going to interpret the code. Press OK to continue."
+		warningMessage = "Now that you can see the code on the left and the data on the right, we are going to interpret the code. \n\nPress OK to continue."
 		warningRoutine(warningMessage)
 		self.interpret()
-		warningMessage = "Now that you can see the interpreted code in the middle window, we are going to map the interpreted code to the data. Press OK to continue."
+		warningMessage = "Now you can see the interpreted code in the middle window, we are going to map the interpreted code to the data. Press OK to continue."
 		warningRoutine(warningMessage)
 		self.mapStructureToData()
 		warningMessage = "We map the data format from the offset of 0 by default. Of course, we can change that. Let's see what happens when we map it from one-fourth of a Kilobyte. You can specify this in any format, as pure 256, or 0x100, or even 1KB/4, which is very much human readable. Press OK to continue."
@@ -18975,20 +19016,24 @@ class MainWindow:
 #		warningRoutine(warningMessage)
 #		self.interpretedCodeText.see("1000.0")
 #		self.interpretedCodeText.see("65.0")
-		warningMessage = "Once all these warning windows go away, take your cursor above various colored items in the interpreted code window and the data window and see how the Description, Address and Values are shown below. \nAlso, play with the Expand/Collapse buttons to see the internals of the mapped variables.\nTo end this Demo, press the \"Clear Demo\" button. Press OK to continue."
+		warningMessage = "At the end of the demo (not now), once all these warning windows go away, you will be able to take your cursor above various colored items in the interpreted code window "		\
+						+"and the data window and see how the Description, Address and Values are shown below. \n\nYou will also be able to play with the Expand/Collapse buttons to see the "	\
+						+"internals of the mapped variables.\n\nPress OK to continue."
 		warningRoutine(warningMessage)
 		
 		# 2.0 features
 		self.clearDemo()
 
 		warningMessage = "Till now, what you saw was ParseAndC 1.0 features. Next we are going to show you 2.0 features." 		\
-						+"\n\nWe will first summarize the changes at the beginning, and then go through demo of each feature one by one. Please bear with me for a few more clicks. Press OK to continue."
+						+"\n\nWe will first summarize the deltas (new features), and then go through demo of each feature one by one. "	\
+						+"\n\nPlease bear with me for a few more clicks. Press OK to continue."
 		warningRoutine(warningMessage)
-		warningMessage = "We make a rather tall claim with ParseAndC 2.0 - whatever you can do in a regular C program for parsing, you can do it via sheer Structure definition alone - NO separate parser program needed."
+		warningMessage = "We make a rather tall claim with ParseAndC 2.0 - whatever we can do in a regular C program for parsing, we can do it via sheer Structure "	\
+						+"definition alone - NO separate parser program needed. \n\nSounds crazy, right?"
 		warningRoutine(warningMessage)
 		warningMessage = "How is that even possible? In a C program, we can do stuff that is not possible to do statically. For example, while parsing a network packet, "	\
-						+"we might first parse the field designating the packet header length, and only after we deduce the header length, "									\
-						+"we know how many more bytes to read for decoding the full header. How would we do that statically, by a single structure definition alone?"
+						+"we might first parse the field designating the packet header length, and only after we deduce the header length, "								\
+						+"we get to know how many more bytes to read for decoding the full header. How would we do that statically, by a single structure definition alone?"
 		warningRoutine(warningMessage)
 		warningMessage = "With ParseAndC 2.0, we introduce the concept of \"Dynamic\" structures. They look very much like C structures, with some hidden extra powers." 	\
 						+"\n\n1) The biggest difference is, anything that is supposed to be a constant in a C structre (like array dimension, bitfield width etc.) "	\
@@ -19016,11 +19061,11 @@ class MainWindow:
 		demoIndex = 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "Look that the array dimension of packet_data is packet_length, which is the previous struct member. We cannot do this in C structure."
+		warningMessage = "Example 1: Variable-length array\n\nLook that the array dimension of packet_data is packet_length, which is the previous struct member. We cannot do this in C structure."
 		warningRoutine(warningMessage)
 		self.interpret()
 		self.mapStructureToData()
-		warningMessage = "You can see that inside the data, the size of the packet_data is indeed designated by the value of packet_length"
+		warningMessage = "You can see that inside the data, the size of the packet_data is indeed designated by the value of packet_length ("+STR(getRuntimeValue(['packet_length'])[1])+")"
 		warningRoutine(warningMessage)
 
 		self.clearDemo()
@@ -19029,27 +19074,31 @@ class MainWindow:
 		demoIndex = 2
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "Look that the bitfield width (num_flags) for the struct member variable bit_flags - it comes from the previous struct member variable. We cannot do this in C structure."
+		warningMessage = "Example 2: Variable-width bitfield. \n\nLook that the bitfield width (num_flags) for the struct member variable bit_flags - it comes from the "	\
+						+"previous struct member variable num_flags. \n\nWe cannot do this in C structure."
 		warningRoutine(warningMessage)
 		self.interpret()
 		self.mapStructureToData()
-		warningMessage = "You can see that inside the data, the size of the bit_flags is indeed designated by the value of num_flags"
+		warningMessage = "You can see that inside the data, the size of the bit_flags is indeed designated by the value of num_flags ("+STR(getRuntimeValue(['num_flags'])[1])+")."
 		warningRoutine(warningMessage)
 
 		self.clearDemo()
+		warningMessage = "Now let's look at some branching capability, where the same strucure may contain different set of member variables at runtime."
+		warningRoutine(warningMessage)
 		
 		# Dynamic addition and removal struct members (runtime commands similar to preprocessor commands)
 		demoIndex = 3
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "Look that the num_tax_filers field. Based on its value, we are choosing which struct members will come next. We cannot do this in C structure."
+		warningMessage = "Example 3: Branching using #RUNTIME commands.\n\nLook that the filing_status field. Based on its value, we are choosing which struct members "	\
+						+"will come next. We cannot do this in C structure."
 		warningRoutine(warningMessage)
 		self.interpret()
 		self.mapStructureToData()
-		warningMessage = "Let's change the mapping offset so that we can see how the other branch of the branch condition also gets executed."
+		warningMessage = "As you can see, only one side of the decision tree got executed. \n\nLet's change the mapping offset so that we can see how the other branch of the branch condition also gets executed."
 		warningRoutine(warningMessage)
-		self.dataOffsetEntry.insert(tk.END,"16")
-		self.dataOffset.set(16)
+		self.dataOffsetEntry.insert(tk.END,"4")
+		self.dataOffset.set(4)
 		self.mapStructureToData()
 		warningMessage = "So, the same structure can now behave differently based on the runtime data. Who would have thunk!!"
 		warningRoutine(warningMessage)
@@ -19064,28 +19113,36 @@ class MainWindow:
 		self.dataOffset.set(0)
 		warningMessage = "In C, when we declare a variable, we can initialialize it to a value. \n\nHowever, when we declare a C struct for parsing (reading) some data, initialization makes no sense (as there is no writing involved).\n\nPress OK to continue."
 		warningRoutine(warningMessage)
-		warningMessage = "We turn the tables here. We use the \"initialization\" as \"verification\", i.e., if a variable A is initialized to some value V in the struct definition, we expect A to have the value of V after parsing. If not, a warning will be issued. \n\nNow that you can see the code on the left and the data on the right, we are going to interpret the code. Press OK to continue."
+		warningMessage = "We turn the tables here. We use the \"initialization\" as \"verification\", i.e., if a variable A is initialized to some value V in the struct definition, we expect A to have the value of V after parsing. If not, a warning will be issued. \n\nNow that you can see the code on the left and the data on the right, we are going to interpret the code."
 		warningRoutine(warningMessage)
 		self.interpret()
 		warningMessage = "Now that you can see the interpreted code in the middle window, we are going to map the interpreted code to the data. If the initialized variable here (magic_number) does not have the intended value in the parsed data, it will throw warnings."
 		warningRoutine(warningMessage)
 		self.mapStructureToData()
-		warningMessage = "As you saw, the initialization value check did not succeed. But observe that we were mapping the data from the wrong offset 0. If we had mapped it from the correct offset (16), the magic number would have gotten its right value. Let's remap from offset 0x10 and see."
+		warningMessage = "As you saw, the initialization value check did not succeed. But observe that we were mapping the data from the wrong offset (0). If we had mapped it "	\
+						+"from the correct offset (16), the magic number would have gotten its right value. \n\nLet's re-map from offset 0x10 and see if that indeed happens."
 		warningRoutine(warningMessage)
+		self.dataOffsetEntry.delete(0, tk.END)
 		self.dataOffsetEntry.insert(tk.END,"16")
 		self.dataOffset.set(16)
 		self.mapStructureToData()
-		warningMessage = "Now we see that the magic_number indeed has the initialization value (so no warning popped up). Press OK to continue."
+		warningMessage = "Now we see that the magic_number indeed has the initialization value (so no warning popped up)."
 		warningRoutine(warningMessage)
 		
 		# Variable-length arrays (speculative execution)
 		demoIndex = 5
-		warningMessage = "However, this required us to know apriori exactly where the starting offset of the data would be. \n\nWould it not be nice if we could tell the tool - hey, find the offset yourself so that this field has this intended value?"
+		warningMessage = "However, this required us to know apriori exactly where the starting offset of the data would be. \n\nWould it not be nice if we could tell "		\
+						+"the tool - hey, find the offset yourself so that this field has this intended value?"
 		warningRoutine(warningMessage)
-		warningMessage = "That is precisely what we achieve here. We introduce variable-length arrays, like \"int i [ ];\" where we do NOT mention the array dimension. This is illegal in C structure.\n\nPlease note that C declarations like \"char c [ ] = {1,2,3};\" is essentially \"char c[3] = {1,2,3};\", where the compiler figures out during compile-time itself what the exact array dimension is going to be."
+		warningMessage = "That is precisely what we achieve here. We introduce variable-length arrays, like \"int filler [ ];\" where we do NOT mention the array dimension. "	\
+						+"This is illegal in C structure.\n\nPlease note that C declarations like \"char c [ ] = {1,2,3};\" is essentially \"char c[3] = {1,2,3};\", "			\
+						+"where the compiler figures out during compile-time itself what the exact array dimension is going to be. So, C does not really allow dimension-less arrays."
 		warningRoutine(warningMessage)
-		warningMessage = "However, not providing the array dimension means it will be keep on mapping forever until some termination condition happens.\n\nIn our tool, we treat the very next (lexically closest) initialization statement as its termination condition.\n\nSo, this tool will speculatively execute all the possible array dimension values (1 through infinity) until that initialization test succeeds."
+		warningMessage = "However, not providing the array dimension means it will be keep on mapping forever until some termination condition happens."	\
+						+"\n\nIn our tool, we treat the very next (lexically closest) initialization statement as its termination condition."				\
+						+"\n\nSo, this tool will speculatively execute all the possible array dimension values (1 through infinity) until that initialization test succeeds."
 		warningRoutine(warningMessage)
+		self.clearDemo()
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		self.dataOffsetEntry.insert(tk.END,"0")
@@ -19097,6 +19154,8 @@ class MainWindow:
 		warningRoutine(warningMessage)
 		self.interpret()
 		self.mapStructureToData()
+		warningMessage = "Can you see that it speculatively executed all array dimension sizes until its termination condition (magic_number=0x0400FEFF) was satisfied? Neat, isn't it?"
+		warningRoutine(warningMessage)
 		
 		self.clearDemo()
 		
@@ -19104,14 +19163,18 @@ class MainWindow:
 		demoIndex = 6
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "Next we are going to see the power of all these - let's work on some real data.\n\nWhat we have on the right are real Ethernet II frame headers "	\
-						+"that have IPv4 header next, and then TCP/UDP/ICMP headers on top of that.\n\nWe will be using a single Dynamic structure to decode all of it."
+		warningMessage = "Enough with the test data. Let's see this tool in action on some REAL data (network packet headers captured via Wireshark)."					\
+						+"\n\nWhat we have on the right are real Ethernet II frame headers that have IPv4 header next, and then TCP/UDP/ICMP headers after that."		\
+						+"\n\nWe will be using a single Dynamic structure to decode all of it."
 		warningRoutine(warningMessage)
 		warningMessage = "In the bottom of the code, we have a single NW_pkt_hdr[3] array for the three different headers (TCP, UDP and ICMP)"
 		warningRoutine(warningMessage)
 		self.interpret()
 		self.mapStructureToData()
-		warningMessage = "And voila!!"
+		warningMessage = "Et voila!! (Pardon my French)"	\
+						+ "\n\nThis marks the end of the demo, once you click OK, you will be able to take your cursor above various colored items in the "		\
+						+"interpreted code window and the data window and see how the Description, Address and Values are shown below. \n\nYou will also be "	\
+						+"able to play with the Expand/Collapse buttons to see the internals of the mapped variables."
 		warningRoutine(warningMessage)
 		
 		return True
