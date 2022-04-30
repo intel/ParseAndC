@@ -597,8 +597,9 @@
 # 2022-04-25 - Fixed bugs regarding variableNameIndex (item[3]) being different variableDeclarations[] and structuresAndUnions[ components[]].
 # 2022-04-25 - Before changing the way we might load internal data.
 # 2022-04-25 - Before passing variableDescription to addVariableToUnraveled().
-# 2022-04-06 - Added the demo part.
-# 2022-04-06 - Before removing the #RUNTIME.
+# 2022-04-26 - Added the demo part.
+# 2022-04-26 - Before removing the #RUNTIME.
+# 2022-04-30 - After removing the #RUNTIME. Now there is zero change in C syntax.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -630,7 +631,6 @@ dummyVariableNamePrefix = "DummyVar#"
 dummyUnnamedBitfieldNamePrefix = "dummyUnnamedBitfieldVar#"
 dummyUnnamedBitfieldCount = 0
 preProcessorSymbol = '#'
-runtimeDirective   = "RUNTIME"			# So, all runtime statements should have the #RUNTIME prefix. Feel free to change it to
 
 CHAR_SIZE = 1
 SHORT_SIZE = 2
@@ -681,7 +681,7 @@ COLORS_ALL = ['DarkGoldenrod2', 'DarkOrange1', 'DarkOrchid1', 'DeepPink2', 'Deep
 'misty rose', 'navajo white', 'navy', 'olive drab', 'orange', 'orange red', 'orchid1', 'pale goldenrod', 'pale green', 'pale turquoise', 'pale violet red', 'papaya whip', 
 'peach puff', 'pink', 'pink1', 'plum1', 'powder blue', 'purple', 'red', 'rosy brown', 'royal blue', 'saddle brown', 'salmon', 'sandy brown', 'sea green', 'seashell2', 
 'sienna1', 'sky blue', 'slate blue', 'slate gray', 'snow', 'spring green', 'steel blue', 'tan1', 'thistle', 'tomato', 'turquoise', 'violet red', 'wheat1', 'yellow', 'yellow green']
-preprocessingDirectives = ('include', 'if', 'ifdef', 'ifndef', 'else', 'elif', 'endif', 'define', 'undef', 'line', 'error', 'pragma', '...', '__VA_ARGS__', '__VA_OPT__', runtimeDirective)
+preprocessingDirectives = ('include', 'if', 'ifdef', 'ifndef', 'else', 'elif', 'endif', 'define', 'undef', 'line', 'error', 'pragma', '...', '__VA_ARGS__', '__VA_OPT__')
 runtimeDirectives = ('if','elif','else','endif','loop','endloop')
 oneCharOperatorList = ('.','+','-','*','/','%', '&', '|', '<', '>', '!', '^', '~', '?', ':', '=', ',','#')
 twoCharOperatorList = ('##','++', '--','()','[]','->','>>', '<<', '<=', '>=', '==', '!=', '&&', '||', '+=', '-=', '*=', '/=', '%=', '&=', '^=', '|=')
@@ -734,6 +734,8 @@ window = None
 dummyVariableCount = 0
 dummyZeroWidthBitfieldVariableCount = 0
 totalVariableCount = 0
+
+runtimeStatementLineNumbers = []	# The runtime statement line numbers
 runtimeStatementLocationsInGlobalScope = [] # These are the runtime statements that are OUTSIDE any struct definition. 
 											# Every row = [line#, globalTokenNumberStart, globalTokenNumberEnd, [runtime token list] ] 
 runtimeStatementOrGlobalScopedVariableIdOrStructId = [] # Each row is either [lineNum, variableId], or [lineNum, [Runtime tokens]], or [lineNum, ['struct'/'union', structId]]
@@ -953,12 +955,12 @@ demoCode = [
 'struct dynamic_struct {\n',
 '//Fliing status is 1 for single, 0 for joint \n',
 '  unsigned int filing_status;\n',
-'#RUNTIME if filing_status & 1 == 1 \n',
+'#if filing_status & 1 == 1 \n',
 '  int income;\n',
-'#RUNTIME else \n',
+'#else \n',
 '  int incomeSpouseA; \n',
 '  int incomeSpouseB; \n',
-'#RUNTIME endif \n',
+'#endif \n',
 '} struct_members_change;\n'
 ],
 #
@@ -1018,7 +1020,7 @@ demoCode = [
 '	char ethernet_MAC_addr_src[6];\n',
 '	unsigned short ether_type;\n',
 '} ethernet_II_header;\n',
-'#RUNTIME if ether_type == 0x0008	//IPv4 (only this is supported right now)\n',
+'#if ether_type == 0x0008	//IPv4 (only this is supported right now)\n',
 'struct IPv4_Header{\n',
 '#if BYTE_ORDER == LITTLE_ENDIAN\n',
 '  unsigned char  IPv4_header_length_word:4;  // 4-bit IPv4 version 4-bit header length (in 32-bit words)\n',
@@ -1050,7 +1052,7 @@ demoCode = [
 '  unsigned int   IPv4_dst_addr;      \n',
 '} IPv4_header;\n',
 '\n',
-'#RUNTIME if IPv4_header.IPv4_protocol==PROTOCOL_NUM_ICMP\n',
+'#if IPv4_header.IPv4_protocol==PROTOCOL_NUM_ICMP\n',
 'struct ICMP_Header{\n',
 '  unsigned char   ICMP_message_type;\n',
 '  unsigned char   ICMP_code;\n',
@@ -1060,7 +1062,7 @@ demoCode = [
 '  unsigned char   ICMP_data[32];\n',
 '} ICMP_header;\n',
 '\n',
-'#RUNTIME elif IPv4_header.IPv4_protocol==PROTOCOL_NUM_UDP\n',
+'#elif IPv4_header.IPv4_protocol==PROTOCOL_NUM_UDP\n',
 'struct UDP_Header{\n',
 '  unsigned short UDP_src_port_number;\n',
 '  unsigned short UDP_dst_port_number;\n',
@@ -1068,7 +1070,7 @@ demoCode = [
 '  unsigned short UDP_checksum_optional;\n',     
 '} UDP_header;\n',
 '\n',
-'#RUNTIME elif IPv4_header.IPv4_protocol==PROTOCOL_NUM_TCP\n',
+'#elif IPv4_header.IPv4_protocol==PROTOCOL_NUM_TCP\n',
 '\n',
 '//TCP Header structure as per RFC 793\n',
 'struct TCP_Header {\n',
@@ -1123,8 +1125,8 @@ demoCode = [
 '    unsigned char TCP_WS_shift_count;\n',
 '   } TCP_windows_scale;\n',
 '} TCP_header ;\n',
-'#RUNTIME endif\n',
-'#RUNTIME endif\n',
+'#endif\n',
+'#endif\n',
 '} NW_pkt_hdr[3];\n'
 ]
 
@@ -2366,6 +2368,7 @@ def saveExecutionState(identifierRecord, speculativeValue, inputDict = {}):
 	executionState["totalVariableCount"]								=	deepCopy(totalVariableCount)
 	executionState["runtimeStatementLocationsInGlobalScope"]			=	deepCopy(runtimeStatementLocationsInGlobalScope)
 	executionState["runtimeStatementOrGlobalScopedVariableIdOrStructId"]=	deepCopy(runtimeStatementOrGlobalScopedVariableIdOrStructId)
+	executionState["runtimeStatementLineNumbers"]						=	deepCopy(runtimeStatementLineNumbers)
 	executionState["variableIdsInGlobalScope"]							=	deepCopy(variableIdsInGlobalScope)
 	executionState["globalScopedBuddies"]								=	deepCopy(globalScopedBuddies)
 	executionState["globalScopedRuntimeBlocks"]							=	deepCopy(globalScopedRuntimeBlocks)
@@ -2401,7 +2404,7 @@ def restoreGlobalsAndReturnLocals():
 	global hexCharArray, totalBytesToReadFromDataFile, dummyVariableCount, dummyZeroWidthBitfieldVariableCount, totalVariableCount, runtimeStatementLocationsInGlobalScope
 	global runtimeStatementOrGlobalScopedVariableIdOrStructId, variableIdsInGlobalScope, globalScopedBuddies, globalScopedRuntimeBlocks	#, allPossibleQualifiedNames
 	global globalScopesSelected, variableSelectedIndices, variablesAtGlobalScopeSelected, coloredVarsIdOffsetSize, coloredDataIdOffsetSize, inputVariables, MAINLOOP_STARTED
-	global pragmaPackStack, pragmaPackCurrentValue
+	global pragmaPackStack, pragmaPackCurrentValue, runtimeStatementLineNumbers
 
 	if not executionStateStack:
 		errorMessage = "ERROR in restoreExecutionState(): Empty executionStateStack"
@@ -2484,6 +2487,9 @@ def restoreGlobalsAndReturnLocals():
 	if( totalVariableCount != executionState["totalVariableCount"]):
 		PRINT("totalVariableCount has changed - restoring it from saved execution state")
 		totalVariableCount = deepCopy(executionState["totalVariableCount"])
+	if( runtimeStatementLineNumbers != executionState["runtimeStatementLineNumbers"]):
+		PRINT("runtimeStatementLineNumbers has changed - restoring it from saved execution state")
+		runtimeStatementLineNumbers = deepCopy(executionState["runtimeStatementLineNumbers"])
 	if( runtimeStatementLocationsInGlobalScope != executionState["runtimeStatementLocationsInGlobalScope"]):
 		PRINT("runtimeStatementLocationsInGlobalScope has changed - restoring it from saved execution state")
 		runtimeStatementLocationsInGlobalScope = deepCopy(executionState["runtimeStatementLocationsInGlobalScope"])
@@ -3087,6 +3093,7 @@ def evaluateArithmeticExpression(inputAST):
 
 				op0 = evaluateArithmeticExpressionOutput0[1]
 				op2 = evaluateArithmeticExpressionOutput2[1]
+				PRINT("op0 =",op0,"op2 =",op2)
 				
 				if op0 == LOGICAL_TEST_RESULT_INDETERMINATE or op2 == LOGICAL_TEST_RESULT_INDETERMINATE:
 					return [True, LOGICAL_TEST_RESULT_INDETERMINATE]
@@ -3175,7 +3182,9 @@ def evaluateArithmeticExpression(inputAST):
 					result = evaluateArithmeticExpressionResult[1]
 
 			else:
-				errorMessage = "Cannot evaluate Unknown 3-member expression:<%s>"%STR(inputList)
+				errorMessage = "Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+				if inputList[1]=='=':
+					errorMessage += ". \n\nAre you sure you did not mean to use \"==\" (comparison) rather than \"=\" (assignment)?"
 				errorRoutine(errorMessage)
 				return [False, None]
 				
@@ -6540,10 +6549,12 @@ def checkStructInitializationStatically(structName, initializationValue):
 # This routine will return [ [0,"#if"], [8,"#elif"], [9,"#elif"], [15, "#endif"]
 #
 ############################################################################
-def checkPreprocessingDirectivesInterleaving(inputLines):
+def checkPreprocessingDirectivesInterleaving(inputLines, returnMatchingEnd=False):
 #	PRINT=OUTPUT
 	if not inputLines:
 		return []
+	else:
+		PRINT("\n\n","==="*50,"\ninputLines =\n",inputLines,"\n")
 	
 	# Check that inputLines is a list of Lines (strings ending with a newline). If it is a single string, make it a list
 	if  isinstance(inputLines,list):
@@ -6570,7 +6581,6 @@ def checkPreprocessingDirectivesInterleaving(inputLines):
 		else:
 			PRINT ("Exiting - Unknown object type - inputLines = <",inputLines,">" )
 			return False
-			sys.exit()
 
 	#preprocessingDirectives = ('include', 'if', 'ifdef', 'ifndef', 'else', 'elif', 'endif', 'define', 'undef', 'line', 'error', 'pragma')
 
@@ -6589,8 +6599,19 @@ def checkPreprocessingDirectivesInterleaving(inputLines):
 		else:
 			currLineTokenList = tokenizeLinesResult[0]
 			
+			if returnMatchingEnd and lineNumber == 0:
+				if currLineTokenList and currLineTokenList[0] == preProcessorSymbol and len(currLineTokenList)>=2 and currLineTokenList[1] in ('if', 'loop'):
+					PRINT("Current line is indeed a valid starting #RUNTIME statement")
+				else:
+					errorMessage = "ERROR in checkPreprocessingDirectives(): We are supposed to return the matching ending line distance, but the line # "+STR(lineNumber)+" <"+inputLines[lineNumber][:-1]+"> is not an IF or LOOP"
+					errorRoutine(errorMessage)
+					OUTPUT("inputLines = \n",inputLines)
+					return False
+			
 			# Preprocessor directives
 			if currLineTokenList and currLineTokenList[0] == preProcessorSymbol and len(currLineTokenList)>=2 and currLineTokenList[1] in preprocessingDirectives:
+				PRINT("tempStackPreProcessorDirective =",tempStackPreProcessorDirective)
+				PRINT("\n\n","///"*50,"Currently handling",currLineTokenList[1])
 				if currLineTokenList[1] in ('if', 'ifdef', 'ifndef'):	# We push to the stack
 					preProcessorDirectiveNestingLevel += 1
 					onlyPreprocessingDirectives.append([lineNumber, currLineTokenList[1], preProcessorDirectiveNestingLevel])
@@ -6598,6 +6619,18 @@ def checkPreprocessingDirectivesInterleaving(inputLines):
 				elif currLineTokenList[1] in ('elif','else'):			# We push to the stack
 					onlyPreprocessingDirectives.append([lineNumber, currLineTokenList[1], preProcessorDirectiveNestingLevel])
 					tempStackPreProcessorDirective.append(currLineTokenList[1])
+				elif currLineTokenList[1] == 'endloop':
+					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[1],preProcessorDirectiveNestingLevel])
+					if tempStackRuntimeDirective[-1] in ('loop'):
+						del tempStackRuntimeDirective[-1]
+					else:
+						errorMessage = "Error in checkPreprocessingDirectivesInterleaving(): The interleaving of loop-endloop at the runtime level is not correct"
+						errorRoutine(errorMessage)
+						return False
+					preProcessorDirectiveNestingLevel -= 1
+					# When the outermost endif at level 0 is popped, the preProcessorDirectiveNestingLevel returns to -1
+					if returnMatchingEnd and preProcessorDirectiveNestingLevel == -1:
+						break
 				elif currLineTokenList[1] == 'endif':					# We pop the stack, and verify if we are indeed getting the items we are supposed to get
 					onlyPreprocessingDirectives.append([lineNumber, currLineTokenList[1],preProcessorDirectiveNestingLevel])
 					if not tempStackPreProcessorDirective:
@@ -6615,6 +6648,7 @@ def checkPreprocessingDirectivesInterleaving(inputLines):
 							del tempStackPreProcessorDirective[-1]
 						else:
 							break
+					PRINT("The current tempStackPreProcessorDirective =",tempStackPreProcessorDirective)
 					if tempStackPreProcessorDirective and tempStackPreProcessorDirective[-1] in ('if', 'ifdef', 'ifndef'):
 						del tempStackPreProcessorDirective[-1]
 					else:
@@ -6622,6 +6656,10 @@ def checkPreprocessingDirectivesInterleaving(inputLines):
 						errorRoutine(errorMessage)
 						return False
 					preProcessorDirectiveNestingLevel -= 1
+					
+					# When the outermost endif at level 0 is popped, the preProcessorDirectiveNestingLevel returns to -1
+					if returnMatchingEnd and preProcessorDirectiveNestingLevel == -1:
+						break
 				elif len(currLineTokenList)>=2:
 					PRINT("Ignoring preprocessingDirectives currLineTokenList[0:1] =",STR(currLineTokenList[0:2]))
 				else:
@@ -6633,9 +6671,11 @@ def checkPreprocessingDirectivesInterleaving(inputLines):
 		errorMessage = "The interleaving of if-then-else at the preprocessor level is not correct"
 		errorRoutine(errorMessage)
 		return False
-		
-		
+
 	PRINT("onlyPreprocessingDirectives =",onlyPreprocessingDirectives)
+	
+	if not onlyPreprocessingDirectives:	# If there aren't any preprocessing (or #RUNTIME) statements
+		return []
 	
 	# Now see if this is a legal interleaving of the outermost (nesting level 0) preprocessingDirectives
 	returnValue = []
@@ -6701,7 +6741,7 @@ def checkPreprocessingDirectivesInterleaving(inputLines):
 	# The returnValue is an array of [lineNumber,ifthenelseendif]
 	return returnValue
 
-
+'''
 ############################################################################
 #  What this routine does is the following:
 #
@@ -6782,7 +6822,7 @@ def checkRuntimeDirectivesInterleaving(inputLines, returnMatchingEnd=False):
 	# And this simly keeps the runtimeDirectives, without the nesting level or line number
 	onlyRuntimeDirectives = []
 	
-	runtimePrefix = preProcessorSymbol + runtimeDirective + " "
+	runtimePrefix = preProcessorSymbol + " "
 	
 	PRINT("Inside checkRuntimeDirectivesInterleaving(), now going to Iterate over all the individual lines")
 	lineNumber = 0
@@ -6799,7 +6839,7 @@ def checkRuntimeDirectivesInterleaving(inputLines, returnMatchingEnd=False):
 			currLineTokenList = tokenizeLinesResult[0]
 			
 			if returnMatchingEnd and lineNumber == 0:
-				if currLineTokenList and currLineTokenList[0] == preProcessorSymbol and currLineTokenList[1] == runtimeDirective and len(currLineTokenList)>=3 and currLineTokenList[2] in ('if', 'loop'):
+				if currLineTokenList and currLineTokenList[0] == preProcessorSymbol and len(currLineTokenList)>=2 and currLineTokenList[1] in ('if', 'loop'):
 					PRINT("Current line is indeed a valid starting #RUNTIME statement")
 				else:
 					errorMessage = "ERROR in checkRuntimeDirectivesInterleaving(): We are supposed to return the matching ending line distance, but the line # "+STR(lineNumber)+" <"+inputLines[lineNumber][:-1]+"> is not an IF or LOOP"
@@ -6809,20 +6849,20 @@ def checkRuntimeDirectivesInterleaving(inputLines, returnMatchingEnd=False):
 					
 			PRINT("While checking for runtime directives in line #",lineNumber,"currLineTokenList =",currLineTokenList)
 			# RUNTIME directives
-			if currLineTokenList and currLineTokenList[0] == preProcessorSymbol and currLineTokenList[1] == runtimeDirective and len(currLineTokenList)>=3 and currLineTokenList[2] in runtimeDirectives:
+			if currLineTokenList and currLineTokenList[0] == preProcessorSymbol and len(currLineTokenList)>=2 and currLineTokenList[1] in runtimeDirectives:
 				PRINT("Found Runtime directive. Currently, tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
-				if currLineTokenList[2] in ('if', 'loop'):
+				if currLineTokenList[1] in ('if', 'loop'):
 					runtimeDirectiveNestingLevel += 1
-					PRINT("Going to add Runtime directive",currLineTokenList[2],"to current tempStackRuntimeDirective =",tempStackRuntimeDirective," and onlyRuntimeDirectives =",onlyRuntimeDirectives)
-					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[2], runtimeDirectiveNestingLevel])
-					tempStackRuntimeDirective.append(currLineTokenList[2])
-					PRINT("After adding",currLineTokenList[2],", tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
-				elif currLineTokenList[2] in ('elif','else'):
-					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[2], runtimeDirectiveNestingLevel])
-					tempStackRuntimeDirective.append(currLineTokenList[2])
-					PRINT("After adding",currLineTokenList[2],", tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
-				elif currLineTokenList[2] == 'endloop':
-					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[2],runtimeDirectiveNestingLevel])
+					PRINT("Going to add Runtime directive",currLineTokenList[1],"to current tempStackRuntimeDirective =",tempStackRuntimeDirective," and onlyRuntimeDirectives =",onlyRuntimeDirectives)
+					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[1], runtimeDirectiveNestingLevel])
+					tempStackRuntimeDirective.append(currLineTokenList[1])
+					PRINT("After adding",currLineTokenList[1],", tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
+				elif currLineTokenList[1] in ('elif','else'):
+					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[1], runtimeDirectiveNestingLevel])
+					tempStackRuntimeDirective.append(currLineTokenList[1])
+					PRINT("After adding",currLineTokenList[1],", tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
+				elif currLineTokenList[1] == 'endloop':
+					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[1],runtimeDirectiveNestingLevel])
 					if tempStackRuntimeDirective[-1] in ('loop'):
 						del tempStackRuntimeDirective[-1]
 					else:
@@ -6834,10 +6874,10 @@ def checkRuntimeDirectivesInterleaving(inputLines, returnMatchingEnd=False):
 					if returnMatchingEnd and runtimeDirectiveNestingLevel == -1:
 #						return [x[:2] for x in onlyRuntimeDirectives]	# Return only the first two columns of the onlyRuntimeDirectives
 						break
-				elif currLineTokenList[2] == 'endif':
-					PRINT("Going to add Runtime directive",currLineTokenList[2],"to current tempStackRuntimeDirective =",tempStackRuntimeDirective," and onlyRuntimeDirectives =",onlyRuntimeDirectives)
-					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[2],runtimeDirectiveNestingLevel])
-					PRINT("After adding",currLineTokenList[2],", tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
+				elif currLineTokenList[1] == 'endif':
+					PRINT("Going to add Runtime directive",currLineTokenList[1],"to current tempStackRuntimeDirective =",tempStackRuntimeDirective," and onlyRuntimeDirectives =",onlyRuntimeDirectives)
+					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[1],runtimeDirectiveNestingLevel])
+					PRINT("After adding",currLineTokenList[1],", tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
 					if tempStackRuntimeDirective[-1] ==  'else':
 						del tempStackRuntimeDirective[-1]
 					while True:
@@ -6863,8 +6903,8 @@ def checkRuntimeDirectivesInterleaving(inputLines, returnMatchingEnd=False):
 					if returnMatchingEnd and runtimeDirectiveNestingLevel == -1:
 #						return [x[:2] for x in onlyRuntimeDirectives]	# Return only the first two columns of the onlyRuntimeDirectives
 						break
-				elif len(currLineTokenList)>=3:
-					PRINT("Ignoring runtimeDirectives currLineTokenList[0:1] =",STR(currLineTokenList[0:3]))
+				elif len(currLineTokenList)>=2:
+					PRINT("Ignoring runtimeDirectives currLineTokenList[0:2] =",STR(currLineTokenList[0:2]))
 				else:
 					PRINT("Ignoring runtimeDirectives currLineTokenList[0] =",STR(currLineTokenList))
 					
@@ -6964,7 +7004,7 @@ def checkRuntimeDirectivesInterleaving(inputLines, returnMatchingEnd=False):
 #result = checkRuntimeDirectivesInterleaving(input)
 #MUST_PRINT(result)
 #sys.exit()
-
+'''
 ########################################################################################################
 # The reason we made it a separate routine is because we will have to call it every time we
 # include a file.
@@ -7051,8 +7091,10 @@ def condenseMultilineMacroIntoOneLine():
 #sys.exit()
 
 # This function takes the input lines and applied all possible macros on it
-def invokeMacrosOnLine(i):
-	global lines
+def invokeMacrosOnLine(lines, i):
+	
+	global runtimeStatementLineNumbers	# Keeps a list of which all line numbers are runtime statements. We need this so that we can invoke the interleaving check judiciously.
+	
 	######################################################################
 	##																	##
 	##		MODIFY CURRENT LINE UNTIL IT IS NOT MODIFIABLE  			##
@@ -7493,6 +7535,7 @@ def invokeMacrosOnLine(i):
 						PRINT ("Included code file has",len(includedLines),"lines, which contains:", includedLines )
 						PRINT ("Before inserting, len(lines) =",len(lines))
 						
+						oldNumberOfLines = len(lines)
 						# Insert the newly included lines in lines
 						tempLines = lines[:i]
 						tempLines.extend(includedLines)
@@ -7502,6 +7545,16 @@ def invokeMacrosOnLine(i):
 						# Overwrite the lines
 						lines = tempLines
 						PRINT ("After inserting, len(lines) =",len(lines))
+						newNumberOfLines = len(lines)
+						
+						if runtimeStatementLineNumbers and newNumberOfLines > oldNumberOfLines:
+							PRINT("Thanks to the #include statement on line #",i,", a total of",(newNumberOfLines - oldNumberOfLines),"new lines were added.")
+							PRINT("Therefore, we need to change the runtime statement line numbers that previously occurred after line #",i)
+							PRINT("Before changing the line numbers past",i,", runtimeStatementLineNumbers =",runtimeStatementLineNumbers)
+							for r in range(len(runtimeStatementLineNumbers)):
+								if runtimeStatementLineNumbers[r]>i:
+									runtimeStatementLineNumbers[r] += newNumberOfLines - oldNumberOfLines
+							PRINT("After  changing the line numbers past",i,", runtimeStatementLineNumbers =",runtimeStatementLineNumbers)
 
 				if currentLineBeforeMacroInvocationsAndIncludeProcessing != lines[i]:
 					processCurrentLineAgain = True
@@ -7521,7 +7574,7 @@ def invokeMacrosOnLine(i):
 ############################################################################
 def preProcess():
 #	PRINT=OUTPUT
-	global lines, currentMacroNames, macroDefinitions, PRINT_DEBUG_MSG, runtimeStatementLocationsInGlobalScope
+	global lines, currentMacroNames, macroDefinitions, PRINT_DEBUG_MSG, runtimeStatementLocationsInGlobalScope, runtimeStatementLineNumbers
 	
 #	PRINT_DEBUG_MSG = True
 	
@@ -7544,6 +7597,7 @@ def preProcess():
 		macroDefinitions = []
 		currentMacroNames = []		# A cache of just the macro names
 		runtimeStatementLocationsInGlobalScope = []
+		runtimeStatementLineNumbers = []
 
 		# The line pointer
 		i=0
@@ -7612,7 +7666,7 @@ def preProcess():
 			##														##
 			##########################################################
 			
-			invokeMacrosOnLine(i)		
+			invokeMacrosOnLine(lines, i)		
 			
 				
 			##########################################################
@@ -7963,45 +8017,30 @@ def preProcess():
 				warningMessage = "This tool currently ignores all "+preProcessorSymbol+"line statements: <"+lines[i]+">"
 				warningRoutine(warningMessage)
 
+			##################################################################
+			##																##
+			##		PRECESSOR  #IF - #IFDEF - #IFNDEF - #ELIF				##
+			##																##
+			##################################################################
 			
-			######################################################################################################################
-			##																													##
-			##		  #RUNTIME IF - #RUNTIME ELIF - #RUNTIME ELSE - #RUNTIME ENDIF - #RUNTIME LOOP - #RUNTIME ENDLOOP			##
-			##																													##
-			######################################################################################################################
-			
+			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('elif','else','endif') and i in runtimeStatementLineNumbers:
+				PRINT("These are #elif/#else/#endif statements that are part of a valid #if/#elif/#else/#endif construct - no need to invoke checkPreprocessingDirectivesInterleaving()")
 
-			elif macroTokenList[0] == preProcessorSymbol and macroTokenList[1] == runtimeDirective: 
-			
-				if len(macroTokenList)>=3 and macroTokenList[2] in runtimeDirectives:
-					PRINT("lines[",i,"] is a #Runtime statement: ", lines[i])
-					PRINT("Not going to do anything within preProcess() for that.")
-				else:
-					errorMessage = "ERROR in preProcess() - Invalid "+preProcessorSymbol+runtimeDirective+" statement - <"+list2plaintext(lines[i][:-1],"")+">"
-					errorRoutine(errorMessage)
-					return False
-			
-			##########################################################
-			##														##
-			##		  #IF - #IFDEF - #IFNDEF - #ELIF				##
-			##														##
-			##########################################################
-			
-
-			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('if','ifdef','ifndef','elif'):
+#			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('if','ifdef','ifndef','elif'):
+			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in runtimeDirectives:
 
 				# First figure out the which all source code statements are impacted by this if statement.
 				# There might be multiple code blocks between the if-elif-elif-else-endif statements, but only one of them would succeed.
-				checkPreprocessingDirectivesInterleavingResult = checkPreprocessingDirectivesInterleaving(lines[i:])
+				checkPreprocessingDirectivesInterleavingResult = checkPreprocessingDirectivesInterleaving(lines[i:], True)
 				if checkPreprocessingDirectivesInterleavingResult == False:
-					errorMessage = "ERROR in preProcess() after calling checkPreprocessingDirectivesInterleaving() from line %i"%i
+					errorMessage = "ERROR in preProcess() after calling checkPreprocessingDirectivesInterleaving() from line #"+STR(i)+"("+list2plaintext(lines[i])+")"
 					errorRoutine(errorMessage)
 					return False
 				else:
 					scope = checkPreprocessingDirectivesInterleavingResult
 
 				PRINT("For line #",i," the scope for the if-elif-else-endif is",scope)
-				
+
 				# Recall that the the line numbers returned from checkPreprocessingDirectivesInterleaving() are relative, i.e. they start from 0.
 				# So, you need to add the current line number to get any absolute line number
 				k = 0
@@ -8009,18 +8048,21 @@ def preProcess():
 				# Out of the many if-elif-elif-else-endif code blocks, only one will succeed. And once that succeeds, the rest must be deleted irrespecive of
 				# whether corresponding #elif condition evaluates to True or not
 				ifConditionTruthValueAlreadyFound = False
-				
+				runtimeStatement = False
+				ordinaryPreprocessingOrRuntimeStatementLineNumbers = []
+
 				while k<len(scope):
 					targetLineNumber = scope[k][0]+i
+					ordinaryPreprocessingOrRuntimeStatementLineNumbers.append(targetLineNumber)
 					
-					invokeMacrosOnLine(targetLineNumber)		
+					invokeMacrosOnLine(lines, targetLineNumber)		# We are invoking macro ONLY on this line, nothing else.
 					
 					PRINT("Tokenizing line #",targetLineNumber)
 
 					deleteCodeBlock = False
 					
 					# If we already had one of the if-elif-elif-else-endif condition
-					if ifConditionTruthValueAlreadyFound:
+					if ifConditionTruthValueAlreadyFound and not runtimeStatement:
 						deleteCodeBlock = True
 					else:
 						PRINT("Going to tokenizeLines(\"",lines[targetLineNumber],"\")")
@@ -8112,8 +8154,15 @@ def preProcess():
 								ifConditionEvaluationResult = True
 							elif evaluateArithmeticExpressionResult[1] == 0:	# False value in C is 0, not False of Python
 								ifConditionEvaluationResult = False
-#							elif evaluateArithmeticExpressionResult[1] == LOGICAL_TEST_RESULT_INDETERMINATE:	# Cannot determine at this time
-#								pass
+							elif evaluateArithmeticExpressionResult[1] == LOGICAL_TEST_RESULT_INDETERMINATE:	# Cannot determine at this time
+								ifConditionEvaluationResult = LOGICAL_TEST_RESULT_INDETERMINATE
+								if runtimeStatement == False:
+									runtimeStatement = True
+									if targetLineTokenList[1]=='elif':
+										PRINT("Going to convert the #elif statement on line #",targetLineNumber,"to an #if statement")
+										lines[targetLineNumber] = lines[targetLineNumber].replace('elif','if',1)
+										PRINT("lines[",targetLineNumber,"] =",lines[targetLineNumber])
+								PRINT("The current #if-elif-else is #RUNTIME statement")
 							else:
 								errorMessage = "ERROR in preProcess() evaluating <%s> - it is not 1 or 0"%evaluateArithmeticExpressionResult
 								errorRoutine(errorMessage)
@@ -8121,19 +8170,31 @@ def preProcess():
 								
 							if ifConditionEvaluationResult == True:
 								PRINT("The if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> succeeded")
-							else:
+							elif ifConditionEvaluationResult == False:
 								PRINT("The if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> failed")
+							elif ifConditionEvaluationResult == LOGICAL_TEST_RESULT_INDETERMINATE:
+								PRINT("The if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> can only be determined at runtime")
 
 						if ifConditionEvaluationResult == True:
 							ifConditionTruthValueAlreadyFound = True
 							PRINT("The overall if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> succeeded")
-						else:
+						elif ifConditionEvaluationResult == False:
 							PRINT("The overall if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> failed")
 							deleteCodeBlock = True
+						'''
+						elif ifConditionEvaluationResult == LOGICAL_TEST_RESULT_INDETERMINATE:
+							# If the current statement is an #elif, convert that to an #if statement
+							if targetLineTokenList[1]=='elif' and not ifConditionTruthValueAlreadyFound and not firstElifAlreadyConverted:
+								PRINT("Going to convert the #elif statement on line #",targetLineNumber,"to an #if statement")
+								lines[targetLineNumber] = lines[targetLineNumber].replace('elif','if',1)
+								PRINT("lines[",targetLineNumber,"] =",lines[targetLineNumber])
+						'''
 						
 						
 					# Now that we have calculated the if condition result (True or False), delete the if statements and corresponding non-executing code blocks
-					if not deleteCodeBlock or k == len(scope)-1:
+					if runtimeStatement:
+						numLinesToDelete = 0
+					elif not deleteCodeBlock or k == len(scope)-1:
 						numLinesToDelete = 1
 					else:
 						numLinesToDelete = scope[k+1][0] - scope[k][0]
@@ -8144,6 +8205,37 @@ def preProcess():
 						lines[scope[k][0]+i+d] = ""
 						d += 1
 					k += 1
+				PRINT("\n\nAfter handling",macroTokenList[0:2],", lines =\n",lines)
+					
+				# There is a problem with runtime statements. Unlike preprocessing statements, they do not go away from the code after preprocessing.
+				# Look at the contrasting examples of "before preprocessing" and "after preprocessing" for ordinary preprocessing statements vs. runtime statements:
+				#
+				#	  Preprocessing statements										Runtime statements
+				# ==========================================				==========================================
+				#
+				#     Before					After				     		Before					After
+				#
+				#    #define x  2											int x;
+				#    #if x==2												#if x==2					#if x==2
+				#       int a;					int a;							int a;						int a;
+				#    #else													#else						#else
+				#       float f;												float f;				   float f;
+				#    #endif													#endif						#endif
+				#
+				# Why is this a problem? Well, we preprocess line by line. So, in case of the ordinary preprocessing statements, after the proprocessor evaluates
+				# the statement #if x==2, it will go to the next line and repeat. It will never encounter the #else and #endif.
+				# On the other hand, for runtime statements, the preprocessor will now go to the next statement (int a;), but after that it will find the #else
+				# statement. It has no idea if this #else is a standalone renegade #else (which is illegal), or a valid continuation of previous #if-#elif-#else-#endif.
+				# So, we keep a global list of which all linenumbers contain a runtime statement.
+				
+				if runtimeStatement:
+					for targetLineNumber in ordinaryPreprocessingOrRuntimeStatementLineNumbers:
+						if targetLineNumber in runtimeStatementLineNumbers:
+							EXIT("Bad coding in preProcess(): line #"+STR(targetLineNumber)+" already exists in runtimeStatementLineNumbers = "+STR(runtimeStatementLineNumbers))
+						else:
+							runtimeStatementLineNumbers.append(targetLineNumber)
+				runtimeStatementLineNumbers.sort()
+				
 					
 			i = i+1
 				
@@ -8160,10 +8252,15 @@ def preProcess():
 			return False
 			
 
+		# At this point, all the #if-#elif-#else-#endif statements in ordinary preprocessing statements have vanished, but runtime statements remain.
+		PRINT("These are the valid #runtime statements")
+		for lineNum in runtimeStatementLineNumbers:
+			PRINT("Line #",lineNum,"= ",lines[lineNum])
+			
 		PRINT("\nIn preProcess(), after all macros have been done, check if the runtime statement interleavings are legal or not. len(lines) =",len(lines),"\n")
 		i=0
 		while i<len(lines):
-			# We have a corner-case bug where the lines[i:] start with a blank line. This will cause checkRuntimeDirectivesInterleaving() to return a blank scope,
+			# We have a corner-case bug where the lines[i:] start with a blank line. This will cause checkPreprocessingDirectivesInterleaving() to return a blank scope,
 			# because it expects the very first line supplied to it to be a #RUNTIME statement. 
 			if lines[i].strip() == "":
 				i = i+1
@@ -8177,19 +8274,22 @@ def preProcess():
 			else:
 				runtimeTokenList = runtimeTokenListResult[0]
 				PRINT("After tokenizing from line#",i,", runtimeTokenList =",runtimeTokenList)
-				if runtimeTokenList and runtimeTokenList[0] == preProcessorSymbol and len(runtimeTokenList)>=2 and runtimeTokenList[1] == runtimeDirective:
-					PRINT("\n\nFrom preProcess() calling checkRuntimeDirectivesInterleaving(lines[i:]) where i=",i,"and lines[i:] =",lines[i:])
-					checkRuntimeDirectivesInterleavingResult = checkRuntimeDirectivesInterleaving(lines[i:])
-					if checkRuntimeDirectivesInterleavingResult == False:
-						errorMessage = "ERROR in preProcess() after calling checkRuntimeDirectivesInterleaving() from line# %d"%i
-						errorRoutine(errorMessage)
-						return False
+				if runtimeTokenList and runtimeTokenList[0] == preProcessorSymbol and len(runtimeTokenList)>=2 and runtimeTokenList[1] in runtimeDirectives:
+					if runtimeTokenList[1] in ("elif","else","endif") and i in runtimeStatementLineNumbers:
+						PRINT("NOT invoking checkPreprocessingDirectivesInterleaving() from line #",i,"since line #",i," = <",lines[i],"> is already known to be a #runtime statement")
 					else:
-						scope = checkRuntimeDirectivesInterleavingResult
-						PRINT("scope, which is result of calling checkRuntimeDirectivesInterleaving(lines[",i,":]), is",scope)
-						lastLineNumberWithRuntimeDirective = i + scope[-1][0]	# Recall that the line numbers in scope are relative to 0, so we need to add i to it
-						PRINT("lastLineNumberWithRuntimeDirective =",lastLineNumberWithRuntimeDirective)
-						i = lastLineNumberWithRuntimeDirective
+						PRINT("\n\nFrom preProcess() calling checkPreprocessingDirectivesInterleaving(lines[i:]) where i=",i,"and lines[i:] =",lines[i:])
+						checkPreprocessingDirectivesInterleavingResult = checkPreprocessingDirectivesInterleaving(lines[i:], True)
+						if checkPreprocessingDirectivesInterleavingResult == False:
+							errorMessage = "ERROR in preProcess() after calling checkPreprocessingDirectivesInterleaving() from line# %d"%i
+							errorRoutine(errorMessage)
+							return False
+						else:
+							scope = checkPreprocessingDirectivesInterleavingResult
+							PRINT("scope, which is result of calling checkPreprocessingDirectivesInterleaving(lines[",i,":]), is",scope)
+							lastLineNumberWithRuntimeDirective = i + scope[-1][0]	# Recall that the line numbers in scope are relative to 0, so we need to add i to it
+							PRINT("lastLineNumberWithRuntimeDirective =",lastLineNumberWithRuntimeDirective)
+							i = lastLineNumberWithRuntimeDirective
 			i += 1
 		
 #		PRINT ("======================\nAFTER handling multi-line macros\n======================" )
@@ -8964,12 +9064,18 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 	# will take care of that (when this routine gets called, there are no #define statements left). However, #RUNTIME statements might still be there.
 	
 	while True:
-		if runtimeDirective not in tokenList[structDefinitionStartIndex:i]:
+		# Exclude the runtime statements
+		if preProcessorSymbol not in tokenList[structDefinitionStartIndex:i]:
+			break
+		# If there is a runtime statement, it must begin right from the beginning (structDefinitionStartIndex)
+		elif not (preProcessorSymbol in tokenList[structDefinitionStartIndex:i] and tokenList[structDefinitionStartIndex+tokenList[structDefinitionStartIndex:i].index(preProcessorSymbol)+1] in runtimeDirectives):
+			PRINT("There are NO runtime statements within tokenList[structDefinitionStartIndex (",structDefinitionStartIndex,"):i(",i,")]=",tokenList[structDefinitionStartIndex:i])
 			break
 		else:
+			PRINT("There ARE runtime statements within tokenList[structDefinitionStartIndex (",structDefinitionStartIndex,"):i(",i,")]=",tokenList[structDefinitionStartIndex:i])
 			#Find out the all the to
-			if tokenList[structDefinitionStartIndex] != preProcessorSymbol or tokenList[structDefinitionStartIndex+1] != runtimeDirective:
-				errorMessage = "ERROR in parseStructureDefinition(): Illegal #RUNTIME statement found"
+			if tokenList[structDefinitionStartIndex] != preProcessorSymbol or tokenList[structDefinitionStartIndex+1] not in runtimeDirectives:
+				errorMessage = "ERROR in parseStructureDefinition(): Illegal #RUNTIME statement found: \n\n"+list2plaintext(tokenList[structDefinitionStartIndex:i])
 				errorRoutine(errorMessage)
 				return False
 			else:
@@ -9253,7 +9359,7 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 		while i < curlyBraceEndIndex:
 
 			# Find runtime directives
-			if tokenList[i] == preProcessorSymbol and i+1<len(tokenList) and tokenList[i+1] == runtimeDirective:
+			if tokenList[i] == preProcessorSymbol and i+1<len(tokenList) and tokenList[i+1] in runtimeDirectives:
 				PRINT("\n\nFound # RUNTIME directive within structure definition\n\n")
 				isDynamic = True
 				structuresAndUnions[suDict[structName][-1]]["isDynamic"] = True
@@ -9560,7 +9666,7 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 		if checkIfIntegral(item):
 				temp1.append(item)
 		elif isinstance(item, list):
-			if len(item) <2 or item[0] != preProcessorSymbol or item[1] != runtimeDirective:
+			if len(item) <2 or item[0] != preProcessorSymbol or item[1] not in runtimeDirectives:
 				errorMessage = "ERROR in parseStructureDefinition() - definition for structName <"+structName+"> contains illegal runtime declarations"
 				errorRoutine(errorMessage)
 				return False
@@ -9587,9 +9693,9 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 	#    ________________________________________________									 ________________________________________________
 	#	| struct S { char c;							|									| struct S { char c;							|
 	#	|			float f;		//unconditional		|									|												|
-	#	|			#RUNTIME if c==1					|									|			#RUNTIME if c==1					|
+	#	|			# if c==1	        				|									|			# if c==1							|
 	#	|				int f;		//conditional		|									|				int f;		//conditional		|
-	#	|			#RUNTIME endif						|									|			#RUNTIME endif						|
+	#	|			# endif		  						|									|			# endif								|
 	#	|												|									|			float f;		//unconditional		|
 	#	|__________};___________________________________|									|___________};__________________________________|
 	#
@@ -9600,7 +9706,7 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 			structMemberName = structuresAndUnions[suDict[structName][-1]]["components"][N][0]
 			runtimeStatementsRelativeToComponentName.append(structMemberName)
 		else:	# A Runtime statement
-			runtimeStatementsRelativeToComponentName.append(item[2])	# Only keep the 'if'/'else'/'elif'/'endif' part
+			runtimeStatementsRelativeToComponentName.append(item[1])	# Only keep the 'if'/'else'/'elif'/'endif' part
 		PRINT(runtimeStatementsRelativeToComponentName[-1])
 
 	#First check going from first to last
@@ -9657,13 +9763,13 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 
 		# Check if the RUNTIME statement interleaving is correct (needed for Dynamic structs only)
 		if isDynamic: 
-			# Since this checkRuntimeDirectivesInterleaving() routine expects an array of simple lines (not lists), we first convert the 
+			# Since this checkPreprocessingDirectivesInterleaving() routine expects an array of simple lines (not lists), we first convert the 
 			# existing runtimeStatementsRelativeToComponentIndex to simple lines
 			runtimeLines = [list2plaintext(x) if isinstance(x,list) else STR(x) for x in runtimeStatementsRelativeToComponentIndex]
 			PRINT("The stringified runtimeStatementsRelativeToComponentIndex list is", runtimeLines)
-			checkRuntimeDirectivesInterleavingResult = checkRuntimeDirectivesInterleaving(runtimeLines)
-			if checkRuntimeDirectivesInterleavingResult == False:
-				errorMessage = "ERROR in parseStructureDefinition() after calling checkRuntimeDirectivesInterleaving() for the whole thing"
+			checkPreprocessingDirectivesInterleavingResult = checkPreprocessingDirectivesInterleaving(runtimeLines)
+			if checkPreprocessingDirectivesInterleavingResult == False:
+				errorMessage = "ERROR in parseStructureDefinition() after calling checkPreprocessingDirectivesInterleaving() for the whole thing"
 				errorRoutine(errorMessage)
 				return False
 
@@ -9741,9 +9847,9 @@ sys.exit()
 #	____________________________
 # 	|	struct S {				|		Now, if we start mapping the struct right from (4n+3)th byte, then c will have the value of 0.
 #	|				char c;		|		Which means, the int i will also be part of the struct. Which means, the overall alignment of the struct
-#	|	#RUNTIME if (c==0)		|		will be 4, which means it cannot start on the (4n+3)rd byte - it must start from the (4n+4)th byte, which is aligned to 4.
+#	|	# if (c==0)				|		will be 4, which means it cannot start on the (4n+3)rd byte - it must start from the (4n+4)th byte, which is aligned to 4.
 #	|				int i;		|
-#	|	#RUNTIME endif			|		But when we do that, c is now mapped to the (4n+4)th byte, which contains the value of 1. So, c is 1, which means the
+#	|	# endif					|		But when we do that, c is now mapped to the (4n+4)th byte, which contains the value of 1. So, c is 1, which means the
 #	|			} ;				|		#RUNTIME statements will not get satisfied, and int i will NOT be part of the struct, which means the overall
 #	|___________________________|		struct-level alignment will be 1 byte only, which means it could have started from (4n+3)rd byte only.
 #
@@ -9820,12 +9926,12 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 	#
 	#											runtimeStatementsRelativeToComponentIndex		runtimeStatementsRelativeToComponentIndexStatus		executedStructMemberIndex
 	#     struct S {							_________________________						________________ <==								___________
-	#				# RUNTIME if (a>1)			|  # RUNTIME if (a>1)	|						|	'execute'	|									|  0
+	#				#  if (a>1)					|  # if (a>1)			|						|	'execute'	|									|  0
 	#				int i;						|  0					|						|	'execute'	|
-	#				# RUNTIME else				|  # RUNTIME else		|						|	'execute'	|
+	#				#  else						|  # else				|						|	'execute'	|
 	#				float f1, f2;				|  1					|						|	'execute'	|
-	#				# RUNTIME endif				|  2					|						|	'execute'	|
-	#				} sA;						|  # RUNTIME endif		|						|	'execute'	|
+	#				#  endif					|  2					|						|	'execute'	|
+	#				} sA;						|  #  endif				|						|	'execute'	|
 	#											|_______________________|						|_______________|
 	#
 	# The last array (executedStructMemberIndex) is a list of which all struct member indexes actually got run. Suppose a struct has 5 members where the first, third, 
@@ -10864,7 +10970,7 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 	PRINT("runtimeStatementsRelativeToComponentIndex =",runtimeStatementsRelativeToComponentIndex)
 	PRINT("runtimeStatementsRelativeToComponentIndexStatus =",runtimeStatementsRelativeToComponentIndexStatus)		# Initially, all the members are set to 'execute'
 
-	# Since this checkRuntimeDirectivesInterleaving() routine expects an array of simple lines (not lists), we first convert the 
+	# Since this checkPreprocessingDirectivesInterleaving() routine expects an array of simple lines (not lists), we first convert the 
 	# existing runtimeStatementsRelativeToComponentIndex to simple lines
 	runtimeLines = [list2plaintext(x) if isinstance(x,list) else STR(x) for x in runtimeStatementsRelativeToComponentIndex]
 	PRINT("The stringified runtimeStatementsRelativeToComponentIndex list is", runtimeLines)
@@ -10923,27 +11029,27 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 		# If it is a #RUNTIME statement, evaluate it if we are in the Map stage (because the data will now be available)
 		elif not checkIfIntegral(runtimeStatementsRelativeToComponentIndex[n]) and executionStage == "Map":	
 			PRINT("runtimeStatementsRelativeToComponentIndex[",n,"] =",runtimeStatementsRelativeToComponentIndex[n])
-			if (not isinstance(runtimeStatementsRelativeToComponentIndex[n],list)) or (not runtimeStatementsRelativeToComponentIndex[n][0] == preProcessorSymbol) or (not runtimeStatementsRelativeToComponentIndex[n][1] == runtimeDirective) or (len(runtimeStatementsRelativeToComponentIndex[n])<=2):
+			if (not isinstance(runtimeStatementsRelativeToComponentIndex[n],list)) or (not runtimeStatementsRelativeToComponentIndex[n][0] == preProcessorSymbol) or (runtimeStatementsRelativeToComponentIndex[n][1] not in runtimeDirectives) or (len(runtimeStatementsRelativeToComponentIndex[n])<=1):
 				errorMessage = "ERROR in calculateStructureLength(): Illegal #RUNTIME statement"
 				errorRoutine(errorMessage)
 				return False
 
 			# First, find the scope of any if condition
-			if runtimeStatementsRelativeToComponentIndex[n][2] in ('if', 'loop'):	# Starting of a if-elif-else-endif block
+			if runtimeStatementsRelativeToComponentIndex[n][1] in ('if', 'loop'):	# Starting of a if-elif-else-endif block
 				# First figure out the which all source code statements are impacted by this if statement.
 				# There might be multiple code blocks between the if-elif-elif-else-endif statements, but only one of them would succeed.
-				scope = checkRuntimeDirectivesInterleaving(runtimeLines[n:],True)
+				scope = checkPreprocessingDirectivesInterleaving(runtimeLines[n:],True)
 				if scope == False:
-					errorMessage = "ERROR in calculateStructureLength() after calling checkRuntimeDirectivesInterleaving() from line %d"%n
+					errorMessage = "ERROR in calculateStructureLength() after calling checkPreprocessingDirectivesInterleaving() from line %d"%n
 					errorRoutine(errorMessage)
 					return False
 
 				# Recall that the returned scope is nothing but a list like the one below, where all the linenumbers are relative to the first if statement
-				# [ [0,"#RUNTIME if"], [8,"RUNTIME #elif"], [9,"#RUNTIME elif"], [15, "#RUNTIME endif"],[20, "#RUNTIME loop"],[25, "#RUNTIME endloop"] ]
+				# [ [0,"if"], [8,"elif"], [9,"elif"], [15, "endif"],[20, "loop"],[25, "endloop"] ]
 
 
 				PRINT("For line #",n," the scope for the if-elif-else-endif is",scope)
-				# Recall that the the line numbers returned from checkRuntimeDirectivesInterleaving() are relative, i.e. they start from 0.
+				# Recall that the the line numbers returned from checkPreprocessingDirectivesInterleaving() are relative, i.e. they start from 0.
 				# So, you need to add the current line number to get any absolute line number
 				k = 0
 
@@ -10964,30 +11070,30 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 						targetLineTokenList = runtimeStatementsRelativeToComponentIndex[targetLineNumber]
 						
 						# First do a little bit of sanity checking that these are valid #RUNTIME statements
-						if (not isinstance(targetLineTokenList,list)) or (len(targetLineTokenList)<=2) or (not targetLineTokenList[0] == preProcessorSymbol) or (not targetLineTokenList[1] == runtimeDirective) :
+						if (not isinstance(targetLineTokenList,list)) or (len(targetLineTokenList)<2) or (targetLineTokenList[0] != preProcessorSymbol) or (targetLineTokenList[1] not in runtimeDirectives):
 							errorMessage = "ERROR in calculateStructureLength(): Illegal #RUNTIME statement "+STR(targetLineTokenList)
 							errorRoutine(errorMessage)
 							return False
-						elif targetLineTokenList[2] in ('if','ifdef','ifndef', 'elif') and len(targetLineTokenList)<4:
-							errorMessage = "ERROR in calculateStructureLength() in line #"+targetLineNumber+": an "+ STR(targetLineTokenList[0:3]) +" statement must not be empty"
+						elif targetLineTokenList[1] in ('if','ifdef','ifndef', 'elif') and len(targetLineTokenList)<3:
+							errorMessage = "ERROR in calculateStructureLength() in line #"+targetLineNumber+": a "+ STR(targetLineTokenList[0:2]) +" statement must not be empty"
 							errorRoutine(errorMessage)
 							return False
-						elif targetLineTokenList[2] in ('else','endif') and len(targetLineTokenList)>3:
-							errorMessage = "ERROR in calculateStructureLength() in line #"+targetLineNumber+": an "+ STR(targetLineTokenList[0:3]) +" statement must not supply more than one argument"
+						elif targetLineTokenList[1] in ('else','endif') and len(targetLineTokenList)>2:
+							errorMessage = "ERROR in calculateStructureLength() in line #"+targetLineNumber+": a "+ STR(targetLineTokenList[0:2]) +" statement must not supply more than one argument"
 							errorRoutine(errorMessage)
 							return False
 						
 						# Calculate the if condition result (True or False). By here we know that all ifdef etc. things have proper arguments
 						ifConditionEvaluationResult = False	# The default value
 
-						if targetLineTokenList[2] in ('if','elif'):
+						if targetLineTokenList[1] in ('if','elif'):
 							
 							# Handle one special case - before calling parseArithmeticExpression(), we must resolve the case of defined().
 							# This is because parseArithmeticExpression() is agnostic of exactly where in the source file the code is,
 							# but the result of a defined(symbol) depends precisely on that. So parseArithmeticExpression() cannot
 							# figure that out. So, we handle it locally first. We relace the defined(symbol) with 1 or 0.
 							
-							parseArithmeticExpressionResult = parseArithmeticExpression(targetLineTokenList[3:])
+							parseArithmeticExpressionResult = parseArithmeticExpression(targetLineTokenList[2:])
 							if parseArithmeticExpressionResult == False:
 								errorMessage = "ERROR in calculateStructureLength() parsing <%s>"%tokenizeLinesResult
 								errorRoutine(errorMessage)
@@ -11014,9 +11120,9 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 								errorRoutine(errorMessage)
 								return False
 								
-						elif targetLineTokenList[2] == 'else': 	# If you are falling on an #else, it is by defintion true
+						elif targetLineTokenList[1] == 'else': 	# If you are falling on an #else, it is by defintion true
 							ifConditionEvaluationResult = True
-							PRINT("The '"+preProcessorSymbol+" "+runtimeDirective+" else' succeeded")
+							PRINT("The '"+preProcessorSymbol+"else' succeeded")
 								
 
 						if ifConditionEvaluationResult == True:
@@ -13987,17 +14093,17 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 		PRINT ("Processing tokenList[",i,"] = <%s>"%tokenList[i] )
 		if ";" in tokenList[i:]:
 			nextSemicolonIndex = i+1 + tokenList[i+1:].index(";")
-		elif tokenList[i] == preProcessorSymbol and i+1 < len(tokenList) and tokenList[i+1] in preprocessingDirectives and tokenList[i+1] not in ('line', 'error', 'pragma', runtimeDirective):
+		elif tokenList[i] == preProcessorSymbol and i+1 < len(tokenList) and tokenList[i+1] in runtimeDirectives:
+			# A Runtime directive does not necessarily end with a semicolon
+			PRINT("Runtime statement starting with",tokenList[i+1],"may not end with a semicolon")
+			pass
+		elif tokenList[i] == preProcessorSymbol and i+1 < len(tokenList) and tokenList[i+1] in preprocessingDirectives and tokenList[i+1] not in ('line', 'error', 'pragma'):
 			errorMessage = "ERROR in parseCodeSnippet() - preProcessing statements in the current segment <%s> should not have been printed"%(STR(list2string(tokenList[i:])))
 			errorRoutine(errorMessage)
 			return False
 		elif tokenList[i] == preProcessorSymbol and i+1 < len(tokenList) and tokenList[i+1] in ('line', 'error', 'pragma'):
 			# A Compiler directive like #define statement does not necessarily end with a semicolon
 			PRINT("Preprocessing statement starting with",tokenList[i+1],"does not end with a semicolon")
-			pass
-		elif tokenList[i] == preProcessorSymbol and i+1 < len(tokenList) and tokenList[i+1] in (runtimeDirective):
-			# A Runtime directive does not necessarily end with a semicolon
-			PRINT("Runtime statement starting with",tokenList[i+1],"may not end with a semicolon")
 			pass
 		elif checkIfFunctionDefinition(tokenList[i:])[0] == True:
 			PRINT("Functions starting with",tokenList[i],"does not end with a semicolon")
@@ -14177,7 +14283,6 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 		###########################################
 
 		#	preProcessorSymbol = '#'
-		#	runtimeDirective   = "RUNTIME"			# So, all runtime statements should have the #RUNTIME prefix. Feel free to change it to
 		#	runtimeDirectives = ('if','elif','else','endif','loop','endloop')
 		#	preprocessingDirectives = ('include', 'if', 'ifdef', 'ifndef', 'else', 'elif', 'endif', 'define', 'undef', 'line', 'error', 'pragma', '...', '__VA_ARGS__', '__VA_OPT__', runtimeDirective)
 		
@@ -14192,7 +14297,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 #		elif tokenList[i] in preprocessingDirectives or (tokenList[i]==preProcessorSymbol and i+1<len(tokenList) and tokenList[i+1] == runtimeDirective):
 
 		elif ((tokenList[i]==preProcessorSymbol and i+1<len(tokenList) and tokenList[i+1] in preprocessingDirectives) or 
-		      (tokenList[i]==preProcessorSymbol and i+2<len(tokenList) and tokenList[i+1] == runtimeDirective and tokenList[i+2] in runtimeDirectives)):
+		      (tokenList[i]==preProcessorSymbol and i+1<len(tokenList) and tokenList[i+1] in runtimeDirectives)):
 		
 			PRINT("Inside parseCodeSnippet() found preprocessing or runtime directive.\n")
 			
@@ -14208,10 +14313,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 					OUTPUT("ERROR in parseCodeSnippet() - BAD coding - Something wrong!!")
 					sys.exit()
 
-				if tokenList[i]==preProcessorSymbol and i+1<len(tokenList) and tokenList[i+1] != runtimeDirective and tokenList[i+1] in preprocessingDirectives:
-					warningMessage = "Ignoring unknown preprocessing directive " + STR(tokenList[resultPair[0]:resultPair[1]+1])
-					warningRoutine(warningMessage)
-				elif tokenList[i]==preProcessorSymbol and i+2<len(tokenList) and tokenList[i+1] == runtimeDirective and tokenList[i+2] in runtimeDirectives:
+				if tokenList[i]==preProcessorSymbol and i+1<len(tokenList) and tokenList[i+1] in runtimeDirectives:
 					runTimeLineNumStart = tokenListInformation[1][resultPair[0]][2][0][0]
 					runTimeLineNumEnd 	= tokenListInformation[1][resultPair[1]][2][0][0]
 					if runTimeLineNumStart != runTimeLineNumEnd:
@@ -14703,18 +14805,18 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 	# since that would be a very hard problem to solve programmatically and an extremely easy problem to solve by the user.
 	#
 	# line #  0.   int c;
-	# line #  1.	#RUNTIME if (c>0)			Here, globalScopedBuddies = [ [variableId for i, variableId for j], [variableId for k, variableId for l, variableId for m] ]
+	# line #  1.	# if (c>0)			Here, globalScopedBuddies = [ [variableId for i, variableId for j], [variableId for k, variableId for l, variableId for m] ]
 	# line #  2.    	int i;													
-	# line #  3.	#RUNTIME else				Also, globalScopedRuntimeBlocks = 	[ [1, 5], [7,12] ] 	Basically, every entry is [#start line number, #end line number]
-	# line #  4.		int j;										each entry below is			[line#, start token #, end token #, [runtime token list] ]
-	# line #  5.	#RUNTIME endif				Finally, runtimeStatementLocationsInGlobalScope = [ [ 1,  3,10, ['#','RUNTIME', 'if', '(','c','>','0',')']],
-	# line #  6.																					[ 3, 14,16, ['#','RUNTIME', 'else']],
-	# line #  7.	#RUNTIME if (c>20)																[ 5, 20,22, ['#','RUNTIME', 'endif']],
-	# line #  8.		int k;																		[ 7, 23,30, ['#','RUNTIME', 'if', '(', 'c', '>', '20', ')']],
-	# line #  9.	#RUNTIME else																	[ 9, 34,36, ['#','RUNTIME', 'else']],
-	# line # 10.		int l;																		[12, 43,45, ['#','RUNTIME', 'endif']] ]
+	# line #  3.	# else						Also, globalScopedRuntimeBlocks = 	[ [1, 5], [7,12] ] 	Basically, every entry is [#start line number, #end line number]
+	# line #  4.		int j;										each entry below is	[line#, start token #, end token #, [runtime token list] ]
+	# line #  5.	# endif				Finally, runtimeStatementLocationsInGlobalScope = [ [ 1,  3,10, ['#', 'if', '(','c','>','0',')']],
+	# line #  6.																			[ 3, 14,16, ['#', 'else']],
+	# line #  7.	# if (c>20)																[ 5, 20,22, ['#', 'endif']],
+	# line #  8.		int k;																[ 7, 23,30, ['#', 'if', '(', 'c', '>', '20', ')']],
+	# line #  9.	# else																	[ 9, 34,36, ['#', 'else']],
+	# line # 10.		int l;																[12, 43,45, ['#', 'endif']] ]
 	# line # 11.		float m;
-	# line # 12.   #RUNTIME endif
+	# line # 12.    # endif
 	# line # 13.
 	#
 	# Every row of runtimeStatementLocationsInGlobalScope[] = [line#, globalTokenNumberStart, globalTokenNumberEnd, [runtime token list] ].
@@ -14722,9 +14824,9 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 	ptr = 0
 	while ptr<len(runtimeStatementLocationsInGlobalScope):
 		firstLineNumInScope = runtimeStatementLocationsInGlobalScope[ptr][0]
-		scope = checkRuntimeDirectivesInterleaving(lines[firstLineNumInScope:], True)
+		scope = checkPreprocessingDirectivesInterleaving(lines[firstLineNumInScope:], True)
 		if scope == False:
-			errorMessage = "ERROR in parseCodeSnippet() - somehow after checkRuntimeDirectivesInterleaving() from line "+ STR(firstLineNumInScope) + " the return (scope) is False!"
+			errorMessage = "ERROR in parseCodeSnippet() - somehow after checkPreprocessingDirectivesInterleaving() from line "+ STR(firstLineNumInScope) + " the return (scope) is False!"
 			errorRoutine(errorMessage)
 			return False
 		lastLineNumInScope = firstLineNumInScope + scope[-1][0]	# Recall that the line numbering in scope is relative with the first line assumed to be from 0
@@ -14763,20 +14865,19 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 	
 	PRINT("\n\nglobalScopedBuddies =",globalScopedBuddies)
 	PRINT("\n\nglobalScopedRuntimeBlocks =",globalScopedRuntimeBlocks)
-	
-	PRINT("runtimeStatementOrGlobalScopedVariableIdOrStructId =",runtimeStatementOrGlobalScopedVariableIdOrStructId)
+	PRINT("\nruntimeStatementOrGlobalScopedVariableIdOrStructId =",runtimeStatementOrGlobalScopedVariableIdOrStructId)
 	#First check going from first to last
 	namespaceStack = []
 	for N in range(len(runtimeStatementOrGlobalScopedVariableIdOrStructId)):
-		# Originally, each Originalitem is [line#, variableId]. or [line#, ['struct'/'union', structId]], or [line#, ['#','RUNTIME',.....]]
+		# Originally, each Originalitem is [line#, variableId]. or [line#, ['struct'/'union', structId]], or [line#, ['#','if/elif/else/endif',.....]]
 		Originalitem = runtimeStatementOrGlobalScopedVariableIdOrStructId[N][1]	# Ignore the item[0], which is the line#
-		# Make each item as variableId, or ['struct'/'union', structId], or ['#','RUNTIME',.....]
+		# Make each item as variableId, or ['struct'/'union', structId], or ['#','if/elif/else/endif',.....]
 		if checkIfIntegral(Originalitem):
 			item = variableDeclarations[Originalitem][0]	# Replace the variableId with the variable name
-		elif isinstance(Originalitem,list) and len(Originalitem)==2:
+		elif isinstance(Originalitem,list) and len(Originalitem)==2 and Originalitem[0] in ("struct","union"):
 			item = [Originalitem[0], structuresAndUnions[Originalitem[1]]["name"]]	# Replace the structId (second item in the list) by the structure name
-		elif isinstance(Originalitem,list) and len(Originalitem)>2:
-			item = Originalitem[2]	# Just the if/elif/else/endif part, ignore other terms
+		elif isinstance(Originalitem,list) and len(Originalitem)>=2 and Originalitem[0]==preProcessorSymbol:
+			item = Originalitem[1]	# Just the #if/elif/else/endif part, ignore other terms
 		else:
 			OUTPUT("Coding error in parseCodeSnippet() in handling namespaceStack first to last for item # N=",N,"original item = ",Originalitem,", current item =",item)
 			sys.exit()
@@ -14796,6 +14897,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 					del namespaceStack[-1]
 		if item != 'endif':
 			if item not in ('if','elif','else') and item in namespaceStack:
+				PRINT("namespaceStack =",namespaceStack, ", item = <"+STR(item)+">")
 				if isinstance(item,list):
 					errorMessage = "Error in parseCodeSnippet(): "+item[0]+" "+item[1]+" has already been defined within the current scope (cannot be re-defined within the same scope)"
 				else:
@@ -14804,23 +14906,26 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 				return False
 			else:
 				namespaceStack.append(item)
+				PRINT("After appending item",item,", namespaceStack =",namespaceStack)
 		PRINT("After processing item #",N,", namespaceStack =",namespaceStack)
 
 	# Next check going from last to first
 	namespaceStack = []
 	for N in reversed(range(len(runtimeStatementOrGlobalScopedVariableIdOrStructId))):
-		# Originally, each Originalitem is [line#, variableId]. or [line#, ['struct'/'union', structId]], or [line#, ['#','RUNTIME',.....]]
+		# Originally, each Originalitem is [line#, variableId]. or [line#, ['struct'/'union', structId]], or [line#, ['#','if/elif/else/endif',.....]]
 		Originalitem = runtimeStatementOrGlobalScopedVariableIdOrStructId[N][1]	# Ignore the item[0], which is the line#
-		# Make each item as variableId, or ['struct'/'union', structId], or ['#','RUNTIME',.....]
+		# Make each item as variableId, or ['struct'/'union', structId], or ['#','if/elif/else/endif',.....]
 		if checkIfIntegral(Originalitem):
 			item = variableDeclarations[Originalitem][0]	# Replace the variableId with the variable name
-		elif isinstance(Originalitem,list) and len(Originalitem)==2:
+		elif isinstance(Originalitem,list) and len(Originalitem)==2 and Originalitem[0] in ("struct","union"):
 			item = [Originalitem[0], structuresAndUnions[Originalitem[1]]["name"]]	# Replace the structId (second item in the list) by the structure name
-		elif isinstance(Originalitem,list) and len(Originalitem)>2:
-			item = Originalitem[2]	# Just the if/elif/else/endif part, ignore other terms
+		elif isinstance(Originalitem,list) and len(Originalitem)>=2 and Originalitem[0] == preProcessorSymbol:
+			item = Originalitem[1]	# Just the if/elif/else/endif part, ignore other terms
 		else:
 			OUTPUT("Coding error in parseCodeSnippet() in handling namespaceStack last to first for item # N=",N,"original item = ",Originalitem,", current item =",item)
 			sys.exit()
+
+		PRINT("Originalitem =",Originalitem,", item =",item)
 
 		if item in ('else', 'elif'):	# Go back and delete all the variables up to the endif
 			while True:
@@ -15723,7 +15828,7 @@ def populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize():
 			errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize(): runtimeStatementOrGlobalScopedVariableIdOrStructId[] has this invalid row "+STR(row)
 			errorRoutine(errorMessage)
 			return False
-		elif isinstance(row[1],list) and not ( (row[1][0]==preProcessorSymbol and row[1][1]== runtimeDirective) or (row[1][0] in ('struct','union') and row[1][1] in range(len(structuresAndUnions)) )):
+		elif isinstance(row[1],list) and not ( (row[1][0]==preProcessorSymbol and row[1][1] in runtimeDirectives) or (row[1][0] in ('struct','union') and row[1][1] in range(len(structuresAndUnions)) )):
 			errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize(): runtimeStatementOrGlobalScopedVariableIdOrStructId[] has invalid row "+STR(row)
 			errorRoutine(errorMessage)
 			return False
@@ -15846,29 +15951,30 @@ def populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize():
 		# If it is a #RUNTIME statement, evaluate it if we are in the Map stage (because the data will now be available)
 		elif not checkIfIntegral(statementOrVarIdOrStructId[n]):
 			PRINT("statementOrVarIdOrStructId[",n,"] =",statementOrVarIdOrStructId[n])
-			if (not isinstance(statementOrVarIdOrStructId[n],list)) or (not statementOrVarIdOrStructId[n][0] == preProcessorSymbol) or (not statementOrVarIdOrStructId[n][1] == runtimeDirective) or (len(statementOrVarIdOrStructId[n])<=2):
+			if (not isinstance(statementOrVarIdOrStructId[n],list)) or (not statementOrVarIdOrStructId[n][0] == preProcessorSymbol) or (statementOrVarIdOrStructId[n][1] not in runtimeDirectives) or (len(statementOrVarIdOrStructId[n])<=1):
 				errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize(): Illegal #RUNTIME statement"
 				errorRoutine(errorMessage)
 				return False
 
 			# First, find the scope of any if condition
-			if statementOrVarIdOrStructId[n][2] in ('if', 'loop'):	# Starting of a if-elif-else-endif block
+			if statementOrVarIdOrStructId[n][1] in ('if', 'loop'):	# Starting of a if-elif-else-endif block
 				# First figure out the which all source code statements are impacted by this if statement.
 				# There might be multiple code blocks between the if-elif-elif-else-endif statements, but only one of them would succeed.
-				checkRuntimeDirectivesInterleavingResult = checkRuntimeDirectivesInterleaving(runtimeLines[n:],True)
-				if checkRuntimeDirectivesInterleavingResult == False:
-					errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize() after calling checkRuntimeDirectivesInterleaving() from line %d"%n
+				
+				checkPreprocessingDirectivesInterleavingResult = checkPreprocessingDirectivesInterleaving(runtimeLines[n:],True)
+				if checkPreprocessingDirectivesInterleavingResult == False:
+					errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize() after calling checkPreprocessingDirectivesInterleaving() from line %d"%n
 					errorRoutine(errorMessage)
 					return False
 				else:
-					scope = checkRuntimeDirectivesInterleavingResult
+					scope = checkPreprocessingDirectivesInterleavingResult
 
 				# Recall that the returned scope is nothing but a list like the one below, where all the linenumbers are relative to the first if statement
-				# [ [0,"#RUNTIME if"], [8,"RUNTIME #elif"], [9,"#RUNTIME elif"], [15, "#RUNTIME endif"],[20, "#RUNTIME loop"],[25, "#RUNTIME endloop"] ]
+				# [ [0,"#if"], [8,"#elif"], [9,"#elif"], [15, "#endif"],[20, "#loop"],[25, "#endloop"] ]
 
 
 				PRINT("For line #",n," the scope for the if-elif-else-endif is",scope)
-				# Recall that the the line numbers returned from checkRuntimeDirectivesInterleaving() are relative, i.e. they start from 0.
+				# Recall that the the line numbers returned from checkPreprocessingDirectivesInterleaving() are relative, i.e. they start from 0.
 				# So, you need to add the current line number to get any absolute line number
 				k = 0
 
@@ -15889,25 +15995,25 @@ def populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize():
 						targetLineTokenList = statementOrVarIdOrStructId[targetLineNumber]
 						
 						# First do a little bit of sanity checking that these are valid #RUNTIME statements
-						if (not isinstance(targetLineTokenList,list)) or (len(targetLineTokenList)<=2) or (not targetLineTokenList[0] == preProcessorSymbol) or (not targetLineTokenList[1] == runtimeDirective) :
+						if (not isinstance(targetLineTokenList,list)) or (len(targetLineTokenList)<2) or (not targetLineTokenList[0] == preProcessorSymbol) or (targetLineTokenList[1] not in runtimeDirectives):
 							errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize(): Illegal #RUNTIME statement "+STR(targetLineTokenList)
 							errorRoutine(errorMessage)
 							return False
-						elif targetLineTokenList[2] in ('if','ifdef','ifndef', 'elif') and len(targetLineTokenList)<4:
-							errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize() in line #"+targetLineNumber+": an "+ STR(targetLineTokenList[0:3]) +" statement must not be empty"
+						elif targetLineTokenList[1] in ('if','ifdef','ifndef', 'elif') and len(targetLineTokenList)<3:
+							errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize() in line #"+targetLineNumber+": a "+ STR(targetLineTokenList[0:2]) +" statement must not be empty"
 							errorRoutine(errorMessage)
 							return False
-						elif targetLineTokenList[2] in ('else','endif') and len(targetLineTokenList)>3:
-							errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize() in line #"+targetLineNumber+": an "+ STR(targetLineTokenList[0:3]) +" statement must not supply more than one argument"
+						elif targetLineTokenList[1] in ('else','endif') and len(targetLineTokenList)>2:
+							errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize() in line #"+targetLineNumber+": a "+ STR(targetLineTokenList[0:2]) +" statement must not supply more than one argument"
 							errorRoutine(errorMessage)
 							return False
 						
 						# Calculate the if condition result (True or False). By here we know that all ifdef etc. things have proper arguments
 						ifConditionEvaluationResult = False	# The default value
 
-						if targetLineTokenList[2] in ('if','elif'):
+						if targetLineTokenList[1] in ('if','elif'):
 							
-							parseArithmeticExpressionResult = parseArithmeticExpression(targetLineTokenList[3:])
+							parseArithmeticExpressionResult = parseArithmeticExpression(targetLineTokenList[2:])
 							if parseArithmeticExpressionResult == False:
 								errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize() parsing <%s>"%tokenizeLinesResult
 								errorRoutine(errorMessage)
@@ -15934,9 +16040,9 @@ def populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize():
 								errorRoutine(errorMessage)
 								return False
 								
-						elif targetLineTokenList[2] == 'else': 	# If you are falling on an #else, it is by defintion true
+						elif targetLineTokenList[1] == 'else': 	# If you are falling on an #else, it is by defintion true
 							ifConditionEvaluationResult = True
-							PRINT("The '"+preProcessorSymbol+" "+runtimeDirective+" else' succeeded")
+							PRINT("The '"+preProcessorSymbol+"else' succeeded")
 								
 
 						if ifConditionEvaluationResult == True:
@@ -19193,7 +19299,7 @@ class MainWindow:
 		global lines, variableDeclarations, gTokenLocationLinesChars, enums, enumFieldValues, typedefs, structuresAndUnions, suDict, unraveled
 		global dummyVariableCount, totalVariableCount, variableIdsInGlobalScope, coloredVarsIdOffsetSize, coloredDataIdOffsetSize, variablesAtGlobalScopeSelected
 		global pragmaPackCurrentValue, pragmaPackStack, blankArraysAndTerminationInfo, dummyZeroWidthBitfieldVariableCount, variableSelectedIndices
-		global dataFileSizeInBytes, inputIsHexChar, binaryArray, hexCharArray, totalBytesToReadFromDataFile, inputVariables, executionStateStack
+		global dataFileSizeInBytes, inputIsHexChar, binaryArray, hexCharArray, totalBytesToReadFromDataFile, inputVariables, executionStateStack, runtimeStatementLineNumbers
 		global runtimeStatementLocationsInGlobalScope, runtimeStatementOrGlobalScopedVariableIdOrStructId, globalScopedBuddies, globalScopedRuntimeBlocks, globalScopesSelected
 
 		PRINT ("\n\n\n============ Entered ClearDemo() ==================\n\n\n")
@@ -19224,6 +19330,7 @@ class MainWindow:
 		fileDisplayOffset = 0 	
 		dataLocationOffset = 0	
 		runtimeStatementLocationsInGlobalScope = [] 
+		runtimeStatementLineNumbers = []
 		runtimeStatementOrGlobalScopedVariableIdOrStructId = [] 
 		globalScopedBuddies = []	
 		globalScopedRuntimeBlocks = [] 
