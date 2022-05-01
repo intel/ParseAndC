@@ -813,6 +813,7 @@ typedefsBuiltin = {
 ##
 demoCodeIndex = 0
 demoCode = [
+
 #
 #
 #	1.0 features (demoIndex = 0)
@@ -925,18 +926,61 @@ demoCode = [
 '\n'],
 #
 #
-#	Variable length array (demoIndex = 1)
+#	Fearure # 1: Branching - Dynamic structures		(demoIndex = 1)
+#
+#
+[
+'struct parentDetails { \n',
+'    unsigned char parentCount; \n',
+'#if parentCount == 2 \n',
+'    char parentName1[30]; \n',
+'    char parentName2[30]; \n',
+'#else \n',
+'    char parentName[30]; \n',
+'#endif \n',
+'}; \n'
+],
+
+#
+#
+#	Branching - both statically and dynamically resolved conditions coexisting	(demoIndex = 2)
+#
+#
+[
+'#define CRYPTO_YEAR 2021 \n',
+'#define TAX_YEAR    2021 \n',
+' \n',
+'struct taxDetails { \n',
+'   unsigned char filerCount; \n',
+'//condition resolved dynamically, during runtime\n',
+'#if filerCount == 2 \n',
+'   char filerName1[30]; \n',
+'   char filerName2[30]; \n',
+'#else \n',
+'   char filerName[30]; \n',
+'#endif \n',
+'// condition resolved statically, during compile-time \n',
+'#if TAX_YEAR >= CRYPTO_YEAR  \n',
+'   int cryptoIncome; \n',
+'#endif \n',
+'}; \n'
+],
+
+#
+#
+#	Feature # 2: Variable length array (demoIndex = 3)
 #
 #
 [
 'struct variableLengthArrayMember {\n',
 '  unsigned char packet_length;\n',
-'  unsigned char packet_data[packet_length];\n',
+'  // We add 1 to avoid the 0-length case\n',
+'  unsigned char packet_data[packet_length+1];\n',
 '} Not_possible_in_C_structs; \n'
 ],
 #
 #
-#	Variable length Bitfield (demoIndex = 2)
+#	Feature # 3: Variable length Bitfield (demoIndex = 4)
 #
 #
 [
@@ -944,31 +988,69 @@ demoCode = [
 '  unsigned int num_flags:4;\n',
 '  unsigned int bit_flags : num_flags;\n',
 '} Not_possible_in_C_structs; \n'
+],
+#
+#
+# Feature # 4:	Verification via Initialization (demoIndex = 5):
+#
+#
+['struct e_ident {	\n',
+'   unsigned int magic_number = 0x464C457F;	\n',
+'	unsigned char EI_CLASS;	\n',
+'	unsigned char EI_DATA;		\n',
+'	unsigned char EI_VERSION;	\n',
+'	unsigned char EI_OSABI;	\n',
+'	unsigned char EI_ABIVERSION;	\n',
+'	unsigned char EI_PAD[7];		\n',
+'} elf_identifier;	\n'
+],
+#
+#
+# Feature # 5: Looping and Dimension-less array  (demoIndex = 6):
+#
+#
+[
+'struct packet {\n',
+'   unsigned char       packet_length;\n',
+'  // We add 1 to avoid the 0-length case\n',
+'   char packet_data [packet_length+1] ;\n',
+'} packetArray [ ] ;  //Dimensionless array\n'
+],
+
+#
+#
+# Feature # 6: Speculative execution and C strings:  (demoIndex = 7,8):
+#
+#
+[
+'struct C_String {  \n',
+'  // Dimensionless array  \n',
+'  char Char[ ] ;  \n',
+'     \n',
+'  // Termination condition for it  \n',
+'  char nullChar = 0;    \n',
+'} C_string;  \n'
 
 ],
-#
-#
-#	Dynamic addition and removal struct members (demoIndex = 3)
-#
-#
 [
-'struct dynamic_struct {\n',
-'//Fliing status is 1 for single, 0 for joint \n',
-'  unsigned int filing_status;\n',
-'#if filing_status & 1 == 1 \n',
-'  int income;\n',
-'#else \n',
-'  int incomeSpouseA; \n',
-'  int incomeSpouseB; \n',
-'#endif \n',
-'} struct_members_change;\n'
+'struct C_String {  \n',
+'  // Dimensionless array  \n',
+'  char Char[ ] ;  \n',
+'     \n',
+'  // Termination condition for it  \n',
+"  char nullChar = 0;    \n",
+'};   \n',
+'struct C_String Name[10];  \n'
 ],
 #
 #
-#	Initialization (demoIndex = 4)
+# Feature # 7: Unknown Offset? No problemo!! 	(demoIndex = 9)
 #
 #
 [
+'\n',
+'\n',
+'\n',
 'struct Initialization_tester {\n',
 '  int preamble; \n',
 '  int magic_number=0x0400FEFF;\n',
@@ -978,12 +1060,12 @@ demoCode = [
 ],
 #
 #
-#	Speculative execition Initialization (demoIndex = 5)
+#	Speculative execition Initialization (demoIndex = 10)
 #
 #
 [
 '\n',
-'int fiiler_junk[]; // No dimension specified\n'
+'int filler_junk[]; // No dimension specified\n',
 '\n',
 'struct Initialization_tester {\n',
 '  int preamble; \n',
@@ -997,7 +1079,7 @@ demoCode = [
 ##
 ##
 ##
-## Real-life example for network packet header parsing using Dynamic structure: (demoIndex = 6)
+## Real-life example for network packet header parsing using Dynamic structure: (demoIndex = 11)
 ##
 ##
 ##
@@ -1152,18 +1234,27 @@ generalData =  "0xFFD8FFE000104A46494600010200000100010000FFFE00042A00FFE20BF849
 networkHdrs =  "0x484efcb41529645d863714c808004500003c44f5000080017e30c0a800948efb"+"276408004589000107d26162636465666768696a6b6c6d6e6f70717273747576"		\
 				+"77616263646566676869645d863714c8484efcb4152908004500003c9c8f4000"+"40061c47c0a80001c0a8009487fe0b355ff89e4900000000a002721033050000"		\
 				+"020405b40402080a8cca02c60000000001030306484efcb41529645d863714c8"+"080045000120a64c000080112322c0a80094d043dededcc101bb010c7eff"
+				
+ELF_header =   "0x7F454C4602010100000000000000000003003E00010000008005000000000000"+"4000000000000000801A0000000000000000000040003800090040001D001C00"		\
+				+"0600000004000000400000000000000040000000000000004000000000000000"+"F801000000000000F80100000000000008000000000000000300000004000000"		\
+				+"3802000000000000380200000000000038020000000000001C00000000000000"+"1C00000000000000010000000000000001000000050000000000000000000000"		\
+				+"00000000000000000000000000000000E808000000000000E808000000000000"+"00002000000000000100000006000000B00D000000000000B00D200000000000"		\
+				+"B00D200000000000000300000000000050030000000000000000200000000000"+"0200000006000000C00D000000000000C00D200000000000C00D200000000000"		\
+				+"F001000000000000F00100000000000008000000000000000400000004000000"+"5402000000000000540200000000000054020000000000004400000000000000"		\
+				+"4400000000000000040000000000000050E5746404000000A007000000000000"+"A007000000000000A0070000000000003C000000000000003C00000000000000"		\
+				+"040000000000000051E574640600000000000000000000000000000000000000"+"0000000000000000000000000000000000000000000000001000000000000000"
+				
+CStrings =	   "0x467269656E64732C00526F6D616E732C00636F756E7472796D656E2C006C656E"+"64006D6500796F757200656172733B0D0A4900636F6D6500746F006275727900"		\
+				+"4361657361722C006E6F7400746F007072616973650068696D2E0D0A54686500"+"6576696C0074686174006D656E00646F006C6976657300616674657200746865"		\
+				+"6D3B0D0A54686500676F6F64006973006F667400696E74657272656400776974"+"6800746865697200626F6E65733B0D0A536F006C657400697400626500776974"		\
+				+"68004361657361722E00546865006E6F626C65004272757475730D0A48617468"+"00746F6C6400796F75004361657361720077617300616D626974696F75733A0D"		\
+				+"0A4966006974007765726500736F2C0069740077617300610067726965766F75"+"73006661756C742C0D0A416E640067726965766F75736C790068617468004361"		\
+				+"6573617200616E73776572E28099640069742E0D0A486572652C00756E646572"+"006C65617665006F660042727574757300616E64007468650072657374E28093"		\
+				+"0D0A466F720042727574757300697300616E00686F6E6F757261626C65006D61"+"6E3B0D0A536F00617265007468657900616C6C2C00616C6C00686F6E6F757261"		\
+				+"626C65006D656EE280930D0A436F6D65004900746F00737065616B00696E0043"+"6165736172E28099730066756E6572616C2E0D0A486500776173006D79006672"
 
-#networkHdrs =  "0x484efcb41529645d863714c808004500"+"003c44f5000080017e30c0a800948efb"+"276408004589000107d2616263646566"+"6768696a6b6c6d6e6f70717273747576"	\
-#				+"77616263646566676869645d863714c8"+"484efcb4152908004500003c9c8f4000"+"40061c47c0a80001c0a8009487fe0b35"+"5ff89e4900000000a002721033050000"	\
-#				+"020405b40402080a8cca02c600000000"+"01030306484efcb41529645d863714c8"+"080045000120a64c000080112322c0a8"+"0094d043dededcc101bb010c7eff"
+demoData = [generalData, generalData, generalData, generalData , generalData, ELF_header,  generalData, CStrings, CStrings, generalData, generalData, networkHdrs]
 
-#networkHdrs = "0x484efcb41529645d863714c808004500"+"003c44f5000080017e30c0a800948efb"+"276408004589000107d2616263646566"+"6768696a6b6c6d6e6f70717273747576"
-
-#demoData = ["0xFF D8 FF E0 00 10 4A 46 49 46 00 01 02 00 00 01 00 01 00 00 FF FE 00 04 2A 00 FF E2 0B F8 49 43 43 5F 50 52 4F 46 49 4C 45 00 01 01 00 00 0B E8 00 00 00 00 02 00 00 00 6D 6E 74 72 52 47 42 20 58 59 5A 20 07 D9 00 03 00 1B 00 15 00 24 00 1F 61 63 73 70 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 F6 D6 00 01 00 00 00 00 D3 2D 00 00 00 00 29 F8 3D DE AF F2 55 AE 78 42 FA E4 CA 83 39 0D 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 10 64 65 73 63 00 00 01 44 00 00 00 79 62 58 59 5A 00 00 01 C0 00 00 00 14 62 54 52 43 00 00 01 D4 00 00 08 0C 64 6D 64 64 00 00 09 E0 00 00 00 88 67 58 59 5A 00 00 0A 68 00 00 00 14 67 54 52 43 00 00 01 D4 00 00 08 0C 6C 75 6D 69 00 00 0A 7C 00 00 00 14 6D 65 61 73 00 00 0A 90 00 00 00 24 62 6B 70 74 00 00 0A B4 00 00 00 14 72 58 59 5A 00 00 0A C8 00 00 00 14 72 54 52 43 00 00 01 D4 00 00 08 0C 74 65 63 68 00 00 0A DC 00 00 00 0C 76 75 65 64 00 00 0A E8 00 00 00 87 77 74 70 74 00 00 0B 70 00 00 00 14 63 70 72 74 00 00 0B 84 00 00 00 37 63 68 61 64 00 00 0B BC 00 00 00 2C 64 65 73 63 00 00 00 00 00 00 00 1F 73 52 47 42 20 49 45 43 36 31 39 36 36 2D 32 2D 31 20 62 6C 61 63 6B 20 73 63 61 6C 65 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 58 59 5A 20 00 00 00 00 00 00 24 A0 00 00 0F 84 00 00 B6 CF 63 75 72 76 00 00 00 00 00 00 04 00 00 00 00 05 00 0A 00 0F 00 14 00 19 00 1E 00 23 00 28 00 2D 00 32 00 37 00 3B 00 40 00 45 00 4A 00 4F 00 54 00 59 00 5E 00 63 00 68 00 6D 00 72 00 77 00 7C 00 81 00 86 00 8B 00 90 00 95 00 9A 00 9F 00 A4 00 A9 00 AE 00 B2 00 B7 00 BC 00 C1 00 C6 00 CB 00 D0 00 D5 00 DB 00 E0 00 E5 00 EB 00 F0 00 F6 00 FB 01 01 01 07 01 0D 01 13 01 19 01 1F 01 25 01 2B 01 32 01 38 01 3E 01 45 01 4C 01 52 01 59 01 60 01 67 01 6E 01 75 01 7C 01 83 01 8B 01 92 01 9A 01 A1 01 A9 01 B1 01 B9 01 C1 01 C9 01 D1 01 D9 01 E1 01 E9 01 F2 01 FA 02 03 02 0C 02 14 02 1D 02 26 02 2F 02 38 02 41 02 4B 02 54 02 5D 02 67 02 71 02 7A 02 84 02 8E 02 98 02 A2 02 AC 02 B6 02 C1 02 CB 02 D5 02 E0 02 EB 02 F5 03 00 03 0B 03 16 03 21 03 2D 03 38 03 43 03 4F 03 5A 03 66 03 72 03 7E 03 8A 03 96 03 A2 03 AE 03 BA 03 C7 03 D3 03 E0 03 EC 03 F9 04 06 04 13 04 20 04 2D 04 3B 04 48 04 55 04 63 04 71 04 7E 04 8C 04 9A 04 A8 04 B6 04 C4 04 D3 04 E1 04 F0 04 FE 05 0D 05 1C 05 2B 05 3A 05 49 05 58 05 67 05 77 05 86 05 96 05 A6 05 B5 05 C5 05 D5 05 E5 05 F6 06 06 06 16 06 27 06 37 06 48 06 59 06 6A 06 7B 06 8C 06 9D 06 AF 06 C0 06 D1 06 E3 06 F5 07 07 07 19 07 2B 07 3D 07 4F 07 61 07 74 07 86 07 99 07 AC 07 BF 07 D2 07 E5 07 F8 08 0B 08 1F 08 32 08 46 08 5A 08 6E 08 82 08 96 08 AA 08 BE 08 D2 08 E7 08 FB 09 10 09 25 09 3A 09 4F 09 64 09 79 09 8F 09 A4 09 BA 09 CF 09 E5 09 FB 0A 11 0A 27 0A 3D 0A 54 0A 6A 0A 81 0A 98 0A AE 0A C5 0A DC 0A F3 0B 0B 0B 22 0B 39 0B 51 0B 69 0B 80 0B 98 0B B0 0B C8 0B E1 0B F9 0C 12 0C 2A 0C 43 0C 5C ",
-demoData = [generalData, generalData, generalData , generalData, generalData, generalData, networkHdrs]
-
-#networkPacketHeaderDataFileName = "__ParseAndC_2.0_network_packet_headers_datafile.txt"
-#networkPacketHeaderData = "0x484efcb41529645d863714c808004500003c44f5000080017e30c0a800948efb276408004589000107d26162636465666768696a6b6c6d6e6f7071727374757677616263646566676869645d863714c8484efcb4152908004500003c9c8f400040061c47c0a80001c0a8009487fe0b355ff89e4900000000a002721033050000020405b40402080a8cca02c60000000001030306484efcb41529645d863714c8080045000120a64c000080112322c0a80094d043dededcc101bb010c7eff"
 
 
 # Put all your include filepaths separated by semicolon here; for example, in the windows it might look like this
@@ -13227,7 +13318,8 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 			if not arrayAlreadyUnraveled:	# We only flash this warning once
 				warningMessage = "For variableName "+variableName+", array dimension is unspecified, but no speculativeArrayDimensions is supplied."	\
 								+"\n\nWhich means, we will treat variableName "+variableName+" as an infinite array and keep mapping it until there is no more data to map."
-				warningRoutine(warningMessage)
+				if not IN_DEMO:
+					warningRoutine(warningMessage)
 				variableDescription["arrayDimensions"][0] = LARGE_POSITIVE_NUMBER		# Basically, infinity
 		elif not checkIfIntegral(speculativeArrayDimensions[0][0]) or speculativeArrayDimensions[0][0] <0:
 			errorMessage = "ERROR in addVariableToUnraveled(): For variableName "+variableName+", array dimension is "+STR(variableDescription["arrayDimensions"])+", but the supplied speculativeArrayDimensions ("+STR(speculativeArrayDimensions[0][0])+")is illegal"
@@ -15762,7 +15854,8 @@ def readBytesFromFile(startAddress, numBytesToRead):
 	if len(blockRead) != numBytesToRead:
 		warningrMessage = "Warning in readBytesFromFile(): From Offset " + STR(startAddress) + " wanted to read "+ STR(numBytesToRead)+" bytes, but succeeded reading only "+STR(len(blockRead))+" bytes instead!"
 		PRINT(warningrMessage)
-		warningRoutine(warningrMessage)
+		if not IN_DEMO:
+			warningRoutine(warningrMessage)
 		dumpDetailsForDebug()
 		#return False
 		#sys.exit()
@@ -16758,9 +16851,9 @@ def processBatch():
 	PRINT("THE END")
 
 	if gStructuresAndUnions != structuresAndUnions or gVariableDeclarations != variableDeclarations:
-		OUTPUT("structuresAndUnions or variableDeclarations changes")
+		PRINT("structuresAndUnions or variableDeclarations changes")
 	else:
-		OUTPUT("structuresAndUnions or variableDeclarations does NOT change")
+		PRINT("structuresAndUnions or variableDeclarations does NOT change")
 	
 
 		
@@ -19111,7 +19204,8 @@ class MainWindow:
 		warningMessage = "Now you can see the interpreted code in the middle window, we are going to map the interpreted code to the data. Press OK to continue."
 		warningRoutine(warningMessage)
 		self.mapStructureToData()
-		warningMessage = "We map the data format from the offset of 0 by default. Of course, we can change that. Let's see what happens when we map it from one-fourth of a Kilobyte. You can specify this in any format, as pure 256, or 0x100, or even 1KB/4, which is very much human readable. Press OK to continue."
+		warningMessage = "We map the data format from the offset of 0 by default. Of course, we can change that. \n\nLet's see what happens when we map it from one-fourth "	\
+						+"of a Kilobyte. You can specify this in any format, as pure 256, or 0x100, or even 1KB/4, which is very much human readable. Press OK to continue."
 		warningRoutine(warningMessage)
 		self.dataOffsetEntry.insert(tk.END,"1KB/4")
 		self.dataOffset.set(256)
@@ -19122,16 +19216,16 @@ class MainWindow:
 #		warningRoutine(warningMessage)
 #		self.interpretedCodeText.see("1000.0")
 #		self.interpretedCodeText.see("65.0")
-		warningMessage = "At the end of the demo (not now), once all these warning windows go away, you will be able to take your cursor above various colored items in the interpreted code window "		\
-						+"and the data window and see how the Description, Address and Values are shown below. \n\nYou will also be able to play with the Expand/Collapse buttons to see the "	\
-						+"internals of the mapped variables.\n\nPress OK to continue."
+		warningMessage = "At the end of the demo (not now), once all these warning windows go away, you will be able to take your cursor above various colored items "	\
+						+"in the interpreted code window and the data window and see how the Description, Address and Values are shown below. \n\nYou will also be "	\
+						+"able to play with the Expand/Collapse buttons to see the internals of the mapped variables.\n\nPress OK to continue."
 		warningRoutine(warningMessage)
 		
 		# 2.0 features
 		self.clearDemo()
 
-		warningMessage = "Till now, what you saw was ParseAndC 1.0 features. Next we are going to show you 2.0 features." 		\
-						+"\n\nWe will first summarize the deltas (new features), and then go through demo of each feature one by one. "	\
+		warningMessage = "Till now, what you saw was ParseAndC 1.0 features. Next we are going to show you 2.0 features." 					\
+						+"\n\nWe will first summarize the deltas (new features), and then go through demo of each feature one by one. "		\
 						+"\n\nPlease bear with me for a few more clicks. Press OK to continue."
 		warningRoutine(warningMessage)
 		warningMessage = "We make a rather tall claim with ParseAndC 2.0 - whatever we can do in a regular C program for parsing, we can do it via sheer Structure "	\
@@ -19141,9 +19235,22 @@ class MainWindow:
 						+"we might first parse the field designating the packet header length, and only after we deduce the header length, "								\
 						+"we get to know how many more bytes to read for decoding the full header. How would we do that statically, by a single structure definition alone?"
 		warningRoutine(warningMessage)
+
+		warningMessage = "We achieve it via introducing the following new features in ParseAndC 2.0:\n" 	\
+						+"\n1. Dynamic structures with runtime branching "									\
+						+"\n2. Variable-length arrays "														\
+						+"\n3. Variable-width bitfields"													\
+						+"\n4. Verification via Initialization"												\
+						+"\n5. Looping and Dimension-less array"											\
+						+"\n6. Speculative execution and C strings"											\
+						+"\n7. Unknown data offset? No problem!"											\
+						+"\n\nAnd the best part - we do ALL these while NOT changing the C syntax!!!"		\
+						+"\n\nNow we will demo each of these features in detail."
+		warningRoutine(warningMessage)
+		'''
 		warningMessage = "With ParseAndC 2.0, we introduce the concept of \"Dynamic\" structures. They look very much like C structures, with some hidden extra powers." 	\
-						+"\n\n1) The biggest difference is, anything that is supposed to be a constant in a C structre (like array dimension, bitfield width etc.) "	\
-						+"is now allowed to be an expression involving prior variables."																				\
+						+"\n\n1) The biggest difference is, anything that is supposed to be a constant in a C structre (like array dimension, bitfield width etc.) "		\
+						+"is now allowed to be an expression involving prior variables."																					\
 						+"\n\nThis captures the information-flow-capability of C programs, where we assign values to later variables based on the value of the prior variables."
 		warningRoutine(warningMessage)
 		warningMessage = "The second additional power of dynamic structures is that, just like we have preprocessing commands (like #define/#if/#elif/#else/#endif) in C, "	\
@@ -19162,25 +19269,90 @@ class MainWindow:
 		warningRoutine(warningMessage)
 		warningMessage = "Sorry about the wall of text. Now let's see these features in action.\n\n\n (drum roll) "									
 		warningRoutine(warningMessage)
-		
-		# Variable length array 
+		'''
+		# Feature # 1: Branching
+		self.clearDemo()
+		warningMessage = "Feature # 1: Braching. "			\
+						+"\n\nWith ParseAndC 2.0, we introduce the concept of \"Dynamic\" structures. They look very much like C structures, with some hidden extra powers." 	\
+						+"\n\nNow let's look at some branching capability, where the same strucure may contain different set of member variables at runtime."
+		warningRoutine(warningMessage)
 		demoIndex = 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "Example 1: Variable-length array\n\nLook that the array dimension of packet_data is packet_length, which is the previous struct member. We cannot do this in C structure."
+		warningMessage = "Please pay close attention to the #commands. In C, a conditional preprocessor command may only contain fields who values are known statically, "	\
+						+"i.e during compile time. However, in this code, the condition (#if parentCount == 2) contains a variable whose value would only be known "		\
+						+"at the runtime.\n\nThat is why when we will compile this code, these #if-#else-#endif statements will persist. \n\nPress OK to interpret."
+		warningRoutine(warningMessage)
+		self.interpret()
+		warningMessage = "As expected, these #if-#else-#endif statements did not go away even in the interpreted code. We call these as \"Runtime statements\". "			\
+						+"\n\nPress OK to map this data."
+		warningRoutine(warningMessage)
+		self.mapStructureToData()
+		warningMessage = "As you can see, depending on the runtime data, only one side of the decision tree got executed. "		\
+						+"\n\nLet's change the mapping offset so that we can see how the other branch of the branch condition also gets executed."
+		warningRoutine(warningMessage)
+		self.dataOffsetEntry.insert(tk.END,"12")
+		self.dataOffset.set(12)
+		self.mapStructureToData()
+		warningMessage = "So, the same structure can now behave differently based on the runtime data. Who would have thunk!!"
+		warningRoutine(warningMessage)
+		warningMessage = "Now, we would like to remind that Dynamic structures can have both statically-resolvable preprocessor commands and dynamically-resolvable "	\
+						+"Runtime statements. They can absolutely coexit Let's see that in the next example.!!"
+		warningRoutine(warningMessage)
+		self.clearDemo()
+		
+		# Both statically and dynamically coexiting
+		demoIndex = 2
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		warningMessage = "When we interpret this, we will see that the compile-time preprocessor statements will no longer exist in the interpreted code, "		\
+						+"but runtime statements will continue to be there."
+		warningRoutine(warningMessage)
+		self.interpret()
+		warningMessage = "As predicted, after inpretation, only the runtime statements remain. Press OK to map the data."
+		warningRoutine(warningMessage)
+		self.mapStructureToData()
+		warningMessage = "Again, only one side of the decision tree got executed. "		\
+						+"\n\nLet's change the mapping offset so that we can see how the other branch of the branch condition also gets executed."
+		warningRoutine(warningMessage)
+		self.dataOffsetEntry.insert(tk.END,"12")
+		self.dataOffset.set(12)
+		self.mapStructureToData()
+		warningMessage = "So, the same structure can now behave differently based on the runtime data.!!"
+		warningRoutine(warningMessage)
+
+
+
+		# Feature # 2: Variable length array 
+		
+		self.clearDemo()
+		warningMessage = "Feature # 2: Variable-length array\n\nIn C structures, all array dimensions must be constant - it cannot be coming from another runtime variable. "	\
+						+"\n\nAgain, we are talking about C structures, not general C programs."
+		warningRoutine(warningMessage)
+		demoIndex = 3
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		warningMessage = "The array dimension of packet_data is \"packet_length+1\", which is the previous struct member. \n\nWe cannot do this in C structure."
 		warningRoutine(warningMessage)
 		self.interpret()
 		self.mapStructureToData()
 		warningMessage = "You can see that inside the data, the size of the packet_data is indeed designated by the value of packet_length ("+STR(getRuntimeValue(['packet_length'])[1])+")"
 		warningRoutine(warningMessage)
+		warningMessage = "Caveat: With great power, comes great responsibility.\n\nEarlier, the C compiler mandated that an array dimension of a struct member variable "		\
+						+"must be a non-negative integer constant (NOT a runtime variable), but Dynamic strucures allow that. However, now it is the job of the coder "			\
+						+"to ensure that the array dimension value (that gets resolved during runtime) is indeed a positive integer (or that a bitfield width is less than 64)."
+		warningRoutine(warningMessage)
 
 		self.clearDemo()
 		
-		# Variable length Bitfield 
-		demoIndex = 2
+		# Feature # 3: Variable length Bitfield 
+		
+		warningMessage = "Feature # 3: Variable-width Bitfield\n\nIn C structures, all bitfield widths must be constant - it cannot be coming from another runtime variable."
+		warningRoutine(warningMessage)
+		demoIndex = 4
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "Example 2: Variable-width bitfield. \n\nLook that the bitfield width (num_flags) for the struct member variable bit_flags - it comes from the "	\
+		warningMessage = "Here the bitfield width (num_flags) for the struct member variable bit_flags - it comes from the "	\
 						+"previous struct member variable num_flags. \n\nWe cannot do this in C structure."
 		warningRoutine(warningMessage)
 		self.interpret()
@@ -19188,90 +19360,162 @@ class MainWindow:
 		warningMessage = "You can see that inside the data, the size of the bit_flags is indeed designated by the value of num_flags ("+STR(getRuntimeValue(['num_flags'])[1])+")."
 		warningRoutine(warningMessage)
 
-		self.clearDemo()
-		warningMessage = "Now let's look at some branching capability, where the same strucure may contain different set of member variables at runtime."
-		warningRoutine(warningMessage)
-		
-		# Dynamic addition and removal struct members (runtime commands similar to preprocessor commands)
-		demoIndex = 3
-		self.openCodeFile(demoIndex)
-		self.openDataFile(demoIndex)
-		warningMessage = "Example 3: Branching using #RUNTIME commands.\n\nLook that the filing_status field. Based on its value, we are choosing which struct members "	\
-						+"will come next. We cannot do this in C structure."
-		warningRoutine(warningMessage)
-		self.interpret()
-		self.mapStructureToData()
-		warningMessage = "As you can see, only one side of the decision tree got executed. \n\nLet's change the mapping offset so that we can see how the other branch of the branch condition also gets executed."
-		warningRoutine(warningMessage)
-		self.dataOffsetEntry.insert(tk.END,"4")
-		self.dataOffset.set(4)
-		self.mapStructureToData()
-		warningMessage = "So, the same structure can now behave differently based on the runtime data. Who would have thunk!!"
-		warningRoutine(warningMessage)
 		
 		self.clearDemo()
-		
-		# Initialization
-		demoIndex = 4
-		self.openCodeFile(demoIndex)
-		self.openDataFile(demoIndex)
-		self.dataOffsetEntry.insert(tk.END,"0")
-		self.dataOffset.set(0)
-		warningMessage = "In C, when we declare a variable, we can initialialize it to a value. \n\nHowever, when we declare a C struct for parsing (reading) some data, initialization makes no sense (as there is no writing involved).\n\nPress OK to continue."
+
+		# Feature # 4: Verification via Initialization
+
+		warningMessage = "Feature # 4: Verification via Initialization.\n\nIn C, when we declare a variable, we can initialialize it to a value. "						\
+						+"\n\nHowever, when we declare a C struct for parsing (reading) some data, initialization makes no sense (as there is no writing involved)."	\
+						+"\n\nPress OK to continue."
 		warningRoutine(warningMessage)
-		warningMessage = "We turn the tables here. We use the \"initialization\" as \"verification\", i.e., if a variable A is initialized to some value V in the struct definition, we expect A to have the value of V after parsing. If not, a warning will be issued. \n\nNow that you can see the code on the left and the data on the right, we are going to interpret the code."
-		warningRoutine(warningMessage)
-		self.interpret()
-		warningMessage = "Now that you can see the interpreted code in the middle window, we are going to map the interpreted code to the data. If the initialized variable here (magic_number) does not have the intended value in the parsed data, it will throw warnings."
-		warningRoutine(warningMessage)
-		self.mapStructureToData()
-		warningMessage = "As you saw, the initialization value check did not succeed. But observe that we were mapping the data from the wrong offset (0). If we had mapped it "	\
-						+"from the correct offset (16), the magic number would have gotten its right value. \n\nLet's re-map from offset 0x10 and see if that indeed happens."
-		warningRoutine(warningMessage)
-		self.dataOffsetEntry.delete(0, tk.END)
-		self.dataOffsetEntry.insert(tk.END,"16")
-		self.dataOffset.set(16)
-		self.mapStructureToData()
-		warningMessage = "Now we see that the magic_number indeed has the initialization value (so no warning popped up)."
-		warningRoutine(warningMessage)
-		
-		# Variable-length arrays (speculative execution)
 		demoIndex = 5
-		warningMessage = "However, this required us to know apriori exactly where the starting offset of the data would be. \n\nWould it not be nice if we could tell "		\
-						+"the tool - hey, find the offset yourself so that this field has this intended value?"
-		warningRoutine(warningMessage)
-		warningMessage = "That is precisely what we achieve here. We introduce variable-length arrays, like \"int filler [ ];\" where we do NOT mention the array dimension. "	\
-						+"This is illegal in C structure.\n\nPlease note that C declarations like \"char c [ ] = {1,2,3};\" is essentially \"char c[3] = {1,2,3};\", "			\
-						+"where the compiler figures out during compile-time itself what the exact array dimension is going to be. So, C does not really allow dimension-less arrays."
-		warningRoutine(warningMessage)
-		warningMessage = "However, not providing the array dimension means it will be keep on mapping forever until some termination condition happens."	\
-						+"\n\nIn our tool, we treat the very next (lexically closest) initialization statement as its termination condition."				\
-						+"\n\nSo, this tool will speculatively execute all the possible array dimension values (1 through infinity) until that initialization test succeeds."
-		warningRoutine(warningMessage)
-		self.clearDemo()
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		self.dataOffsetEntry.insert(tk.END,"0")
-		self.dataOffset.set(0)
-		warningMessage = "Let's see that in action. We have exactly the same code as earlier, but we map from 0 offset, and we have this following array without dimension specified: \n\n\nint fiiler_junk [ ] ; // No dimension specified"
-		warningRoutine(warningMessage)
 		self.interpret()
-		warningMessage = "Now, when we are going to map this from offset 0, it will speculatively execute all array dimension sizes until its termination condition (magic_number=0x0400FEFF) gets satisfied"
+		warningMessage = "We turn the tables here. We use the \"initialization\" as \"verification\", i.e., if a variable var_A is initialized to some value val_A in the "	\
+						+"struct definition, we expect var_A to have the value of val_A after parsing. If not, a warning will be issued. "									\
+						+"\n\nNow that you can see the code on the left describing the ELF identification header and a sample a.out file on the right, we are going to "	\
+						+"map this this ELF header onto the data. If the magic number indeed matches, no warning would be issued."
 		warningRoutine(warningMessage)
-		self.interpret()
 		self.mapStructureToData()
-		warningMessage = "Can you see that it speculatively executed all array dimension sizes until its termination condition (magic_number=0x0400FEFF) was satisfied? Neat, isn't it?"
+		warningMessage = "As you saw, the initialization value check did succeed (no warning message popped up). Let's re-map the data from a wrong offset (0x10). "	\
+						+"and see what happens"	
+		warningRoutine(warningMessage)
+		self.dataOffsetEntry.insert(tk.END,"0x10")
+		self.dataOffset.set(16)
+		warningMessage = "Now you see, the initialization value check did NOT succeed (warning message popped up). \n\nWe will use this initialzation / verification "	\
+						+"feature as a building block for another powerful feature later. \n\nFor now, press OK to continue."
 		warningRoutine(warningMessage)
 		
 		self.clearDemo()
 		
-		# Real-life example for network packet header parsing using Dynamic structure:
+		# Feature # 5: Looping and Dimension-less array:
+		
+		warningMessage = "Feature # 5: Looping and Dimension-less array. \n\nIn C structures, array dimensions must be provided at compile-time. The C99 does allow "		\
+						+"flexible arrays, but puts a constrint that it must be the last member in a C struct. \n\nHere, we allow arrays to be dimension-less and "			\
+						+"treat it is an infinite-dimension array. This essentially can serve as a do/while loop that are one of the most essential building blocks "		\
+						+"of any imperative programing language like C. (we will discuss the termination condition for infinite loops later)"
+		warningRoutine(warningMessage)
+		
 		demoIndex = 6
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "Enough with the test data. Let's see this tool in action on some REAL data (network packet headers captured via Wireshark)."					\
-						+"\n\nWhat we have on the right are real Ethernet II frame headers that have IPv4 header next, and then TCP/UDP/ICMP headers after that."		\
-						+"\n\nWe will be using a single Dynamic structure to decode all of it."
+		warningMessage = "Suppose a datastream is simply many packets coming one after another, where each packet header contains a single \"packet_length\" field "		\
+						+"followed by that many bytes of data. In ParseAndC 2.0, the code on the left is akin to an infinite loop until the datastream is exhausted."		
+		warningRoutine(warningMessage)
+		self.interpret()
+		self.mapStructureToData()
+		warningMessage = "Now that you can see the alternate-colored \"packet_length\" and \"packet_data\" fields.\n\nPress OK to continue."
+		warningRoutine(warningMessage)
+		
+		self.clearDemo()
+		
+	
+		warningMessage = "We just saw that using dimensionless arrays can be used for looping endlessly. However, looping endlessly is only of limited use."		\
+						+"What we want is smart looping, where we stop after certain criteria is met. This is very similar to while(condition) { } loop in C."		\
+						+"Unfortunately, we committed to NOT changing the C syntax, so we needed to devise a special way to mention the termination condition "		\
+						+"while using the existing C syntax only.\n\nWould you like to know more? Press OK."
+		warningRoutine(warningMessage)
+		warningMessage = "For any dimensionless array, we can specify its termination critera by the lexically closest subsequent initialization statement. "		\
+						+"What this means is that, instead of looping endlessly, now the tool will speculatively loop for different array dimension values "		\
+						+"until the termination condition gets satisfied. \n\nLet's take a very practical example of this feature. "		
+		warningRoutine(warningMessage)
+		
+		# Feature # 6:	Speculative execution and C strings:
+		
+		warningMessage = "Feature # 6: Speculative execution and C strings\n\nC does not have any special class for strings (character arrays ending with the null "	\
+						+"character). However, we have C strings in nearly every real-life data (section names, program names, variable names etc.). So, if there is "	\
+						+"a C string field in the incoming datastream, but we do not know its length beforehand, then we cannot capture it via a regular C structure. "	\
+						+"\n\n(Sure, we can write a C program to figure that out easily, but here we are talking about capturing it via the structure definition alone.)"
+		warningRoutine(warningMessage)
+		demoIndex = 7
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		warningMessage = "Interestingly, we observe that the way C strings are constructed (a stream of non-null characters followed by the null character) makes it a "		\
+						+"tailor-made case for dimensionless array with termination criteria. \n\nIn the code on the left, the tool will speculatively try all "		\
+						+"possible values (1,2,3, …) of dimension for the array variable Char[] until the subsequent nullChar gets a value of '\0' in the datastream. "	\
+						+"\n\nSo, we can use this to map C strings whose length we do not know beforehand. Press OK to continue."
+		warningRoutine(warningMessage)
+		
+		self.interpret()
+		self.mapStructureToData()
+		
+		warningMessage = "As you see, this tool indeed found the C string. Let's try to map a lot more C strings at a time. "		\
+						+"Since we will be doing a lot of speculative execution, this step will take a bit of time. \n\nPress OK to continue. "	
+		warningRoutine(warningMessage)
+		
+		self.clearDemo()
+
+		demoIndex = 8
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		self.interpret()
+		self.mapStructureToData()
+		warningMessage = "We deliberately chose to code an array of names treating the structure almost like a \"class\". "	\
+						+"\n\nAs you see, this tool indeed found all the C strings.\n\nPress OK to continue."	
+		warningRoutine(warningMessage)
+		
+		self.clearDemo()
+		
+		# Feature # 7: Unknown Offset? No problem! Parse even without knowing which data offset to parse from:
+
+		# Variable-length arrays (speculative execution)
+		warningMessage = "Feature # 7: Unknown data offset? No problem!\n\nUsually, in order to parse a datastream, We to know from which data offset we should start parsing. "	\
+						+"But, what if we do not know where the data is? \n\nAmazingly, the new features (Dimensionless arrays with termination conditions via  "	\
+						+"initialization) can help us there. \n\nLet's take an example to illustrate this."
+		warningRoutine(warningMessage)
+		demoIndex = 9
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		warningMessage = "On the code window, we see the struct Initialization_tester, which describes the data format for the packet that we are looking for. "	\
+						+"Unfortunately, we do not know what offset it appears at. \n\nIf we blindly try to map from offset 0, it will throw warning messages "		\
+						+"informing us that the \"magic_number\" field does NOT hold the intended value (0x0400FEFF) in the data. "									\
+						+"\n\nPress OK to see that in action."
+		warningRoutine(warningMessage)
+		self.interpret()
+		self.mapStructureToData()
+						
+		warningMessage = "As expected, we were hit with warning messages informing that the initialization (verification) statement did not succeed. "	\
+						+"\n\nLuckily, using our keen eyesight, we observe that if we just mapped from the offset of 16 instead of 0, the \"magic_number\" would have "		\
+						+"held the intended value (0x0400FEFF). Let's do that and verify."
+		warningRoutine(warningMessage)
+		self.dataOffsetEntry.insert(tk.END,"16")
+		self.dataOffset.set(16)
+		self.mapStructureToData()
+		warningMessage = "As expected, this time we were NOT hit with any warning messages since the initialization (verification) statement did succeed: "		\
+						+"when mapped from the offset of 16 instead of 0, the \"magic_number\" indeed held the intended value (0x0400FEFF).	"					\
+						+"\n\nHowever, this was more of a lucky break. We cannot really rely upon human ability to look at the raw binary data and still be "	\
+						+"able to identify the intended value. We would rather expect the tool to do the job for us."
+		warningRoutine(warningMessage)
+		
+		self.clearDemo()
+		demoIndex = 10
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		warningMessage = "That is precisely what we achieve here. Take a look at the Code window, where we have added a new line at the top. "							\
+						+"\n\nThis new line \"int filler_junk [ ];\" is a variable-length array, where we do NOT mention the array dimension. "							\
+						+"\n\nIn our tool, we treat the very next (lexically closest) initialization statement (magic_number=0x0400FEFF) as its termination condition."	\
+						+"\n\nSo, this tool will start parsing from offset 0, but it will speculatively execute all the possible array dimension values (1 through "	\
+						+"infinity) for filler_junk [ ] until that initialization test succeeds."	
+		warningRoutine(warningMessage)
+		self.interpret()
+		self.mapStructureToData()
+		warningMessage = "As you can see, the tool did the speculative execution and found the correct offset so that the target termination criteria got met. "		\
+						+"This is an extremely powerful feature, where we can parse even witout knowing where to parse from (as long as we have some apriori knowlege"	\
+						+"about what the data from the correct offset would look like.\n\nPress OK to continue."
+		warningRoutine(warningMessage)
+		
+		self.clearDemo()
+		warningMessage = "OK, enough with all these \"test\" data. Let's see this tool in action on some REAL data (network packet headers captured via Wireshark)."					
+		warningRoutine(warningMessage)
+		
+		# Real-life example for network packet header parsing using Dynamic structure:
+		demoIndex = 11
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		warningMessage = "What we have on the right are real Ethernet II frame headers followed by IPv4 header, and then TCP/UDP/ICMP headers after that."		\
+						+"\n\nWe will be using a SINGLE Dynamic structure to decode all of it."
 		warningRoutine(warningMessage)
 		warningMessage = "In the bottom of the code, we have a single NW_pkt_hdr[3] array for the three different headers (TCP, UDP and ICMP)"
 		warningRoutine(warningMessage)
