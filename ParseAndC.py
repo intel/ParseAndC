@@ -353,6 +353,222 @@
   - Integer division - Python 2 would return an integer, but Python 3 would return a float
   - dict.key() used to generate a list, now it generates <<class dict_keys>>, so any code expecting it to be a list would fail silently
 
+##     ParseAndC 2.0 features:		##
+
+  We introduce the following new features in ParseAndC 2.0:	
+  
+		1. Dynamic structures with runtime branching	
+		2. Variable-length arrays												
+		3. Variable-width bitfields
+		4. Verification via Initialization
+		5. Looping and Dimension-less array
+		6. Speculative execution and C strings
+		7. Unknown data offset? No problem!									
+		
+	Rather than	And the best part - we do ALL these while NOT changing the C syntax!!!
+
+
+	After deployment across company, the most common feedback from the users of ParseAndC 1.0 was that while it was great for parsing C structs and displaying 
+	the field values, most of the time users did not work with just one structure. For example, suppose one wants to parse network packet headers. So, after 
+	parsing the IPv4 header, the user would need to inspect the protocol value manually, and then manually re-load the appropriate next structure (TCP header, 
+	UDP header, etc.) into the tool for parsing the next header. Users wanted to remove ANY manual activity – they wanted something where they could write a parser 
+	program once, load it into the tool, and it would automatically figure out at every decision point which next structure to load when. In other words, they 
+	wanted the tool to have all the capabilities that a C parsing program has – branching, looping, information flow etc. This created a problem, since the 
+	ParseAndC tool accepts only C structures as input, not C programs. So, if we wanted our tool to behave like C parsing programs without any manual intervention, 
+	the only way to do that was by making our input structures as powerful as full-fledged C programs. This was not possible under the current C language. 
+	So, for ParseAndC 2.0 we introduced the "Dynamic" structures, which look and feel just like ordinary C structures (zero syntax change), but have some major 
+	new hidden capabilities that are not allowed in "Regular" C structures:
+
+
+	Feature # 1)	Branching: 
+	--------------------------
+
+	While C structure does allow preprocessor (#if-#else-#endif) commands, all such commands happen at compile-time, not during runtime (in reality, they happen 
+	even before the actual compilation, but let's not nitpick). Therefore, in a preprocessor command, you cannot put a condition that involves variables whose 
+	values would be known only during the runtime. In ParseAndC 2.0, we allow RUNTIME statement that look exactly like the preprocessor statements where the 
+	condition will be evaluated during the runtime (not statically during compile-time), and the condition may include runtime variables. So, the struct below 
+	will be illegal in C but legal in ParseAndC 2.0:
+
+	struct parentDetails {
+		unsigned char parentCount;
+	#if parentCount == 2
+		char parentName1[30];
+		char parentName2[30];
+	#else
+		char parentName[30];
+	#endif
+	};
+
+	We want to empasize that we are not "converting" the regular preprocessing statements into runtime statements. We designed our tool in such a way that if a 
+	command can be resolved during compile-time, we do it during compile-time. However, if it cannot be resolved statically, it will be resolved dynamically. You 
+	can alsolute use both "ordinary" preprocessing commands as well as "runtime" commands in the same structure. See one such example below.
+
+	#define CRYPTO_YEAR 2021
+	#define TAX_YEAR    2021
+
+	struct taxDetails {
+	   unsigned char filerCount;
+	#if filerCount == 2		//  This condition is resolved dynamically, during runtime
+	   char filerName1[30];
+	   char filerName2[30];
+	#else
+	   char filerName[30];
+	#endif
+	#if TAX_YEAR >= CRYPTO_YEAR	//  This condition is resolved statically, during compile-time 
+	   int cryptoIncome;
+	#endif
+	};
+
+
+	This essentially means that, two instances of the same Dynamic structure can have two different sets of struct members depending on the data during runtime. 
+	This is an extremely powerful feature, and by introducing this we have essentially captured the branching behavior of a C program.
+
+
+
+	Feature # 2)	Variable-length arrays:
+	----------------------------------------
+
+
+	One of the most common parsing practice is that we first decode the packet-length, which tells us how many more bytes to read for the subsequent packet data. 
+	Unfortunately, if we want to read the packet data into a single array variable, then we must have its array dimension coming from the packet-length variable. 
+	This is illegal in C struct, but allowed in ParseAndC 2.0:
+
+	struct packet {
+	   unsigned char packet_length;
+	   // We add 1 to avoid the case of 0-length packets
+	   char     packet_data [ packet_length + 1 ] ;
+	};
+
+	This is similar to the information-flow feature of imperative programs, where latter variables are dependent on the values of former variables.
+
+
+
+	Feature # 3)	Variable-width bitfield:
+	-----------------------------------------
+
+	Similar to variable-length arrays, we can also have variable-width bitfields where the bitfield width will only be known during the runtime. 
+	This is illegal in C struct, but allowed in ParseAndC 2.0:
+
+	struct  variableFlags {
+		  unsigned int numFlags: 4 ;
+		  unsigned int actualFlags: numFlags ;
+	};
+
+	So, using these first three features (runtime branching, variable-length array and variable-width bitfield), we are empowered to dynamically change the data 
+	types of the later variables (by using the information from the previous variables at runtime). This pretty much gives us the adequate power to translate all 
+	the parsing code in a .c file into a Dynamic structure.
+
+	But wait, there is more!!
+
+
+	Feature # 4)	Verification via Initialization:
+	------------------------------------------------
+
+	In C, while declaring a variable, we can also initialize it to a value (constant or variable). However, for structures that are used for reading in data, 
+	that initialization is meaningless (since we are not writing anything). Nonetheless, we turn the tables here in ParseAndC 2.0 – if an initialization condition 
+	is supplied, we check if that variable indeed has that value in the parsed data. If not, we flag a warning. This is very, very useful for users since often we 
+	want to confirm that certain field has certain expected value. This is akin to the assert statement in C, without introducing any new syntax.
+
+	struct e_ident {
+		 unsigned int magic_number = 0x7F454C46;
+		unsigned char EI_CLASS;
+		unsigned char EI_DATA;	
+		unsigned char EI_VERSION;
+		unsigned char EI_OSABI;
+		unsigned char EI_ABIVERSION;
+		unsigned char EI_PAD[7];	
+	} elf_identifier;
+
+	In the above example, if magic_number does not have the value of 0x7F454C46 in the parsed data, the tool will flag it. This initialization (or verification) has 
+	yet another use, that we will soon see.
+
+
+	Feature # 5)	Looping and Dimension-less array:
+	-------------------------------------------------
+
+
+	In C, when declaring an array, one must tell the compiler the array dimensions. The first dimension is allowed to be blank, but in reality it is not blank – 
+	it must be accompanied by an initialization statement so that the compiler can infer at compile-time exactly what the actual dimension is. The C99 does allow 
+	flexible arrays, but puts a constrint that it must be the last member in a C struct. In ParseAndC 2.0, we allow dimension-less array ANYWHERE, where the array 
+	dimension is treated as infinity, until some optional termination condition happens. We did not want to introduce any new syntax for providing the termination 
+	condition, so the lexically closest subsequent initialization statement serves as the termination criteria for the infinite loop (we will explain this in detail 
+	later). If there is no termination condition, it will loop endlessly until there is no more data to map (end of file reached). 
+
+	Suppose a datastream is simply many packets coming one after another, where each packet contains a simple "packet_length" field followed by that many bytes of data. 
+	In ParseAndC 2.0, the following code is akin to an infinite loop until the datastream is exhausted.
+
+	struct packet {
+	   unsigned char        packet_length;
+	   char     packet_data  [  packet_length +1 ] ;
+	} packetArray [ ] ;    // Dimension-less array
+
+	With this, the looping behavior of the C program is captured.
+
+
+	Feature # 6)	Speculative execution and C strings:
+	----------------------------------------------------
+
+	C does not have any special type for strings (character arrays ending with the null character). However, we have C strings in nearly every real-life data 
+	(section names, program names, variable names etc.). So, if there is a C string field in the incoming datastream, but we do not know its length beforehand, 
+	then we cannot capture it via a regular C structure. On the other hand, we observe that the way C strings are constructed (a stream of non-null characters 
+	followed by the null character) makes it a tailor-made case for dimensionless array with termination criteria.
+	 
+	As mentioned earlier, if there is no termination criteria, a dimension-less array will be treated as an infinite array, but if there is any initialization 
+	statement provided after that, it will serve as the termination condition for the infinite loop. ParseAndC 2.0 will speculatively try all different values (1,2,3,…) 
+	of the array size until the termination condition gets satisfied. 
+
+	struct C_String {
+		 char Char[ ] ;         // Dimensionless array
+		 char nullChar = '\0';  // Termination condition for the speculative execution
+	} C_string;
+
+	This way, the tool will speculatively try all possible values (1,2,3, …) of dimension for the array variable Char[] until the subsequent nullChar gets a 
+	value of '\0' in the datastream. So, we can use this to map C strings whose length we do not know beforehand. In the example below, it will properly identify 
+	the 3 null characters in the datastream, and populate the C strings for Name1, Name2, and Name3. You can NOT do it in a C structure.
+
+	struct C_String {
+		 char Char [ ] ;         // Dimensionless array
+		 char nullChar = '\0';  // Termination condition for the speculative execution
+	} Name1, Name2, Name3;
+
+
+	Feature # 7)	Unknown Data Offset? No problem! Parsing without knowing which data offset to parse from:
+	---------------------------------------------------------------------------------------------------------
+
+	Another really neat use case for Speculative execution is that when you do not know beforehand what exact offset you should start doing the mapping from, 
+	but you know some key fields' values (what they should look like). ParseAndC 2.0 allows you to do proper parsing even in that case, as seen below.
+
+	char filler [ ];        // Dimensionless array
+	struct Packet {
+		 int version;
+		 int signature;
+		 long magic_figure;
+		 int length;
+	} packet = { .signature = 0x67681233, .magic_figure = 0x34F2323B};     // termination criteria
+
+	In this case above, the ParseAndC 2.0 tool will speculatively try all different values (1,2,3,….) of the array dimension for filler until the condition 
+	(packet.signature = 0x67681233 and  packet.magic_figure = 0x34F2323B) gets satisfied. This is a really cool feature, where you can parse without even 
+	knowing beforehand exactly which offset to parse from.
+
+	Since it tries all possible values one by one, this is currently slow (and the current time complexity is sum(1+2+3+...+n) = O(n^2)). 
+	However, this speculative execution feature is currently in the Beta stage and I am testing various other approximation algorithms that will definitely make it faster.
+
+
+
+	In summary, ParseAndC 2.0 is an extremely powerful tool that allows you do write a complete parser using structures alone (no C programs needed). 
+	And the best part of it is that it achieves it without changing the C syntax in any way. This is very, very important, because the moment you tell 
+	people that we are introducing these new keywords or syntaxes, the existing C community often lose interest. I designed this extension so that a person 
+	who understands C code but has never heard of ParseAndC will still be able to look at ParseAndC 2.0 structures and immediately tell what what it is doing.
+
+	This tool is extremely portable – it is a single 1MB Python text file, supports all versions of Python (2/3), is cross-platform (Windows/Mac/Unix), 
+	and also works in the terminal /batch mode without GUI. For multi-byte datatypes (e.g. integer or float) it supports both endianness (little/big) and 
+	displays value in both decimal and Hex formats. The tool needs no internet connection and works fully offline. It is self-contained - it doesn't import 
+	almost anything (uses only lists and dictionaries), to the extent that it implements its own C compiler (front-end) from scratch!!
+
+	This tool is useful for both security- and non-security testing alike (reverse engineering, network traffic analyzing, packet processing etc.). 
+	The author of this tool led many security hackathons at Intel and there this tool was found to be very useful.
+
+	You can see all that just by clicking the "Run Demo" button on the tool.
 
 
 ##     CURRENTLY WORK-IN-PROGRESS:		##
