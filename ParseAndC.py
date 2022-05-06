@@ -371,10 +371,10 @@
 	After deployment across company, the most common feedback from the users of ParseAndC 1.0 was that while it was great for parsing C structs and displaying 
 	the field values, most of the time users did not work with just one structure. For example, suppose one wants to parse network packet headers. So, after 
 	parsing the IPv4 header, the user would need to inspect the protocol value manually, and then manually re-load the appropriate next structure (TCP header, 
-	UDP header, etc.) into the tool for parsing the next header. Users wanted to remove ANY manual activity – they wanted something where they could write a parser 
+	UDP header, etc.) into the tool for parsing the next header. Users wanted to remove ANY manual activity - they wanted something where they could write a parser 
 	program once, load it into the tool, and it would automatically figure out at every decision point which next structure to load when. In other words, they 
-	wanted the tool to have all the capabilities that a C parsing program has – branching, looping, information flow etc. This created a problem, since the 
-	ParseAndC tool accepts only C structures as input, not C programs. So, if we wanted our tool to behave like C parsing programs without any manual intervention, 
+	wanted the tool to have all the capabilities that a C parsing program has - branching, looping, information flow etc. This created a problem, since the 
+	ParseAndC tool accepts only C structures as input, not C programs. So, if we wanted our tool to behave like C parsing programs without any manual intervention,
 	the only way to do that was by making our input structures as powerful as full-fledged C programs. This was not possible under the current C language. 
 	So, for ParseAndC 2.0 we introduced the "Dynamic" structures, which look and feel just like ordinary C structures (zero syntax change), but have some major 
 	new hidden capabilities that are not allowed in "Regular" C structures:
@@ -465,7 +465,7 @@
 	------------------------------------------------
 
 	In C, while declaring a variable, we can also initialize it to a value (constant or variable). However, for structures that are used for reading in data, 
-	that initialization is meaningless (since we are not writing anything). Nonetheless, we turn the tables here in ParseAndC 2.0 – if an initialization condition 
+	that initialization is meaningless (since we are not writing anything). Nonetheless, we turn the tables here in ParseAndC 2.0 - if an initialization condition 
 	is supplied, we check if that variable indeed has that value in the parsed data. If not, we flag a warning. This is very, very useful for users since often we 
 	want to confirm that certain field has certain expected value. This is akin to the assert statement in C, without introducing any new syntax.
 
@@ -487,7 +487,7 @@
 	-------------------------------------------------
 
 
-	In C, when declaring an array, one must tell the compiler the array dimensions. The first dimension is allowed to be blank, but in reality it is not blank – 
+	In C, when declaring an array, one must tell the compiler the array dimensions. The first dimension is allowed to be blank, but in reality it is not blank - 
 	it must be accompanied by an initialization statement so that the compiler can infer at compile-time exactly what the actual dimension is. The C99 does allow 
 	flexible arrays, but puts a constrint that it must be the last member in a C struct. In ParseAndC 2.0, we allow dimension-less array ANYWHERE, where the array 
 	dimension is treated as infinity, until some optional termination condition happens. We did not want to introduce any new syntax for providing the termination 
@@ -514,7 +514,7 @@
 	followed by the null character) makes it a tailor-made case for dimensionless array with termination criteria.
 	 
 	As mentioned earlier, if there is no termination criteria, a dimension-less array will be treated as an infinite array, but if there is any initialization 
-	statement provided after that, it will serve as the termination condition for the infinite loop. ParseAndC 2.0 will speculatively try all different values (1,2,3,…) 
+	statement provided after that, it will serve as the termination condition for the infinite loop. ParseAndC 2.0 will speculatively try all different values (1,2,3,...) 
 	of the array size until the termination condition gets satisfied. 
 
 	struct C_String {
@@ -522,7 +522,7 @@
 		 char nullChar = '\0';  // Termination condition for the speculative execution
 	} C_string;
 
-	This way, the tool will speculatively try all possible values (1,2,3, …) of dimension for the array variable Char[] until the subsequent nullChar gets a 
+	This way, the tool will speculatively try all possible values (1,2,3,...) of dimension for the array variable Char[] until the subsequent nullChar gets a 
 	value of '\0' in the datastream. So, we can use this to map C strings whose length we do not know beforehand. In the example below, it will properly identify 
 	the 3 null characters in the datastream, and populate the C strings for Name1, Name2, and Name3. You can NOT do it in a C structure.
 
@@ -546,7 +546,7 @@
 		 int length;
 	} packet = { .signature = 0x67681233, .magic_figure = 0x34F2323B};     // termination criteria
 
-	In this case above, the ParseAndC 2.0 tool will speculatively try all different values (1,2,3,….) of the array dimension for filler until the condition 
+	In this case above, the ParseAndC 2.0 tool will speculatively try all different values (1,2,3,...) of the array dimension for filler until the condition 
 	(packet.signature = 0x67681233 and  packet.magic_figure = 0x34F2323B) gets satisfied. This is a really cool feature, where you can parse without even 
 	knowing beforehand exactly which offset to parse from.
 
@@ -560,7 +560,7 @@
 	people that we are introducing these new keywords or syntaxes, the existing C community often lose interest. I designed this extension so that a person 
 	who understands C code but has never heard of ParseAndC will still be able to look at ParseAndC 2.0 structures and immediately tell what what it is doing.
 
-	This tool is extremely portable – it is a single 1MB Python text file, supports all versions of Python (2/3), is cross-platform (Windows/Mac/Unix), 
+	This tool is extremely portable - it is a single 1MB Python text file, supports all versions of Python (2/3), is cross-platform (Windows/Mac/Unix), 
 	and also works in the terminal /batch mode without GUI. For multi-byte datatypes (e.g. integer or float) it supports both endianness (little/big) and 
 	displays value in both decimal and Hex formats. The tool needs no internet connection and works fully offline. It is self-contained - it doesn't import 
 	almost anything (uses only lists and dictionaries), to the extent that it implements its own C compiler (front-end) from scratch!!
@@ -574,7 +574,7 @@
 ##     CURRENTLY WORK-IN-PROGRESS:		##
   
   I am currently working on a few items. These items are not fully ready yet:
-  - sizeof()
+  - sizeof()	
   - Bitfield behavior with different combincation of packed, aligned and #pragma pack. I found that while the various top compilers have consistent behavior in terms of 
     where to insert the padding for non-bitfield structs (even with different combincations of packed, aligned and #pragma pack), it is not consistent when you take 
 	structs with bitfields and deal with different combincation of packed, aligned and #pragma pack. And this is by design - K & R mentioned it in their C Bible that 
@@ -816,6 +816,7 @@
 # 2022-04-26 - Added the demo part.
 # 2022-04-26 - Before removing the #RUNTIME.
 # 2022-04-30 - After removing the #RUNTIME. Now there is zero change in C syntax.
+# 2022-05-06 - Small bug fix for using checkIfIntegral() instead of isinstance(item, int) for Python 2.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -1933,7 +1934,7 @@ except ImportError:
 
 def integerDivision(a,b):
 	if sys.version_info >= (3, 0, 0):
-		if isinstance(a,int) and isinstance(b,int):
+		if checkIfIntegral(a) and checkIfIntegral(b):
 			returnValue = a // b
 		else:
 			PRINT ("WARNING: Inputs to integerDivision(",a,",",b") are not integral") 
@@ -2220,7 +2221,7 @@ def listItemsSum(inputList):
 	elif inputList:
 		returnValue = 0
 		for item in inputList:
-			if not isinstance(item, int):
+			if not checkIfIntegral(item):
 				return False
 			else:
 				if item <= 0:
@@ -2252,7 +2253,7 @@ def listItemsProduct(inputList):
 			if returnValueList:
 				returnValueList.append('*')	# Adding a specific multiplication symbol for 2nd onward list items
 				
-			if isinstance(item, int):
+			if checkIfIntegral(item):
 				itemValue = str(item)
 				returnValueList.append(itemValue)
 				continue
@@ -2309,7 +2310,7 @@ def calculateArrayIndicesFromPosition(arrayDimensions, position):
 		errorMessage = "ERROR: Illegal input array dimension value = "+STR(arrayDimensions)
 		errorRoutine(errorMessage)
 		return False
-	elif (not isinstance(position,int)) or (position < 0):	
+	elif (not checkIfIntegral(position)) or (position < 0):	
 		errorMessage = "ERROR: Illegal input array position value of "+STR(position)
 		errorRoutine(errorMessage)
 		return False
@@ -2320,7 +2321,7 @@ def calculateArrayIndicesFromPosition(arrayDimensions, position):
 		reverseIndex = []
 		for i in range(len(arrayDimensionsReversed)):
 			d = arrayDimensionsReversed[i]
-			if (not isinstance (d, int)) or (d <1):
+			if (not checkIfIntegral(d)) or (d <1):
 				errorMessage = "ERROR: Illegal input array dimension value of "+STR(d)
 				errorRoutine(errorMessage)
 				return False
@@ -2374,7 +2375,7 @@ def calculateArrayPositionFromIndices(arrayDimensions, arrayIndices):
 		return False
 	else:
 		for i in range(len(arrayDimensions)):
-			if not isinstance(arrayDimensions[i], int):
+			if not checkIfIntegral(arrayDimensions[i]):
 				errorMessage = "ERROR: non-integral array dimension ("+STR(arrayDimensions)+") "
 				errorRoutine(errorMessage)
 				return False
@@ -2383,7 +2384,7 @@ def calculateArrayPositionFromIndices(arrayDimensions, arrayIndices):
 				errorRoutine(errorMessage)
 				return False
 		for i in range(len(arrayIndices)):
-			if not isinstance(arrayIndices[i], int):
+			if not checkIfIntegral(arrayIndices[i]):
 				errorMessage="ERROR: non-integral array index ("+STR(arrayIndices)+") "
 				errorRoutine(errorMessage)
 				return False
@@ -3413,7 +3414,7 @@ def evaluateArithmeticExpression(inputAST):
 				elif inputList[1] == '*':
 					result =  op0 * op2
 				elif inputList[1] == '/':
-					if isinstance(op0,int) and isinstance(op2,int):
+					if checkIfIntegral(op0) and checkIfIntegral(op2):
 						result = integerDivision(op0, op2)
 					else:
 						result =  op0 / op2
@@ -8698,7 +8699,7 @@ def parseEnum(tokenList, i):
 		errorMessage = "ERROR in parseEnum(): Empty passed tokenList"
 		errorRoutine(errorMessage)
 		return False
-	elif (not isinstance(i,int)) or i <0 or i>=len(tokenList):
+	elif (not checkIfIntegral(i)) or i <0 or i>=len(tokenList):
 		errorMessage = "ERROR in parseEnum(): Illegal value of i ="+STR(i)
 		errorRoutine(errorMessage)
 		return False
@@ -8864,7 +8865,7 @@ def parseEnum(tokenList, i):
 								return False
 							elif enumElementLength == 3:
 								PRINT ("Simple assignment - no expression to evaluate for enum field", item )
-								if isinstance(enumElement[2],int):	# Will it work? "1" is not an integer, 1 is
+								if checkIfIntegral(enumElement[2]):	# Will it work? "1" is not an integer, 1 is
 									enumFields[enumElement[0]]= enumElement[2]
 									lastEnumValue += 1
 								elif checkIfString(enumElement[2]):	# Will it work? "1" is not an integer, 1 is
@@ -8891,7 +8892,7 @@ def parseEnum(tokenList, i):
 										return False
 									else:
 										output = evaluateArithmeticExpressionOutput[1]
-										if isinstance(output,int):
+										if checkIfIntegral(output):
 											enumFields[enumElement[0]] = output
 											lastEnumValue = output
 											PRINT ("output =",output,"is indeed an assignable integer." )
@@ -9344,7 +9345,7 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 		errorMessage = "ERROR in parseStructureDefinition(): Empty passed tokenList"
 		errorRoutine(errorMessage)
 		return False
-	elif (not isinstance(i,int)) or i <0 or i>=len(tokenList):
+	elif (not checkIfIntegral(i)) or i <0 or i>=len(tokenList):
 		errorMessage = "ERROR in parseStructureDefinition(): Illegal value of i ="+STR(i)
 		errorRoutine(errorMessage)
 		return False
@@ -15723,8 +15724,184 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 		else:
 			return returnValue
 
-#def encodeValue((value, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="int", signedOrUnsigned="signed", bitFieldSize=0, bitStartPosition=0):
+def decimal2Binary(decimalValue):
+	if not checkIfIntegral (decimalValue):
+		errorMessage = "ERROR in decimal2Binary() - datatype <%s> is not supported -- exiting!"%type(decimalValue)
+		errorRoutine(errorMessage)
+		return False
+	else:
+		binaryStr = "{0:b}".format(int(decimalValue))
+		return binaryStr
+	
+	
+def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="int", signedOrUnsigned="signed", bitFieldSize=0, bitStartPosition=0):
+	PRINT=OUTPUT
+	if bitFieldSize < 0:
+		errorMessage = "ERROR in encodeValue() - bitFieldSize = <%d> cannot be less than 1!"%type(bitFieldSize)
+		errorRoutine(errorMessage)
+		return [False, None]
+	if bitFieldSize > 0 and bitFieldSize > primitiveDatatypeLength[datatype]*BITS_IN_BYTE:
+		errorMessage = "ERROR in encodeValue() - datatype <%s> is not supported -- exiting!"%type(decimalValue)
+		errorRoutine(errorMessage)
+		return [False, None]
 
+	if datatype in ("float","double"):
+		fieldSize = 32 if datatype == "float" else 64
+		exponentSize = 8 if datatype == "float" else 11
+		mantissaSize = fieldSize - 1 - exponentSize
+		exponentBias = (1<<(exponentSize-1))-1
+		sign =  0 if decimalValue >= 0 else 1		#IEEEFormatValue >> (fieldSize-1)
+		
+		integerPart = int(abs(decimalValue))
+		fractionPart = abs(decimalValue) - integerPart
+		PRINT ("decimalValue = integerPart (",integerPart,") + fractionPart (",fractionPart,")")
+		
+		# Calculate the integer part as an array of 1s and 0s
+		integerPartBinary = []
+		temp = integerPart
+		while temp:
+			binaryDigit = temp % 2
+			integerPartBinary.append(binaryDigit)
+			temp = integerDivision(temp,2)
+		integerPartBinary.reverse()
+		PRINT("integerPart (",integerPart,") is binarified as integerPartBinary =",integerPartBinary)
+		
+		if integerPartBinary[0] != 1:
+			EXIT("Coding bug in encodeValue() for floating point")
+		# We do not store the leading 1
+		mantissaArray = integerPartBinary[1:]
+		unbiasedExponent = len(mantissaArray)
+		biasedExponent = unbiasedExponent + exponentBias
+		PRINT("mantissaArray =",mantissaArray,", unbiasedExponent =",unbiasedExponent,", biasedExponent =",biasedExponent)
+		
+		temp = biasedExponent
+		biasedExponentArray = []
+		while temp:
+			binaryDigit = temp % 2
+			biasedExponentArray.append(binaryDigit)
+			temp = integerDivision(temp,2)
+		if exponentSize > len(biasedExponentArray):
+			extra = [0 for x in range(exponentSize-len(biasedExponentArray))]
+			biasedExponentArray.extend(extra)
+		biasedExponentArray.reverse()
+		if len(biasedExponentArray) != exponentSize:
+			EXIT("Coding but in encodeValue() for floating point - len(biasedExponentArray) ="+STR(len(biasedExponentArray))+" != exponentSize ="+STR(exponentSize))
+		PRINT("biasedExponent =",list2plaintext(biasedExponentArray,""),", len(biasedExponent) =", len(biasedExponentArray))
+		
+		# Calculate the fraction part as an array of 1s and 0s
+		temp = fractionPart
+		while True:
+			if len(mantissaArray) >= mantissaSize:
+				break
+			temp *= 2.0
+			if temp > 0.0:
+				binaryDigit = 1
+				temp -= 1.0
+			else:
+				binaryDigit = 0
+			mantissaArray.append(binaryDigit)
+
+		if len(biasedExponentArray) + len(mantissaArray) + 1 != fieldSize:
+			EXIT("Coding but in encodeValue() for floating point - len(biasedExponentArray) ("+STR(len(biasedExponentArray))+") + len(mantissaArray) ("+STR(len(mantissaArray))+") + 1 != fieldSize ="+STR(fieldSize))
+
+		returnBitArray = [sign]+biasedExponentArray+mantissaArray
+		PRINT("The",len(returnBitArray),"-bit wide returnBitArray =", returnBitArray)
+		
+		returnByteArray = []
+		
+		nextBitToConsume = 0
+		while nextBitToConsume < fieldSize:
+			byte = returnBitArray[nextBitToConsume: nextBitToConsume+BITS_IN_BYTE]
+			byteValue = 0
+			for i in range(BITS_IN_BYTE):
+				byteValue += byte[i]<<(BITS_IN_BYTE-1-i)
+			PRINT("Converted byte =",byte,"to byteValue =",byteValue)
+			returnByteArray.append(byteValue)
+			nextBitToConsume += BITS_IN_BYTE
+		PRINT("returnByteArray[] =",returnByteArray," (", len(returnByteArray),"bytes)")
+		if len(returnByteArray)*BITS_IN_BYTE != fieldSize:
+			EXIT("Coding but in encodeValue() for floating point - len(returnByteArray) ="+STR(len(returnByteArray))+" != "+STR(integerDivision(fieldSize,BITS_IN_BYTE)))
+
+		
+		
+	elif datatype in ("char","short","int","long","long long"):
+		totalBits = bitFieldSize if bitFieldSize > 0 else primitiveDatatypeLength[datatype]*BITS_IN_BYTE
+		if signedOrUnsigned=="signed":
+			if -(2<<totalBits) <= decimalValue <= (2<<totalBits)-1:
+				PRINT("decimalValue =",decimalValue,"falls within the acceptable signed range")
+			else:
+				errorMessage = "ERROR in encodeValue(): "+STR(decimalValue)+" falls outside the acceptable range"
+				errorRoutine(errorMessage)
+				return [False, None]
+		elif signedOrUnsigned=="unsigned":
+			if 0 <= decimalValue <= (2<<totalBits)-1:
+				PRINT("decimalValue =",decimalValue,"falls within the acceptable unsigned range")
+			else:
+				errorMessage = "ERROR in encodeValue(): "+STR(decimalValue)+" falls outside the acceptable unsigned range"
+				errorRoutine(errorMessage)
+				return [False, None]
+		else:
+			EXIT("Unknown value of signedOrUnsigned = "+signedOrUnsigned+" not supported yet")
+		
+		binaryStr = decimal2Binary(decimalValue)
+		PRINT("totalBits =",totalBits,", binaryStr =",binaryStr,", type(binaryStr) =",type(binaryStr),", len(binaryStr) =",len(binaryStr))
+		if len(binaryStr) < totalBits:
+			PRINT("Adding",totalBits-len(binaryStr),"0s at the left to make it",totalBits,"bits wide")
+			binaryStr = "0"*(totalBits-len(binaryStr))+binaryStr
+			PRINT("After padding with leading 0s, binaryStr =",binaryStr)
+		if len(binaryStr) != totalBits:
+			EXIT("Coding bug in encodeValue()")
+
+		returnByteArray = []
+		byteIndex = 0
+		while True:
+			if (byteIndex+1) * BITS_IN_BYTE > len(binaryStr):
+				break
+			bits2add = binaryStr[byteIndex*BITS_IN_BYTE:(byteIndex+1)*BITS_IN_BYTE]
+			byte2add = int(bits2add,2)
+			returnByteArray.append(byte2add)
+			byteIndex += 1
+	else:
+		EXIT("Datatype Not supported yet")
+
+	# Python 2 and 3 stores the string separately. So we need to encode it differently.
+	
+	if PYTHON2x: 
+		outputBytes = basestring()
+	elif PYTHON3x:
+		outputBytes = bytearray()
+	
+	PRINT("\nStarting with outputBytes =",outputBytes,", type(outputBytes) =",type(outputBytes))
+	index = 0
+	while index < len(returnByteArray):
+		byte2add = returnByteArray[index]
+		PRINT("byte #",index,"of returnByteArray =",byte2add)
+		if PYTHON2x:
+			py2Byte = chr(byte2add)
+			PRINT("The output byte is ",py2Byte)
+			outputBytes += py2Byte
+		else:
+			py3Byte = bytes([byte2add])
+			PRINT("The output byte is ",py3Byte)
+			outputBytes += py3Byte
+		PRINT("After adding byte #",index," = <",byte2add,">, outputBytes =",outputBytes,",len(outputBytes) =", len(outputBytes))
+		index += 1
+	PRINT("\nFinal outputBytes =",outputBytes)
+	
+	if littleEndianOrBigEndian==LITTLE_ENDIAN and len(outputBytes)>1:
+		outputBytes.reverse()
+
+	result = calculateInternalValue(outputBytes, littleEndianOrBigEndian, datatype, signedOrUnsigned, bitFieldSize, 0)
+	PRINT ("calculateInternalValue() = ", result)
+	
+	if result != decimalValue:
+		EXIT("result ("+STR(result)+ ") != decimalValue (" +STR(decimalValue)+")")
+	else:
+		PRINT("result ("+STR(result)+ ") matches decimalValue (" +STR(decimalValue)+")")
+	
+	
+#encodeValue(10.3, LITTLE_ENDIAN, "float")
+#sys.exit()
 
 def charIsValidHex(c):
 	if ('0' <= c <= '9') or ('a' <= c <= 'f') or ('A' <= c <= 'F'):
@@ -19521,7 +19698,8 @@ class MainWindow:
 		demoIndex = 2
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "When we interpret this, we will see that the compile-time preprocessor statements will no longer exist in the interpreted code, "		\
+		warningMessage = "We have loaded a new Dynamic structure that contains BOTH Regular preprocessing commands and Runtime statements. "		\
+						+"\n\nWhen we interpret this, we will see that the compile-time preprocessor statements will no longer exist in the interpreted code, "		\
 						+"but runtime statements will continue to be there."
 		warningRoutine(warningMessage)
 		self.interpret()
@@ -19548,7 +19726,8 @@ class MainWindow:
 		demoIndex = 3
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "The array dimension of packet_data is \"packet_length+1\", which is the previous struct member. \n\nWe cannot do this in C structure."
+		warningMessage = "The array dimension of packet_data is one plus \"packet_length\", which is the previous struct member. \n\nWe cannot do this in C structure."		\
+						+"\n\nPress OK to interpret and map this Dynamic structure on the data."
 		warningRoutine(warningMessage)
 		self.interpret()
 		self.mapStructureToData()
@@ -19556,7 +19735,7 @@ class MainWindow:
 		warningRoutine(warningMessage)
 		warningMessage = "Caveat: With great power, comes great responsibility.\n\nEarlier, the C compiler mandated that an array dimension of a struct member variable "		\
 						+"must be a non-negative integer constant (NOT a runtime variable), but Dynamic strucures allow that. However, now it is the job of the coder "			\
-						+"to ensure that the array dimension value (that gets resolved during runtime) is indeed a positive integer (or that a bitfield width is less than 64)."
+						+"to ensure that the array dimension value (that gets resolved during runtime) is indeed a positive integer."
 		warningRoutine(warningMessage)
 
 		self.clearDemo()
@@ -19650,7 +19829,7 @@ class MainWindow:
 		self.openDataFile(demoIndex)
 		warningMessage = "Interestingly, we observe that the way C strings are constructed (a stream of non-null characters followed by the null character) makes it a "		\
 						+"tailor-made case for dimensionless array with termination criteria. \n\nIn the code on the left, the tool will speculatively try all "		\
-						+"possible values (1,2,3, …) of dimension for the array variable Char[] until the subsequent nullChar gets a value of '\0' in the datastream. "	\
+						+"possible values (1,2,3, ...) of dimension for the array variable Char[] until the subsequent nullChar gets a value of '\0' in the datastream. "	\
 						+"\n\nSo, we can use this to map C strings whose length we do not know beforehand. Press OK to continue."
 		warningRoutine(warningMessage)
 		
