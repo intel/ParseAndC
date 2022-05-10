@@ -817,6 +817,7 @@
 # 2022-04-26 - Before removing the #RUNTIME.
 # 2022-04-30 - After removing the #RUNTIME. Now there is zero change in C syntax.
 # 2022-05-06 - Small bug fix for using checkIfIntegral() instead of isinstance(item, int) for Python 2.
+# 2022-05-10 - Introduced typecasting.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -982,6 +983,9 @@ pragmaPackDefaultValue = ALIGNED_DEFAULT_VALUE
 LARGE_NEGATIVE_NUMBER = -9999999999999999999999999999999		# A number usually associated with default (erroneous) value of Index in an array
 LARGE_POSITIVE_NUMBER = -LARGE_NEGATIVE_NUMBER
 LOGICAL_TEST_RESULT_INDETERMINATE = "__LOGICAL_TEST_RESULT_INDETERMINATE__"		# An arbitrary string
+
+RELATIVE_TOLERANCE_FOR_FLOAT = 0.0000001
+ABSOLUTE_TOLERANCE_FOR_FLOAT = 0
 
 funcName = ""	# Tells which routine it was executed from
 
@@ -2526,7 +2530,8 @@ def returnFilePathList(semicolonSeparatedFilePaths):
 # This function takes an input list, and returns True/False based upon whether the input List is a valid Abstract Syntax Tree or not
 #######################################################################################################################################################
 def isASTvalid(inputList):
-	
+#	PRINT=OUTPUT
+	PRINT("Entering isASTvalid(inputList=",inputList,")")
 	validOperators = oneCharOperatorList+twoCharOperatorList+threeCharOperatorList+derivedOperatorList
 	validPrefixOperators = ["++","--","+","-","!","~","*","&","sizeof","_Alignof","()","{}","[]",",","function()","typecast"]
 	validPostfixOperators = ["++","--"]
@@ -2544,7 +2549,9 @@ def isASTvalid(inputList):
 		elif len(inputList) == 2:
 			# Check the prefix ones of the format [prefix-operator, operand]
 			if (inputList[0] in validPrefixOperators) and (inputList[1] not in validOperators):
-				return isASTvalid(inputList[1])
+				res = isASTvalid(inputList[1])
+				PRINT("returning isASTvalid(inputList[1]=",inputList[1],") =",res)
+				return res
 			elif (inputList[0] not in validOperators) and (inputList[1] in validPrefixOperators):
 				return isASTvalid(inputList[0])
 			elif isinstance(inputList[1], list) and inputList[1][0]=='[]':
@@ -2568,6 +2575,17 @@ def isASTvalid(inputList):
 					return False
 			elif (inputList[0] not in validOperators) and (inputList[1] in validInfixOperators) and (inputList[2] not in validOperators):
 				return isASTvalid(inputList[0]) & isASTvalid(inputList[2])
+			elif inputList[0] == "typecast": 
+				# So, for an expression like			int i[(int)2.5];
+				# inputList 						= ['typecast', ['()', ['datatype', ['int']]], ['2.5']]
+				PRINT("inputList =",inputList)
+				if isinstance(inputList[1], list) and len(inputList[1]) == 2 and inputList[1][0]== "()" and isinstance(inputList[1][1], list) 		\
+					and inputList[1][1][0]=='datatype' and isinstance(inputList[1][1][1], list) and inputList[1][1][1][0] in cDataTypes and isinstance(inputList[2], list):
+					PRINT("Returning isASTvalid(inputList[2]=",inputList[2],")")
+					return isASTvalid(inputList[2])
+				else:
+					PRINT("Returning False")
+					return False
 			else:
 				PRINT ("inputList =",inputList, "is not a valid AST" )
 				return False
@@ -3115,6 +3133,33 @@ def isStringAValidNumber(numericString):
 		return False
 
 
+
+# Float numbers are difficult to say that are equal in value. So we say they are equal if they are "close enough"
+def areFloatsCloseEnough (f1, f2, relativeTolerance = RELATIVE_TOLERANCE_FOR_FLOAT, absoluteTolerance = ABSOLUTE_TOLERANCE_FOR_FLOAT):
+#	PRINT=OUTPUT
+	if f1 == f2:	# Just what the heck
+		return True
+		
+	if relativeTolerance < 0 or absoluteTolerance < 0:
+		errorMessage = "Error in areFloatsCloseEnough(): tolerances must be non-negative"
+		errorRoutine(errorMessage) 
+		return False
+
+	difference = abs(f1-f2)
+	relativeDifference = difference / max(abs(f1), abs(f2))
+	
+	PRINT("f1 = ",f1, ", f2 =", f2, ", difference =", difference, ", relativeDifference =",relativeDifference, ", relativeTolerance =",relativeTolerance)
+	
+	if difference <= absoluteTolerance:
+		return True
+	elif relativeDifference <= relativeTolerance:
+		PRINT(f1,"and",f2,"are close enough floating point numbers")
+		return True
+	else:
+		PRINT(f1,"and",f2,"are NOT close enough floating point numbers")
+		return False
+
+
 #######################################################################################################################################################
 #
 # 						!!!! 	THIS FUNCTION NEEDS AN AST, NOT JUST A LIST !!!!!
@@ -3465,13 +3510,18 @@ def evaluateArithmeticExpression(inputAST):
 				elif inputList[1] == '==':
 					if op0 == op2:
 						result = 1
+					elif isinstance(op0, float) or isinstance(op2, float):
+						result = 1 if areFloatsCloseEnough(op0, op2) else 0
+#						MUST_PRINT("Result = ",result," after calling areFloatsCloseEnough(op0=",op0, ", op2=",op2,")")
 					else:
 						result = 0
 				elif inputList[1] == '!=':
-					if op0 != op2:
-						result = 1
-					else:
+					if op0 == op2:
 						result = 0
+					elif isinstance(op0, float) or isinstance(op2, float):
+						result = 0 if areFloatsCloseEnough(op0, op2) else 1
+					else:
+						result = 1
 				else:
 					errorMessage = "Coding error in evaluateArithmeticExpression() while handling the %s operator in <%s> - exiting!"%(STR(inputList[1]),STR(inputList))
 					errorRoutine(errorMessage)
@@ -3488,7 +3538,36 @@ def evaluateArithmeticExpression(inputAST):
 					return [False, None]
 				else:
 					result = evaluateArithmeticExpressionResult[1]
-
+			elif inputList[0] == 'typecast':
+				if isinstance(inputList[1], list) and len(inputList[1]) == 2 and inputList[1][0]== "()" and isinstance(inputList[1][1], list) and inputList[1][1][0]=='datatype' \
+					and isinstance(inputList[1][1][1], list) and inputList[1][1][1][-1] in cDataTypes and isinstance(inputList[2], list) and isASTvalid(inputList[2]):
+					PRINT("Inside evaluateArithmeticExpression(), for typecast expression, going to evaluate inputList = ",inputList)
+					PRINT("But let's first evaluateArithmeticExpression(inputList[2]=",inputList[2],")")
+					evaluateArithmeticExpressionResult2 = evaluateArithmeticExpression(inputList[2])
+					if evaluateArithmeticExpressionResult2[0]!=True:
+						return [evaluateArithmeticExpressionResult2[0], None]
+					elif evaluateArithmeticExpressionResult2[1]==LOGICAL_TEST_RESULT_INDETERMINATE:
+						return [True, LOGICAL_TEST_RESULT_INDETERMINATE]
+					else:
+						PRINT("Going to make <",evaluateArithmeticExpressionResult2[1],"> a",inputList[1][1][1])
+						if inputList[1][1][1][-1] in ('char', 'short', 'int','long','long long'):
+							PRINT("Typecast to integral type")
+							sizeInBits = primitiveDatatypeLength[inputList[1][1][1][-1]]*BITS_IN_BYTE
+							mask = (1<<sizeInBits)-1
+							PRINT("sizeInBits =",sizeInBits,", mask =",hex(mask),",evaluateArithmeticExpressionResult2[1]=",evaluateArithmeticExpressionResult2[1],", int(evaluateArithmeticExpressionResult2[1])=",int(evaluateArithmeticExpressionResult2[1]))
+							isNegative = True if evaluateArithmeticExpressionResult2[1] < 0 else False
+							# Somehow, if you do "(-1) & 0xFF", Python returns 255.
+							result = int(evaluateArithmeticExpressionResult2[1]) & mask
+							if isNegative and result >= 0:
+								PRINT("Was negative, now positive!!!")
+							PRINT("Converted",evaluateArithmeticExpressionResult2[1]," to",result)
+							return [True, result]
+						elif inputList[1][1][1][-1] in ('float', 'double'):
+							result = 1.0 * evaluateArithmeticExpressionResult2[1]
+							return [True, result]
+						else:
+							EXIT("Error in evaluateArithmeticExpression() - not coded yet")
+					sys.exit()
 			else:
 				errorMessage = "Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
 				if inputList[1]=='=':
@@ -4793,9 +4872,7 @@ def findTokenListInLines(inputLines, inputList, lookFromTokenIndex = 0):
 ####################################################################################################################
 #  THE most important function. It takes in a tokenStream, and returns an AST
 ####################################################################################################################
-def parseArithmeticExpression (arithmeticExpression):
-	global funcName
-	funcName = "parseArithmeticExpression"
+def parseArithmeticExpression(arithmeticExpression):
 #	PRINT ("arithmeticExpression to be parsed = ", arithmeticExpression )
 #	PRINT ("len(arithmeticExpression) = ", len(arithmeticExpression) )
 	
@@ -6036,6 +6113,13 @@ def parseVariableDeclaration(inputList):
 									# This will create problem later since we will be splitting the variable string based on space.
 									currentArrayDimensionTokensString = ""
 									for token in currentArrayDimensionTokens:
+										# If the current word ends with a alphanumeric character and the next token starts with one, insert a $ which we will remove later.
+										# This is a kludge, because we need to remove ALL spaces from the variable array dimension expression, but for expressions like this:
+										# 		int i[(unsigned char)c], j[c + 2];
+										# If we remove all the spaces from the dimension, for the j we will be fine since we will get "c+2". But for i we will get "(unsignedchar)c"
+										# which is NOT fine. So, we insert an artificial separator.
+										if currentArrayDimensionTokensString and re.match(r'^.*[a-zA-Z0-9_]$',currentArrayDimensionTokensString) and re.match(r'^[a-zA-Z0-9_].*$',token):
+											currentArrayDimensionTokensString += '$'
 										currentArrayDimensionTokensString += token
 									variableDescription = variableDescription + currentArrayDimensionTokensString
 #									arrayDimensions2.append(currentArrayDimensionTokens)
@@ -6284,12 +6368,22 @@ def parseVariableDeclaration(inputList):
 		PRINT ("\n\nGoing to determnine the size of tempStr=<%s>\n\n"%(tempStr) )
 		# If tempStr starts with the word "pointer to", then we know right away its size
 		arrayOfSizeStr = "array of size "
+		ofTypeStr = " of type "
+		
 		if (len(tempStr)>=len(arrayOfSizeStr)) and (tempStr[0:len(arrayOfSizeStr)] == arrayOfSizeStr):	# Basically, startswith() :-)
 			PRINT ("Detected ARRAY ! ! !" )
 			isArray = True
 			restOfString = tempStr[len(arrayOfSizeStr):].split(" ")		# Works only for non-Dynamic array
+#			restOfString = tempStr[len(arrayOfSizeStr):].split(ofTypeStr,1)		# Works only for non-Dynamic array
+#			PRINT ("After only keeping the substring between \"array of size \" and \" of type \" substrings, restOfString =",restOfString )
 			PRINT ("restOfString =",restOfString )
 			newArrayDimension = restOfString[0]
+			if "$" in newArrayDimension:
+				PRINT(	"Before replacing the artificially-inserted \"$\" with \" \" in newArrayDimension =",newArrayDimension)
+				newArrayDimension = newArrayDimension.replace("$"," ")
+				PRINT("After replacing the artificially-inserted \"$\" with \" \" in newArrayDimension =",newArrayDimension)
+			PRINT("newArrayDimension =",newArrayDimension)
+#			tempStr = restOfString[1]		# Newly added
 			# This only works because we have ensured that variable array dimensions do not contain any space in them
 			getNumericValueOrTokenizedStringResult = getNumericValueOrTokenizedString(newArrayDimension)
 			if getNumericValueOrTokenizedStringResult == False:	# TO-DO: False also means zero, so may want to change it
@@ -6321,6 +6415,10 @@ def parseVariableDeclaration(inputList):
 					k = k + 2
 				elif len(restOfString)>=k+4 and restOfString[k:k+3]==["array","of","size"]:
 					newArrayDimension = restOfString[k+3]
+					if "$" in newArrayDimension:
+						PRINT("Before replacing the artificially-inserted \"$\" with \" \" in newArrayDimension =",newArrayDimension)
+						newArrayDimension = newArrayDimension.replace("$"," ")
+						PRINT("After replacing the artificially-inserted \"$\" with \" \" in newArrayDimension =",newArrayDimension)
 					PRINT ("Adding new dimension of",newArrayDimension)
 					# This only works because we have ensured that variable array dimensions do not contain any space in them
 					getNumericValueOrTokenizedStringResult = getNumericValueOrTokenizedString(newArrayDimension)
@@ -6405,8 +6503,13 @@ def parseVariableDeclaration(inputList):
 			
 				
 			PRINT ("BEFORE RE substituion, tempStr = <%s>"%(tempStr) )
+			# We have the typedef array problem where we end up with situations like:
+			#	typedef int INT_ARRAY[2];
+			#   typedef INT_ARRAY INT_ARRAY_ARRAY[3];
+			# Now, we will see statements like 
+			# tempStr = array of size 2
 			#\S will match any non-whitespace character, so it is a MUST that all array dimension expressions do NOT have any whitespace in them (i.e., "A+B" is OK, "A + B" is not)
-			tempStr = re.sub(r"^(array of size\s+\S+(\s+X\s+\S+)*\s+)+","",tempStr)		
+			tempStr = re.sub(r"^(array of size\s+\S+(\s+X\s+\S+)*\s+)+","",tempStr)
 			PRINT ("AFTER RE substituion, tempStr = <%s>"%(tempStr) )
 			PRINT("\nFor array variable",variableName,", arrayDimensions =",arrayDimensions)
 			
@@ -7048,271 +7151,7 @@ def checkPreprocessingDirectivesInterleaving(inputLines, returnMatchingEnd=False
 
 	# The returnValue is an array of [lineNumber,ifthenelseendif]
 	return returnValue
-
-'''
-############################################################################
-#  What this routine does is the following:
-#
-#  It takes as input an array of lines. Which may or may not start with a #RUNTIME statement.
-#
-#  If the first line contains an #if, #ifdef or #ifndev (basically any preprocessor if statement),
-#  then it will return an array of [lineNumber, token] where the tokens are the conditional ones.
-# 
-#  For example, suppose the program structure (with line numebrs is this)
-# 
-#  Line # 0: #RUNTIME if (some condition)
-#  ...
-#  Line # 4: #RUNTIME ifdef something
-#  ...
-#  Line # 7: #RUNTIME endif
-#  Line # 8: #RUNTIME elif (some other condition)
-#  ...
-#  Line # 9: #RUNTIME elif (some other condition)
-#  ...
-#  Line # 15: #RUNTIME endif
-#  ...
-#  Line # 20: #RUNTIME loop
-#  ...
-#  Line # 25: #RUNTIME endloop
-#
-#                                                                          
-# This routine will return [ [0,"#RUNTIME if"], [8,"#RUNTIME elif"], [9,"#RUNTIME elif"], [15, "#RUNTIME endif"],[20, "#RUNTIME loop"],[25, "#RUNTIME endloop"] ]
-#
-# test vector = ["#RUNTIME if(1==1)\n", "int i;\n", "#RUNTIME elif(2==2)\n", "float f;\n", "#RUNTIME elif(3==3)\n", "short s;\n", "#RUNTIME endif\n", "#RUNTIME loop\n", "#RUNTIME endloop\n"]
-##############################################################################################################################################################################
-# This routine does two things: 1) Checks if the runtime directives are properly interleaved, and 2) For an IF (or LOOP) statement finds the corresponding ENDIF (or ENDLOOP).
-# In other words, for the second use case, it does not care if there are some more extra runtime directives that are unmatched.
-# The assumption is that before using the routine for the second use case, one should run it for the first use case first to ensure that there are no unmatched directives.
-# The reason we need the second use case is in case there are nested if-elif-else-endif cases, the outer if-elif-else-endif statements do NOT disappear once we process them.
-# (This is one of the main differences between the Preprocessing statements and #RUNTIME statements.
-# So, in the case of nested if-elif-else-endif statements, if we supply the inputLines starting from the inner (nested) if, it will obviously see some extra (unmatched)
-# else or endinf statements which actually belong to the outer if. So, if we see returnMatchingEnd == True, the moment we get a matched endif (or endloop), we return.
-###############################################################################################################################################################################
-def checkRuntimeDirectivesInterleaving(inputLines, returnMatchingEnd=False):
-#	PRINT=OUTPUT
-	PRINT("Inside checkRuntimeDirectivesInterleaving(). inputLines =",inputLines)
-	if not inputLines:
-		return []
 	
-	# Check that inputLines is a list of Lines (strings ending with a newline). If it is a single string, make it a list
-	if  isinstance(inputLines,list):
-#		PRINT ("inputLines is indeed a list" )
-		itemCount = 0
-		while itemCount < len(inputLines):
-			if not checkIfString(inputLines[itemCount]) and not checkIfIntegral(inputLines[itemCount]):
-				errorMessage = "ERROR in checkRuntimeDirectivesInterleaving():  inputLines[",STR(itemCount),"] is not a list of proper strings (or number), where inputLines = <"+STR(inputLines)+"> - exiting"
-				errorRoutine(errorMessage)
-				return False
-				sys.exit()
-			elif not checkIfIntegral(inputLines[itemCount]) and (not inputLines[itemCount] or inputLines[itemCount][-1] != '\n'):
-				inputLines[itemCount] = inputLines[itemCount] + '\n'
-			itemCount = itemCount + 1
-#		PRINT ("inputLines is indeed a list of proper strings - ", inputLines )
-	else:
-#		PRINT ("inputLines is NOT a list" )
-		if checkIfString(inputLines):
-#			PRINT (("Checking if inputLines=<%s> has a newline at the end"%(inputLines)) )
-			if inputLines[-1] != '\n':
-#				PRINT ("Appending newline to the end of inputLines" )
-				inputLines = inputLines + '\n'
-#			PRINT ("Converting the inputLines <",inputLines,">, which is a basic string but not a list, into a list" )
-			inputLines = [inputLines]
-#			PRINT ("Now the listified inputLines = ",inputLines )
-		else:
-			errorMessage = "ERROR in checkRuntimeDirectivesInterleaving():  - Unknown object type - inputLines = <"+STR(inputLines)+"> - exiting"
-			errorRoutine(errorMessage)
-			return False
-
-	#runtimeDirectives = ('if','elif','else','endif','loop','endloop')
-
-	# This essentially only keeps those lines starting with a runtimeDirective. Each item is [line number, the runtimeDirective, and its nesting level]
-	tempStackRuntimeDirective = []
-	# And this simly keeps the runtimeDirectives, without the nesting level or line number
-	onlyRuntimeDirectives = []
-	
-	runtimePrefix = preProcessorSymbol + " "
-	
-	PRINT("Inside checkRuntimeDirectivesInterleaving(), now going to Iterate over all the individual lines")
-	lineNumber = 0
-	runtimeDirectiveNestingLevel = -1
-	while lineNumber < len(inputLines):
-		PRINT("Inside checkRuntimeDirectivesInterleaving(), Currently dealing with inputLines[lineNumber =",lineNumber,"] =",inputLines[lineNumber])
-		currLine = inputLines[lineNumber]
-		tokenizeLinesResult = tokenizeLines(currLine)
-		if tokenizeLinesResult == False:
-			errorMessage = "ERROR in checkRuntimeDirectivesInterleaving after calling tokenizeLines(currLine) for currLine =<"+currLine+">"
-			errorRoutine(errorMessage)
-			return False
-		else:
-			currLineTokenList = tokenizeLinesResult[0]
-			
-			if returnMatchingEnd and lineNumber == 0:
-				if currLineTokenList and currLineTokenList[0] == preProcessorSymbol and len(currLineTokenList)>=2 and currLineTokenList[1] in ('if', 'loop'):
-					PRINT("Current line is indeed a valid starting #RUNTIME statement")
-				else:
-					errorMessage = "ERROR in checkRuntimeDirectivesInterleaving(): We are supposed to return the matching ending line distance, but the line # "+STR(lineNumber)+" <"+inputLines[lineNumber][:-1]+"> is not an IF or LOOP"
-					errorRoutine(errorMessage)
-					OUTPUT("inputLines = \n",inputLines)
-					return False
-					
-			PRINT("While checking for runtime directives in line #",lineNumber,"currLineTokenList =",currLineTokenList)
-			# RUNTIME directives
-			if currLineTokenList and currLineTokenList[0] == preProcessorSymbol and len(currLineTokenList)>=2 and currLineTokenList[1] in runtimeDirectives:
-				PRINT("Found Runtime directive. Currently, tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
-				if currLineTokenList[1] in ('if', 'loop'):
-					runtimeDirectiveNestingLevel += 1
-					PRINT("Going to add Runtime directive",currLineTokenList[1],"to current tempStackRuntimeDirective =",tempStackRuntimeDirective," and onlyRuntimeDirectives =",onlyRuntimeDirectives)
-					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[1], runtimeDirectiveNestingLevel])
-					tempStackRuntimeDirective.append(currLineTokenList[1])
-					PRINT("After adding",currLineTokenList[1],", tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
-				elif currLineTokenList[1] in ('elif','else'):
-					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[1], runtimeDirectiveNestingLevel])
-					tempStackRuntimeDirective.append(currLineTokenList[1])
-					PRINT("After adding",currLineTokenList[1],", tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
-				elif currLineTokenList[1] == 'endloop':
-					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[1],runtimeDirectiveNestingLevel])
-					if tempStackRuntimeDirective[-1] in ('loop'):
-						del tempStackRuntimeDirective[-1]
-					else:
-						errorMessage = "Error in checkRuntimeDirectivesInterleaving(): The interleaving of loop-endloop at the runtime level is not correct"
-						errorRoutine(errorMessage)
-						return False
-					runtimeDirectiveNestingLevel -= 1
-					# When the outermost endif at level 0 is popped, the runtimeDirectiveNestingLevel returns to -1
-					if returnMatchingEnd and runtimeDirectiveNestingLevel == -1:
-#						return [x[:2] for x in onlyRuntimeDirectives]	# Return only the first two columns of the onlyRuntimeDirectives
-						break
-				elif currLineTokenList[1] == 'endif':
-					PRINT("Going to add Runtime directive",currLineTokenList[1],"to current tempStackRuntimeDirective =",tempStackRuntimeDirective," and onlyRuntimeDirectives =",onlyRuntimeDirectives)
-					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[1],runtimeDirectiveNestingLevel])
-					PRINT("After adding",currLineTokenList[1],", tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
-					if tempStackRuntimeDirective[-1] ==  'else':
-						del tempStackRuntimeDirective[-1]
-					while True:
-						if tempStackRuntimeDirective and tempStackRuntimeDirective[-1] ==  'else':
-							errorMessage = "The interleaving of if-then-else at the runtime level is not correct - multiple "+preProcessorSymbol+"else"
-							errorRoutine(errorMessage)
-							return False
-						elif tempStackRuntimeDirective and tempStackRuntimeDirective[-1] ==  'elif':
-							del tempStackRuntimeDirective[-1]
-						else:
-							break
-							
-					PRINT("Just before checking if the previous entry is an 'if', tempStackRuntimeDirective =",tempStackRuntimeDirective,", onlyRuntimeDirectives =",onlyRuntimeDirectives)
-					if tempStackRuntimeDirective: 
-						if tempStackRuntimeDirective[-1] in ('if'):
-							del tempStackRuntimeDirective[-1]
-						else:
-							errorMessage = "The interleaving of if-elif-else-endif at the runtime level is not correct - the tempStackRuntimeDirective = %s (was expecting an 'if')"%STR(tempStackRuntimeDirective)
-							errorRoutine(errorMessage)
-							return False
-					runtimeDirectiveNestingLevel -= 1
-					# When the outermost endif at level 0 is popped, the runtimeDirectiveNestingLevel returns to -1
-					if returnMatchingEnd and runtimeDirectiveNestingLevel == -1:
-#						return [x[:2] for x in onlyRuntimeDirectives]	# Return only the first two columns of the onlyRuntimeDirectives
-						break
-				elif len(currLineTokenList)>=2:
-					PRINT("Ignoring runtimeDirectives currLineTokenList[0:2] =",STR(currLineTokenList[0:2]))
-				else:
-					PRINT("Ignoring runtimeDirectives currLineTokenList[0] =",STR(currLineTokenList))
-					
-			else:
-				PRINT("Ignoring non-runtimeDirective currLine =",currLine)
-		lineNumber += 1
-		
-	if tempStackRuntimeDirective:	# Should be empty
-		errorMessage = "Error in checkRuntimeDirectivesInterleaving(): The interleaving of if-then-else at the Runtime level is not correct - tempStackRuntimeDirective %s is not empty. onlyRuntimeDirectives = %s"%(STR(tempStackRuntimeDirective),STR(onlyRuntimeDirectives))
-		errorRoutine(errorMessage)
-		return False
-		
-	PRINT("onlyRuntimeDirectives =",onlyRuntimeDirectives)
-	
-	if not onlyRuntimeDirectives:	# If there aren't any #RUNTIME statements
-		return []
-	
-	# Now see if this is a legal interleaving of the outermost (nesting level 0) runtimeDirectives
-	returnValue = []
-	i = 0
-	while i<len(onlyRuntimeDirectives):
-		if onlyRuntimeDirectives[i][2] == 0:	# We are only interested in nesting level of 0
-			returnValue.append([onlyRuntimeDirectives[i][0],onlyRuntimeDirectives[i][1]])
-			if onlyRuntimeDirectives[i][1] == 'endif':
-				break	# If there are multiple if-elif-else-endif statement blocks at the nesting level of 0, we only return the very first one and ignore the rest.
-		i += 1
-		
-	# Sanity check - it must start with a mandatory single if, followed by optional elifs, followed by a single optional else, followed by a signle mandatory endif
-	if len(returnValue) <2:
-		OUTPUT("returnValue =",returnValue)
-		OUTPUT("onlyRuntimeDirectives =",onlyRuntimeDirectives)
-		errorMessage = "Error in checkRuntimeDirectivesInterleaving(): An if-then-else Runtime directive must have at least two rows (the beginning if and the ending endif)"
-		errorRoutine(errorMessage)
-		return False
-	elif returnValue[0][1] not in ('if', 'loop'):
-		errorMessage = "Error in checkRuntimeDirectivesInterleaving(): The first term must be '"+preProcessorSymbol+runtimeDirective+"if' or '"+preProcessorSymbol+"loop'"
-		errorRoutine(errorMessage)
-		return False
-	elif returnValue[-1][1] not in ('endif','endloop'):
-		errorMessage = "Error in checkRuntimeDirectivesInterleaving(): The last term must be '"+preProcessorSymbol+"endif' or '"+preProcessorSymbol+"endloop'"
-		errorRoutine(errorMessage)
-		return False
-	elif len(returnValue)>2:
-		loopCount = 0
-		ifCount = 0
-		elifCount = 0
-		elseCount = 0
-		endifCount = 0
-		endloopCount = 0
-		for row in returnValue:
-			if row[1] in ('if'):
-				ifCount += 1
-			elif row[1] in ('elif'):
-				elifCount += 1
-			elif row[1] in ('else'):
-				elseCount += 1
-			elif row[1] in ('endif'):
-				endifCount += 1
-			elif row[1] in ('loop'):
-				loopCount += 1
-			elif row[1] in ('endloop'):
-				endloopCount += 1
-				
-		if ifCount + elifCount + elseCount + endifCount + loopCount + endloopCount != len(returnValue):
-			errorMessage = "ERROR in checkRuntimeDirectivesInterleaving() - ifCount(%d) + elifCount(%d) + elseCount(%d) + endifCount(%d) + loopCount(%d) + endloopCount(%d) != len(returnValue)(%d)"%(ifCount, elifCount, elseCount, endifCount, loopCount, endloopCount, len(returnValue))
-			errorRoutine(errorMessage)
-			return False
-		elif ifCount > 1:
-			errorMessage = "ERROR in checkRuntimeDirectivesInterleaving() - multiple "+runtimePrefix+"if/"+runtimePrefix+"ifdef/"+runtimePrefix+"ifndef statements"
-			errorRoutine(errorMessage)
-			return False
-		elif elseCount > 1:
-			errorMessage = "ERROR in checkRuntimeDirectivesInterleaving() - multiple "+runtimePrefix+"else statements"
-			errorRoutine(errorMessage)
-			return False
-		elif endifCount > 1:
-			errorMessage = "ERROR in checkRuntimeDirectivesInterleaving() - multiple "+runtimePrefix+"endif statement"
-			errorRoutine(errorMessage)
-			return False
-		elif elseCount == 1 and returnValue[-2][1] != 'else':
-			errorMessage = "ERROR in checkRuntimeDirectivesInterleaving() - the "+runtimePrefix+"else statement must be the penultimate one"
-			errorRoutine(errorMessage)
-			return False
-		elif loopCount > 1:
-			errorMessage = "ERROR in checkRuntimeDirectivesInterleaving() - multiple "+runtimePrefix+"loop statement"
-			errorRoutine(errorMessage)
-			return False
-		elif endloopCount > 1:
-			errorMessage = "ERROR in checkRuntimeDirectivesInterleaving() - multiple "+runtimePrefix+"endloop statement"
-			errorRoutine(errorMessage)
-			return False
-
-	# The returnValue is an array of [lineNumber,ifthenelseendif]
-	return returnValue
-	
-#input = ["int i1;\n", "#RUNTIME if(1==1)\n", "int i;\n", "#RUNTIME elif(2==2)\n", "float f;\n", "#RUNTIME elif(3==3)\n", "short s;\n", "#RUNTIME endif\n", "#RUNTIME loop\n", "#RUNTIME endloop\n", "#RUNTIME if(1==1)\n"]
-#result = checkRuntimeDirectivesInterleaving(input)
-#MUST_PRINT(result)
-#sys.exit()
-'''
 ########################################################################################################
 # The reason we made it a separate routine is because we will have to call it every time we
 # include a file.
@@ -15735,7 +15574,7 @@ def decimal2Binary(decimalValue):
 	
 	
 def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="int", signedOrUnsigned="signed", bitFieldSize=0, bitStartPosition=0):
-	PRINT=OUTPUT
+#	PRINT=OUTPUT
 	if bitFieldSize < 0:
 		errorMessage = "ERROR in encodeValue() - bitFieldSize = <%d> cannot be less than 1!"%type(bitFieldSize)
 		errorRoutine(errorMessage)
@@ -15751,9 +15590,13 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 		mantissaSize = fieldSize - 1 - exponentSize
 		exponentBias = (1<<(exponentSize-1))-1
 		sign =  0 if decimalValue >= 0 else 1		#IEEEFormatValue >> (fieldSize-1)
-		
-		integerPart = int(abs(decimalValue))
-		fractionPart = abs(decimalValue) - integerPart
+		absDecimalValue = abs(decimalValue)
+		integerPart = int(absDecimalValue)
+		fractionPart = absDecimalValue - integerPart
+		if integerPart + fractionPart != decimalValue:
+			EXIT("integerPart ("+STR(integerPart)+") + fractionPart ("+STR(fractionPart)+") != decimalValue ("+STR(decimalValue)+")")
+		else:
+			PRINT("integerPart ("+STR(integerPart)+") + fractionPart ("+STR(fractionPart)+") == decimalValue ("+STR(decimalValue)+")")
 		PRINT ("decimalValue = integerPart (",integerPart,") + fractionPart (",fractionPart,")")
 		
 		# Calculate the integer part as an array of 1s and 0s
@@ -15793,8 +15636,9 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 		while True:
 			if len(mantissaArray) >= mantissaSize:
 				break
-			temp *= 2.0
-			if temp > 0.0:
+			PRINT("temp = ", temp)
+			temp *= 2
+			if temp >= 1:
 				binaryDigit = 1
 				temp -= 1.0
 			else:
@@ -15864,14 +15708,22 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 	else:
 		EXIT("Datatype Not supported yet")
 
+	returnByteArrayHex = []
+	for x in returnByteArray:
+		val = "0x{:02X}".format(x)
+		returnByteArrayHex.append(val)
+
 	# Python 2 and 3 stores the string separately. So we need to encode it differently.
 	
 	if PYTHON2x: 
-		outputBytes = basestring()
+		outputBytes = ""
 	elif PYTHON3x:
 		outputBytes = bytearray()
 	
+	PRINT("returnByteArray =", returnByteArray,", returnByteArrayHex =",returnByteArrayHex)
 	PRINT("\nStarting with outputBytes =",outputBytes,", type(outputBytes) =",type(outputBytes))
+	
+#	returnByteArray = [0x41, 0x2b, 0x33, 0x33]	# Hardcoded for text
 	index = 0
 	while index < len(returnByteArray):
 		byte2add = returnByteArray[index]
@@ -15889,18 +15741,20 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 	PRINT("\nFinal outputBytes =",outputBytes)
 	
 	if littleEndianOrBigEndian==LITTLE_ENDIAN and len(outputBytes)>1:
-		outputBytes.reverse()
+#		outputBytes.reverse()
+		outputBytes = outputBytes[::-1]
 
 	result = calculateInternalValue(outputBytes, littleEndianOrBigEndian, datatype, signedOrUnsigned, bitFieldSize, 0)
 	PRINT ("calculateInternalValue() = ", result)
 	
-	if result != decimalValue:
-		EXIT("result ("+STR(result)+ ") != decimalValue (" +STR(decimalValue)+")")
-	else:
+	if getRuntimeValue([result,'==',decimalValue])[1]:	# Assuming no errors
 		PRINT("result ("+STR(result)+ ") matches decimalValue (" +STR(decimalValue)+")")
+	else:
+		EXIT("result ("+STR(result)+ ") != decimalValue (" +STR(decimalValue)+")")
+
+
 	
-	
-#encodeValue(10.3, LITTLE_ENDIAN, "float")
+#encodeValue(10, LITTLE_ENDIAN, "char")
 #sys.exit()
 
 def charIsValidHex(c):
