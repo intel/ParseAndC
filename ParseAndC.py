@@ -818,6 +818,9 @@
 # 2022-04-30 - After removing the #RUNTIME. Now there is zero change in C syntax.
 # 2022-05-06 - Small bug fix for using checkIfIntegral() instead of isinstance(item, int) for Python 2.
 # 2022-05-10 - Introduced typecasting.
+# 2022-05-11 - encodeValue now working
+# 2022-05-12 - Now we can search for an encoded value in a file using findHardcodedDataInFile.
+# 2022-08-25 - Small Bug fix regarding #ifndef handling.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -3136,7 +3139,7 @@ def isStringAValidNumber(numericString):
 
 # Float numbers are difficult to say that are equal in value. So we say they are equal if they are "close enough"
 def areFloatsCloseEnough (f1, f2, relativeTolerance = RELATIVE_TOLERANCE_FOR_FLOAT, absoluteTolerance = ABSOLUTE_TOLERANCE_FOR_FLOAT):
-#	PRINT=OUTPUT
+	PRINT=OUTPUT
 	if f1 == f2:	# Just what the heck
 		return True
 		
@@ -3156,7 +3159,7 @@ def areFloatsCloseEnough (f1, f2, relativeTolerance = RELATIVE_TOLERANCE_FOR_FLO
 		PRINT(f1,"and",f2,"are close enough floating point numbers")
 		return True
 	else:
-		PRINT(f1,"and",f2,"are NOT close enough floating point numbers")
+		PRINT(f1,"and",f2,"are NOT close enough floating point numbers - the relativeDifference (",relativeDifference,") is > relativeTolerance (",relativeTolerance,")")
 		return False
 
 
@@ -6937,6 +6940,17 @@ def checkStructInitializationStatically(structName, initializationValue):
 	return True					
 
 ############################################################################
+# This routine does two things: 1) Checks if the directives are properly interleaved, and 2) For an IF (or LOOP) statement finds the corresponding ENDIF (or ENDLOOP).
+# In other words, for the second use case, it does not care if there are some more extra runtime directives that are unmatched.
+# The assumption is that before using the routine for the second use case, one should run it for the first use case first to ensure that there are no unmatched directives.
+# The reason we need the 2nd use case is that in case there are nested if-elif-else-endif #RUNTIME statement, the outer if-elif-else-endif statements do NOT disappear once 
+# we process them.  This is one of the main differences between the Preprocessing statements and #RUNTIME statements. For preprocessing statements, the moment we have processed
+# the outermost if-then-else-endif, exactly ONE of those possible blocks will remain and all the if-then-else-endif statements in the outermost level will disappear.
+# So, while dealing with nested preprocessing statements, you can be confident that if you start processing from the beginning, you will never encounter any "extra" then-else-endif
+# statements. However, for runtime statements, those will absolutely remain.
+# So, in the case of nested if-elif-else-endif runtime statements, if we supply the inputLines starting from the inner (nested) if, it will obviously see some extra (unmatched)
+# else or endinf statements which actually belong to the outer if. So, if we see returnMatchingEnd == True, the moment we get a matched endif (or endloop), we return.
+#
 #  What this routine does is the following:
 #
 #  It takes as input an array of lines.
@@ -6965,7 +6979,7 @@ def checkPreprocessingDirectivesInterleaving(inputLines, returnMatchingEnd=False
 	if not inputLines:
 		return []
 	else:
-		PRINT("\n\n","==="*50,"\ninputLines =\n",inputLines,"\n")
+		PRINT("\n\n","///"*50,"\nInside checkPreprocessingDirectivesInterleaving(inputLines,","True" if returnMatchingEnd else "False",")\n","///"*50,"\nwhere inputLines =\n",inputLines,"\n")
 	
 	# Check that inputLines is a list of Lines (strings ending with a newline). If it is a single string, make it a list
 	if  isinstance(inputLines,list):
@@ -7005,31 +7019,36 @@ def checkPreprocessingDirectivesInterleaving(inputLines, returnMatchingEnd=False
 		currLine = inputLines[lineNumber]
 		tokenizeLinesResult = tokenizeLines(currLine)
 		if tokenizeLinesResult == False:
-			PRINT ("ERROR in checkPreprocessingDirectives after calling tokenizeLines(currLine) for currLine =",currLine )
+			PRINT ("ERROR in checkPreprocessingDirectivesInterleaving() after calling tokenizeLines(currLine) for currLine =",currLine )
 			return False
 		else:
 			currLineTokenList = tokenizeLinesResult[0]
-			
+			PRINT("\n\n","///"*50,"\nCurrently handling",currLineTokenList)
+			'''
 			if returnMatchingEnd and lineNumber == 0:
 				if currLineTokenList and currLineTokenList[0] == preProcessorSymbol and len(currLineTokenList)>=2 and currLineTokenList[1] in ('if', 'loop'):
 					PRINT("Current line is indeed a valid starting #RUNTIME statement")
 				else:
-					errorMessage = "ERROR in checkPreprocessingDirectives(): We are supposed to return the matching ending line distance, but the line # "+STR(lineNumber)+" <"+inputLines[lineNumber][:-1]+"> is not an IF or LOOP"
+					errorMessage = "ERROR in checkPreprocessingDirectivesInterleaving(): We are supposed to return the matching ending line distance, but the line # "+STR(lineNumber)+" <"+inputLines[lineNumber][:-1]+"> is not an IF or LOOP"
 					errorRoutine(errorMessage)
 					OUTPUT("inputLines = \n",inputLines)
 					return False
-			
+			'''
 			# Preprocessor directives
 			if currLineTokenList and currLineTokenList[0] == preProcessorSymbol and len(currLineTokenList)>=2 and currLineTokenList[1] in preprocessingDirectives:
 				PRINT("tempStackPreProcessorDirective =",tempStackPreProcessorDirective)
-				PRINT("\n\n","///"*50,"Currently handling",currLineTokenList[1])
+				PRINT("\n\n","///"*50,"\nCurrently handling",currLineTokenList[1])
 				if currLineTokenList[1] in ('if', 'ifdef', 'ifndef'):	# We push to the stack
 					preProcessorDirectiveNestingLevel += 1
 					onlyPreprocessingDirectives.append([lineNumber, currLineTokenList[1], preProcessorDirectiveNestingLevel])
 					tempStackPreProcessorDirective.append(currLineTokenList[1])
+					PRINT("After appending", currLineTokenList[1],", tempStackPreProcessorDirective =",tempStackPreProcessorDirective)
+					PRINT("After appending", currLineTokenList[1],", onlyPreprocessingDirectives =",onlyPreprocessingDirectives)
 				elif currLineTokenList[1] in ('elif','else'):			# We push to the stack
 					onlyPreprocessingDirectives.append([lineNumber, currLineTokenList[1], preProcessorDirectiveNestingLevel])
 					tempStackPreProcessorDirective.append(currLineTokenList[1])
+					PRINT("After appending", currLineTokenList[1],", tempStackPreProcessorDirective =",tempStackPreProcessorDirective)
+					PRINT("After appending", currLineTokenList[1],", onlyPreprocessingDirectives =",onlyPreprocessingDirectives)
 				elif currLineTokenList[1] == 'endloop':
 					onlyRuntimeDirectives.append([lineNumber, currLineTokenList[1],preProcessorDirectiveNestingLevel])
 					if tempStackRuntimeDirective[-1] in ('loop'):
@@ -8173,11 +8192,15 @@ def preProcess():
 			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('elif','else','endif') and i in runtimeStatementLineNumbers:
 				PRINT("These are #elif/#else/#endif statements that are part of a valid #if/#elif/#else/#endif construct - no need to invoke checkPreprocessingDirectivesInterleaving()")
 
+#			runtimeDirectives = ('if','elif','else','endif','loop','endloop')
+
 #			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('if','ifdef','ifndef','elif'):
-			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in runtimeDirectives:
+#			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in runtimeDirectives:					# <=== BUG		# MANNA_MANNA
+			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('if','ifdef','ifndef','elif','elif','else','loop','endloop'):
 
 				# First figure out the which all source code statements are impacted by this if statement.
 				# There might be multiple code blocks between the if-elif-elif-else-endif statements, but only one of them would succeed.
+				PRINT("From preProcess(), calling checkPreprocessingDirectivesInterleaving() from line #"+STR(i)+"("+list2plaintext(lines[i])+")")
 				checkPreprocessingDirectivesInterleavingResult = checkPreprocessingDirectivesInterleaving(lines[i:], True)
 				if checkPreprocessingDirectivesInterleavingResult == False:
 					errorMessage = "ERROR in preProcess() after calling checkPreprocessingDirectivesInterleaving() from line #"+STR(i)+"("+list2plaintext(lines[i])+")"
@@ -8425,7 +8448,7 @@ def preProcess():
 					if runtimeTokenList[1] in ("elif","else","endif") and i in runtimeStatementLineNumbers:
 						PRINT("NOT invoking checkPreprocessingDirectivesInterleaving() from line #",i,"since line #",i," = <",lines[i],"> is already known to be a #runtime statement")
 					else:
-						PRINT("\n\nFrom preProcess() calling checkPreprocessingDirectivesInterleaving(lines[i:]) where i=",i,"and lines[i:] =",lines[i:])
+						PRINT("\n\nFrom preProcess() calling checkPreprocessingDirectivesInterleaving(lines[i:], True) where i=",i,"and lines[i:] =",lines[i:])
 						checkPreprocessingDirectivesInterleavingResult = checkPreprocessingDirectivesInterleaving(lines[i:], True)
 						if checkPreprocessingDirectivesInterleavingResult == False:
 							errorMessage = "ERROR in preProcess() after calling checkPreprocessingDirectivesInterleaving() from line# %d"%i
@@ -8433,7 +8456,7 @@ def preProcess():
 							return False
 						else:
 							scope = checkPreprocessingDirectivesInterleavingResult
-							PRINT("scope, which is result of calling checkPreprocessingDirectivesInterleaving(lines[",i,":]), is",scope)
+							PRINT("scope, which is result of calling checkPreprocessingDirectivesInterleaving(lines[",i,":], True), is",scope)
 							lastLineNumberWithRuntimeDirective = i + scope[-1][0]	# Recall that the line numbers in scope are relative to 0, so we need to add i to it
 							PRINT("lastLineNumberWithRuntimeDirective =",lastLineNumberWithRuntimeDirective)
 							i = lastLineNumberWithRuntimeDirective
@@ -9914,6 +9937,7 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 			# existing runtimeStatementsRelativeToComponentIndex to simple lines
 			runtimeLines = [list2plaintext(x) if isinstance(x,list) else STR(x) for x in runtimeStatementsRelativeToComponentIndex]
 			PRINT("The stringified runtimeStatementsRelativeToComponentIndex list is", runtimeLines)
+			PRINT("From parseStructureDefinition(), calling checkPreprocessingDirectivesInterleaving(runtimeLines)")
 			checkPreprocessingDirectivesInterleavingResult = checkPreprocessingDirectivesInterleaving(runtimeLines)
 			if checkPreprocessingDirectivesInterleavingResult == False:
 				errorMessage = "ERROR in parseStructureDefinition() after calling checkPreprocessingDirectivesInterleaving() for the whole thing"
@@ -11185,6 +11209,7 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 			if runtimeStatementsRelativeToComponentIndex[n][1] in ('if', 'loop'):	# Starting of a if-elif-else-endif block
 				# First figure out the which all source code statements are impacted by this if statement.
 				# There might be multiple code blocks between the if-elif-elif-else-endif statements, but only one of them would succeed.
+				PRINT("From calculateStructureLength(), calling checkPreprocessingDirectivesInterleaving(runtimeLines[n:],True) for runtime statement during map")
 				scope = checkPreprocessingDirectivesInterleaving(runtimeLines[n:],True)
 				if scope == False:
 					errorMessage = "ERROR in calculateStructureLength() after calling checkPreprocessingDirectivesInterleaving() from line %d"%n
@@ -11367,6 +11392,8 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 					PRINT("The structMemberName",structMemberName,"(id",variableId,") is the ancestor of a blank array variable", variableDeclarations[blankDimensionArrayVariableId][0],"(id",blankDimensionArrayVariableId,") - its sibling ancestor has the variable id (",ancestorOfInitializationPartner,") that is the ancestor of the initialization partner", variableDeclarations[partnerVariableId][0],"(id",partnerVariableId,")")
 					break
 			if isAncestorOfBlankArray:
+				if blankDimensionArrayVariableId == ancestorOfBlankDimensionArrayVariableId and partnerVariableId == ancestorOfInitializationPartner and partnerVariableId == blankDimensionArrayVariableId+1:
+					MUST_PRINT("\nWe have the situation where the initialization partner is the very next sibling variable in a struct\n")
 				PRINT("The current executionStateStack[] has the followin identifierRecord and speculativeValue: ")
 				for row in executionStateStack:
 					PRINT("identifierRecord =",row["identifierRecord"],", speculativeValue =",row["speculativeValue"])
@@ -11537,7 +11564,10 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 #						PRINT("The blankArrayDimensionStack[] is not empty, but the top of the blankArrayDimensionStack now has NO speculative array dimension for the blank array variable",variableDeclarations[blankDimensionArrayVariableId][0])
 						PRINT("The executionStateStack[] is not empty, but the top of the executionStateStack now has NO speculative array dimension for the blank array variable",variableDeclarations[blankDimensionArrayVariableId][0])
 						speculativeValue = 1
-						speculativeArrayDimensions = [[speculativeValue]]+structDetails["components"][N][4]["arrayDimensions"][1:]
+						# BUG - This is assuming that the ancestor of the blank dimensional array var is that var itself
+#						speculativeArrayDimensions = [[speculativeValue]]+structDetails["components"][N][4]["arrayDimensions"][1:]		# <=== BUG 
+						speculativeArrayDimensions = [[speculativeValue]]+variableDeclarations[blankDimensionArrayVariableId][4]["arrayDimensions"][1:]	
+
 						PRINT("\n\n","///"*50,"\n","\t"*8, "speculativeValue =",speculativeValue,"\n","\\\\\\"*50,"\n\n")
 						saveExecutionState(identifierRecord, speculativeValue, locals())
 						executionStateStack[-1]["callerFunctionName"] = "calculateStructureLength()"
@@ -11546,8 +11576,11 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 					# The stack is empty. So, it is the first time; Save the current execution state
 #					PRINT("The blankArrayDimensionStack[] is currently empty, so obviously the top of the blankArrayDimensionStack now has NO speculative array dimension for the blank array variable",variableDeclarations[blankDimensionArrayVariableId][0])
 					PRINT("The executionStateStack[] is currently empty, so obviously the top of the executionStateStack now has NO speculative array dimension for the blank array variable",variableDeclarations[blankDimensionArrayVariableId][0])
+#					calculateSpeculativeValueResult = calculateSpeculativeValue(calculateSpeculativeValue)
 					speculativeValue = 1
-					speculativeArrayDimensions = [[speculativeValue]]+structDetails["components"][N][4]["arrayDimensions"][1:]
+					# BUG - This is assuming that the ancestor of the blank dimensional array var is that var itself
+#					speculativeArrayDimensions = [[speculativeValue]]+structDetails["components"][N][4]["arrayDimensions"][1:]	# <=== BUG
+					speculativeArrayDimensions = [[speculativeValue]]+variableDeclarations[blankDimensionArrayVariableId][4]["arrayDimensions"][1:]	
 					PRINT("\n\n","///"*50,"\n","\t"*8, "speculativeValue =",speculativeValue,"\n","\\\\\\"*50,"\n\n")
 #					saveExecutionState(locals())
 					saveExecutionState(identifierRecord, speculativeValue, locals())
@@ -12002,15 +12035,7 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 			#		  If we want to know the true value of structMemberSizeBytes for a dynamic variable, there no way to know it during Interpret stage, and even during the
 			#         Map stage,  the only way to get the true value of structMemberSizeBytes is to actually add it to unraveled and see how many new bytes got added.
 			if executionStage == "Map":
-				'''
-				if structDetails["components"][N][4]["isArray"] and structDetails["components"][N][4]["arrayDimensions"][0]==['TBD']:
-					PRINT("For struct",structName,", member variable " + structMemberName +" has structMemberSizeBytes =",structMemberSizeBytes)
-					PRINT("Finding its ancestors")
-					findSiblingAncestors(variableId)
-#					EXIT("Graceful exit")
-					speculativeArrayDimension = 1
-					speculativeArrayDimensions = [[speculativeArrayDimension]]+structDetails["components"][N][4]["arrayDimensions"][1:]
-				'''	
+#				findHardcodedDataInFile
 				PRINT("From calculateStructureLength(), invoking addVariableToUnraveled()")
 				PRINT("\nInput to addVariableToUnraveled() - level =",level+1, ", variableId =", variableId, "(",variableDeclarations[variableId][0], ", prefix =",prefix, ", offset =",offset,"ancestry =",STR(ancestry),", arrayAlreadyUnraveled =","True, " if arrayAlreadyUnraveled else "False, ",", speculativeArrayDimensions =", "None" if not speculativeArrayDimensions else STR(speculativeArrayDimensions))
 #				addVariableToUnraveledResult = addVariableToUnraveled(level+1, variableId, prefix, offset+offsetWithinStructBytes, unraveledSupplied, ancestry+[variableId], False, speculativeArrayDimension)	# BUG?
@@ -14972,6 +14997,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 	ptr = 0
 	while ptr<len(runtimeStatementLocationsInGlobalScope):
 		firstLineNumInScope = runtimeStatementLocationsInGlobalScope[ptr][0]
+		PRINT("From parseCodeSnippet(), calling checkPreprocessingDirectivesInterleaving(lines[firstLineNumInScope:], True)")
 		scope = checkPreprocessingDirectivesInterleaving(lines[firstLineNumInScope:], True)
 		if scope == False:
 			errorMessage = "ERROR in parseCodeSnippet() - somehow after checkPreprocessingDirectivesInterleaving() from line "+ STR(firstLineNumInScope) + " the return (scope) is False!"
@@ -15266,7 +15292,7 @@ def printHexStringWord (inputBytes):
 
 
 def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="int", signedOrUnsigned="signed", bitFieldSize=0, bitStartPosition=0):
-
+#	PRINT=OUTPUT
 	if littleEndianOrBigEndian not in (LITTLE_ENDIAN, BIG_ENDIAN):
 		errorMessage = "ERROR: Inside calculateInternalValue(), littleEndianOrBigEndian = <" + STR(littleEndianOrBigEndian) + "> is NOT either Little-Endian or Big-Endian" 
 		errorRoutine(errorMessage)
@@ -15280,9 +15306,33 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 		
 
 	#
-	# In Little-Endian, the bits are packed from the LSB to MSB. So, if we have four bitfields in an integer, each 8 bits wide, they will be packed like this:
-	#      Bit #   MSb  31........24 23 ........16 15 ........8 7...........0 LBb
+	# When it is about bit-ordering within a single byte, there is no confusion with the convention. It's always MSb on the left, and LSb on the right.
+	# It's just like we write numbers. The most significant digit is always on the left, and the least significant digit (the unit place) is on the right.
+	#
+	# In Little-Endian, the bits are packed from the LSB to MSB. So, if we have four bitfields in an integer, each 8 bits wide, they will be packed like this internally:
+	#
+	#	   Bit #   LSb  0..........7 8..........15 16........23 24.........31 MSb
+	#                   K0........K7 L0.........L7 M0........M7 N0.........N7 
+	#
+	# However, the problem with this visualization is that we are putting the LSb of a byte on the left and MSb on the right, which is against our normal visualization
+	# of a byte. So, if K = 64, its "usual" binary representation (01000000) will be shown above as 00000010, which will confuse the hell out of everyone.
+	# Hence, we treat the bit-order within a byte sacrosanct (MSb on the left, LSb on the right), and completely flip the internal representation like this:
+	#
+	#      Bit #   MSb  31........24 23 ........16 15 ........8 7...........0 LSb
 	#                   N7........N0 M7.........M0 L7........L0 K7.........K0
+	#
+	# However, the above was showing it Right-to-Left. Usually, when we display the memory, we usually display from Left-to-Right. So, we will see it like this:
+	#      Byte#   LSB       Byte#0       Byte#1        Byte#2        Byte#3   MSB
+	#      Bit #   MSb  7...........0 15 ........8  23 ........16 31........24 LSb
+	#                   K7.........K0 L7........L0  M7.........M0 N7........N0 
+	#  Observe that byte numbering is going from left to right, but the bit numbering is going from right-to-left.
+	#
+	# In other words, say the integer value is 0xNMLK (basically N*2^24+M*2^16+L*2^8+K), and we are storing it using Little-Endian method. 
+	# Now, if we exmine the memory, we will see the 0xKLMN string. Instead of mapping these four bytes into a single LE integer, if we map it to a char array like c[4],
+	# then we will see that c[0]=K, c[1]=L, c[2]=M, c[3]=N. Remember, unlike integer/short/Float, when we have a char array, its bytes will NEVER get reordered.
+	# This is different than Big-Endian ordering. Even in BE, the 4 bytes under c[4] will not get reordered. So, for BE, we will see 0xNMLK string in the memory,
+	# which will indeed represent the 0xNMLK value. But, when we map these 4 bytes with a char array c[4], we will see c[0]=N, c[1]=M, c[2]=L, c[3]=K.
+	# So, in BE ordering, the least-significant byte will not overlap with the least-indexed array element.
 	#
 	# When our program analyzes the structure, it will come up with the following bitStartPosition values:
 	# 
@@ -15312,10 +15362,10 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 	#___________________________________________________________________________________________________________________________________________
 	#     Little-Endian packing (pack from the LSb to MSb)                  |    Big-Endian packing (pack from the MSb to LSb)                  |
 	#_______________________________________________________________________|___________________________________________________________________|
-	#    <-- short integer #1    -->    <-- short integer #0   -->          |    <-- short integer #1    -->    <-- short integer #0   -->      |
-	#    31........24  	23........16 	15.........8 	7........0          |   31........24  	23........16 	15.........8 	7........0      |
-	#    <--  s3  -->   <----------- s2 ----------->    <-- s1 -->          |   --s2-------->    <-- s3 -->     <--  s1  -->    <---- s2 --     |
-	#    <-- 0x12 -->   <-- 0xAB -->    <-- 0xCD -->    <-- 0xEF -->        |   <-- 0xCD -->    <-- 0x12 -->    <-- 0xEF -->    <-- 0xAB -->    |
+	#     <-- short integer #1    -->   <--  short integer #0   -->         |    <-- short integer #1    -->    <-- short integer #0   -->      |
+	# MSb 31........24   23........16 	15.........8 	 7........0  LSb 	|   31........24  	23........16 	15.........8 	7........0      |
+	#     <--  s3  -->   <----------- s2 ----------->    <-- s1 -->         |   --s2-------->    <-- s3 -->     <--  s1  -->    <---- s2 --     |
+	#     <-- 0x12 -->   <-- 0xAB -->    <-- 0xCD -->    <- 0xEF ->       	|   <-- 0xCD -->    <-- 0x12 -->    <-- 0xEF -->    <-- 0xAB -->    |
 	# Now, the above was internal represenation, 0xEFCDAB12                 |  Now, the above was internal represenation, 0xCD12EFAB            |
 	# Since this is Little-Endian packing, they will packed just like that. | However, since it is Big-endinan packing, when laid out in memory,|
 	# So, the byte array would be like this: [0xEF, 0xCD, 0xAB, 0x12]       | the byte order of the short will change: [0xEF, 0xAB, 0xCD, 0x12] |
@@ -15337,7 +15387,7 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 	#     Little-Endian packing (pack from the LSb to MSb)       |    Big-Endian packing (pack from the MSb to LSb)                  |
 	#____________________________________________________________|___________________________________________________________________|
 	#     <-- char1 ->  <--char0-->                              |    <-- char1 ->  <--char0-->                                      |
-	#    15.........8 	7........0                               |   15.........8 	7........0                                       |
+	#     15.........8 	7........0                               |   15.........8 	7........0                                       |
 	#      00000 111    11111  000                               |     111  00000   000  11111                                       |
 	#     <-c3-> <---c2 ----> <-c1->                             |    -c2-> <-c3-> <-c1-><--c2                                       |
 	#____________________________________________________________|___________________________________________________________________|
@@ -15424,6 +15474,10 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 		return False
 	else:
 #		PRINT ("="*30,"\nNo obvious input error!\n","="*30 )
+		inputStr = ""
+		for inputByte in inputBytes:
+			inputStr += " "+hex(ORD(inputByte))
+		PRINT("The input bytes to calculateInternalValue() are",inputStr)
 		
 		# This is the value without considering the sign
 		IEEEFormatValue = 0
@@ -15563,18 +15617,19 @@ def calculateInternalValue(inputBytes, littleEndianOrBigEndian=LITTLE_ENDIAN, da
 		else:
 			return returnValue
 
-def decimal2Binary(decimalValue):
-	if not checkIfIntegral (decimalValue):
-		errorMessage = "ERROR in decimal2Binary() - datatype <%s> is not supported -- exiting!"%type(decimalValue)
-		errorRoutine(errorMessage)
-		return False
-	else:
-		binaryStr = "{0:b}".format(int(decimalValue))
-		return binaryStr
-	
-	
+
+
+############################################################################################################################################
+############################################################################################################################################
+# Encode the value
+############################################################################################################################################
+############################################################################################################################################
 def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="int", signedOrUnsigned="signed", bitFieldSize=0, bitStartPosition=0):
 #	PRINT=OUTPUT
+	if littleEndianOrBigEndian not in (LITTLE_ENDIAN, BIG_ENDIAN):
+		errorMessage = "ERROR in encodeValue() - Byte order neither little endian nor big endian!"
+		errorRoutine(errorMessage)
+		return [False, None]
 	if bitFieldSize < 0:
 		errorMessage = "ERROR in encodeValue() - bitFieldSize = <%d> cannot be less than 1!"%type(bitFieldSize)
 		errorRoutine(errorMessage)
@@ -15583,6 +15638,9 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 		errorMessage = "ERROR in encodeValue() - datatype <%s> is not supported -- exiting!"%type(decimalValue)
 		errorRoutine(errorMessage)
 		return [False, None]
+		
+	# For BIG-ENDIAN packing, we actually change the bit offset, so we keep a tab of
+	originalBitStartPosition = bitStartPosition
 
 	if datatype in ("float","double"):
 		fieldSize = 32 if datatype == "float" else 64
@@ -15593,10 +15651,10 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 		absDecimalValue = abs(decimalValue)
 		integerPart = int(absDecimalValue)
 		fractionPart = absDecimalValue - integerPart
-		if integerPart + fractionPart != decimalValue:
-			EXIT("integerPart ("+STR(integerPart)+") + fractionPart ("+STR(fractionPart)+") != decimalValue ("+STR(decimalValue)+")")
-		else:
+		if areFloatsCloseEnough(integerPart + fractionPart, absDecimalValue):
 			PRINT("integerPart ("+STR(integerPart)+") + fractionPart ("+STR(fractionPart)+") == decimalValue ("+STR(decimalValue)+")")
+		else:
+			EXIT("integerPart ("+STR(integerPart)+") + fractionPart ("+STR(fractionPart)+") != decimalValue ("+STR(decimalValue)+")")
 		PRINT ("decimalValue = integerPart (",integerPart,") + fractionPart (",fractionPart,")")
 		
 		# Calculate the integer part as an array of 1s and 0s
@@ -15628,15 +15686,20 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 			biasedExponentArray.extend(extra)
 		biasedExponentArray.reverse()
 		if len(biasedExponentArray) != exponentSize:
-			EXIT("Coding but in encodeValue() for floating point - len(biasedExponentArray) ="+STR(len(biasedExponentArray))+" != exponentSize ="+STR(exponentSize))
+			EXIT("Bug in coding in encodeValue() for floating point - len(biasedExponentArray) ="+STR(len(biasedExponentArray))+" != exponentSize ="+STR(exponentSize))
 		PRINT("biasedExponent =",list2plaintext(biasedExponentArray,""),", len(biasedExponent) =", len(biasedExponentArray))
 		
+		# In case the integer part of the float itself is massive and consuming all of the mantissaSize (or exceeding it), keep only the first mantissaSize bits
+		if len(mantissaArray) >= mantissaSize:
+			PRINT("Keeping only the first",mantissaSize,"bits of the current ",STR(len(mantissaArray))+"-bit mantissa")
+			mantissaArray = mantissaArray[:mantissaSize]
+			
 		# Calculate the fraction part as an array of 1s and 0s
 		temp = fractionPart
 		while True:
 			if len(mantissaArray) >= mantissaSize:
 				break
-			PRINT("temp = ", temp)
+#			PRINT("temp = ", temp)
 			temp *= 2
 			if temp >= 1:
 				binaryDigit = 1
@@ -15669,9 +15732,23 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 		
 		
 	elif datatype in ("char","short","int","long","long long"):
-		totalBits = bitFieldSize if bitFieldSize > 0 else primitiveDatatypeLength[datatype]*BITS_IN_BYTE
+		maxBits = primitiveDatatypeLength[datatype]*BITS_IN_BYTE
+		if littleEndianOrBigEndian==BIG_ENDIAN and bitFieldSize>0:
+			bitStartPosition = maxBits - (originalBitStartPosition+bitFieldSize)
+			PRINT("Because of Big-endian packing, bitStartPosition changed from",originalBitStartPosition,"to",bitStartPosition)
+		
+		if not checkIfIntegral(decimalValue):
+			errorMessage = "ERROR in encodeValue(): "+STR(decimalValue)+" is not integral"
+			errorRoutine(errorMessage)
+			return [False, None]
+		elif bitFieldSize < 0 or bitStartPosition < 0 or bitStartPosition + bitFieldSize > maxBits:
+			errorMessage = "ERROR in encodeValue(): bitStartPosition="+STR(bitStartPosition)+" with bitFieldSize="+STR(bitFieldSize)+" is not allowed for "+datatype+" as it exceeds "+STR(maxBits)+" bits"
+			errorRoutine(errorMessage)
+			return [False, None]
+		
+		totalBits = bitFieldSize if bitFieldSize > 0 else maxBits
 		if signedOrUnsigned=="signed":
-			if -(2<<totalBits) <= decimalValue <= (2<<totalBits)-1:
+			if -(2**(totalBits-1)) <= decimalValue < (2**(totalBits-1)):
 				PRINT("decimalValue =",decimalValue,"falls within the acceptable signed range")
 			else:
 				errorMessage = "ERROR in encodeValue(): "+STR(decimalValue)+" falls outside the acceptable range"
@@ -15687,24 +15764,63 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 		else:
 			EXIT("Unknown value of signedOrUnsigned = "+signedOrUnsigned+" not supported yet")
 		
-		binaryStr = decimal2Binary(decimalValue)
-		PRINT("totalBits =",totalBits,", binaryStr =",binaryStr,", type(binaryStr) =",type(binaryStr),", len(binaryStr) =",len(binaryStr))
-		if len(binaryStr) < totalBits:
-			PRINT("Adding",totalBits-len(binaryStr),"0s at the left to make it",totalBits,"bits wide")
-			binaryStr = "0"*(totalBits-len(binaryStr))+binaryStr
-			PRINT("After padding with leading 0s, binaryStr =",binaryStr)
-		if len(binaryStr) != totalBits:
-			EXIT("Coding bug in encodeValue()")
+		bitArray = []
+		if decimalValue < 0:
+			value2convert = (2**totalBits)-abs(decimalValue)	# Converting to 2's compliment and sign-extending it
+			PRINT("In two's complement we convert",decimalValue,"to", value2convert)
+		else:
+			value2convert = decimalValue
+		
+		binaryBits = []
+		temp = value2convert
+		while temp:
+			binaryBits.append(temp%2)
+			temp = integerDivision(temp,2)
+		PRINT("We convert the two's complement decimalValue =",value2convert,"as LSb",binaryBits,"MSb format, or MSb", binaryBits[::-1],"LSb format(with totalBits=",totalBits,")")
+
+		# Now create a whole char/short/int/long etc.
+		
+		#       MSb ......................................... LSb
+		#     (maxBits-1) .................................... 0
+		#       <--padding--> <--totalBits-->|<--padding-->
+		#                                    ^
+		#                                    |
+		#                             bitStartPosition
+		for i in range(bitStartPosition):
+			bitArray.append(0)
+		for i in range(len(binaryBits)):
+			bitArray.append(binaryBits[i])
+		# In case the number did not use all the allocated bits (for example if for "int i:8;" we have a value of only 12 that uses only 5 bits
+		for i in range(totalBits-len(binaryBits)):
+			bitArray.append(0)
+		for i in range(maxBits-len(bitArray)):
+			bitArray.append(0)
+		PRINT("bitArray =",bitArray)
+		PRINT("Reversing the bitarray")
+		bitArray = bitArray[::-1]
+		PRINT("bitArray =",bitArray)
+		
+		if len(bitArray) != maxBits:
+			EXIT("Coding bug in encodeValue(): For bitStartPosition ("+STR(bitStartPosition)+", bitFieldSize = "+STR(bitFieldSize)+", totalBits = "+STR(totalBits)+", len(bitArray) ("+STR(len(bitArray))+") != maxBits ("+STR(maxBits)+")")
+		
 
 		returnByteArray = []
 		byteIndex = 0
 		while True:
-			if (byteIndex+1) * BITS_IN_BYTE > len(binaryStr):
+			if (byteIndex+1) * BITS_IN_BYTE > len(bitArray):
 				break
-			bits2add = binaryStr[byteIndex*BITS_IN_BYTE:(byteIndex+1)*BITS_IN_BYTE]
-			byte2add = int(bits2add,2)
+			bits2add = bitArray[byteIndex*BITS_IN_BYTE:(byteIndex+1)*BITS_IN_BYTE]
+			PRINT("bits2add =",bits2add)
+			if len(bits2add) != BITS_IN_BYTE:
+				EXIT("Coding bug in encodeValue(): len(bits2add) = "+STR(len(bits2add))+" != BITS_IN_BYTE")
+			byte2add = 0
+			for i in range(BITS_IN_BYTE):
+				byte2add += bits2add[i]*(2**(BITS_IN_BYTE-1-i))
+			PRINT("After convering bits2add =",bits2add,"to",byte2add,", adding it as returnByteArray[",byteIndex,"]")
 			returnByteArray.append(byte2add)
 			byteIndex += 1
+
+		
 	else:
 		EXIT("Datatype Not supported yet")
 
@@ -15712,6 +15828,11 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 	for x in returnByteArray:
 		val = "0x{:02X}".format(x)
 		returnByteArrayHex.append(val)
+	if littleEndianOrBigEndian==LITTLE_ENDIAN and len(returnByteArrayHex)>1:
+		MUST_PRINT("Reversing the returnByteArrayHex since it is Little endian")
+		MUST_PRINT("returnByteArray =", returnByteArray[::-1],", returnByteArrayHex =",returnByteArrayHex[::-1])
+	else:
+		MUST_PRINT("returnByteArray =", returnByteArray,", returnByteArrayHex =",returnByteArrayHex)
 
 	# Python 2 and 3 stores the string separately. So we need to encode it differently.
 	
@@ -15720,7 +15841,6 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 	elif PYTHON3x:
 		outputBytes = bytearray()
 	
-	PRINT("returnByteArray =", returnByteArray,", returnByteArrayHex =",returnByteArrayHex)
 	PRINT("\nStarting with outputBytes =",outputBytes,", type(outputBytes) =",type(outputBytes))
 	
 #	returnByteArray = [0x41, 0x2b, 0x33, 0x33]	# Hardcoded for text
@@ -15736,15 +15856,18 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 			py3Byte = bytes([byte2add])
 			PRINT("The output byte is ",py3Byte)
 			outputBytes += py3Byte
-		PRINT("After adding byte #",index," = <",byte2add,">, outputBytes =",outputBytes,",len(outputBytes) =", len(outputBytes))
+		PRINT("After adding byte #",index," = <",byte2add,">, outputBytes =",outputBytes,", len(outputBytes) =", len(outputBytes))
 		index += 1
 	PRINT("\nFinal outputBytes =",outputBytes)
 	
 	if littleEndianOrBigEndian==LITTLE_ENDIAN and len(outputBytes)>1:
-#		outputBytes.reverse()
+		PRINT("Reversing the outputBytes since it is Little endian")
 		outputBytes = outputBytes[::-1]
 
-	result = calculateInternalValue(outputBytes, littleEndianOrBigEndian, datatype, signedOrUnsigned, bitFieldSize, 0)
+
+	bitStartPosition = originalBitStartPosition
+
+	result = calculateInternalValue(outputBytes, littleEndianOrBigEndian, datatype, signedOrUnsigned, bitFieldSize, bitStartPosition)
 	PRINT ("calculateInternalValue() = ", result)
 	
 	if getRuntimeValue([result,'==',decimalValue])[1]:	# Assuming no errors
@@ -15753,8 +15876,9 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 		EXIT("result ("+STR(result)+ ") != decimalValue (" +STR(decimalValue)+")")
 
 
-	
-#encodeValue(10, LITTLE_ENDIAN, "char")
+	return [True, outputBytes]
+
+#MUST_PRINT( encodeValue(1, LITTLE_ENDIAN, "float")[1])
 #sys.exit()
 
 def charIsValidHex(c):
@@ -16108,6 +16232,126 @@ def readBytesFromFile(startAddress, numBytesToRead):
 		#sys.exit()
 	return blockRead
 
+def findBytesInFile(bytesToFind, lookFromAddress=0):
+	PRINT=OUTPUT
+	if bytesToFind=="":
+		errorMessage = "Error in findBytesInFile(): Need to supply a valid stream of bytes to find"
+		errorRoutine(errorMessage)
+		return [False, None]
+	elif not checkIfIntegral(lookFromAddress) or lookFromAddress <0 or lookFromAddress >= dataFileSizeInBytes:
+		errorMessage = "Error in findBytesInFile(): Need to supply a valid lookFromAddress"
+		errorRoutine(errorMessage)
+		return [False, None]
+
+	numBytesToRead = len(bytesToFind)
+	PRINT("type(bytesToFind) = ",type(bytesToFind),", len(bytesToFind) =",numBytesToRead)
+	
+	if len(binaryArray)>0 and len(binaryArray) != dataFileSizeInBytes:
+		EXIT("Coding bug in findBytesInFile(): len(binaryArray) != dataFileSizeInBytes")
+	
+	foundTheBytes = False
+	foundAtAddress = None
+	startAddress = lookFromAddress
+	if len(binaryArray)>0:
+		while True:
+			if foundTheBytes or startAddress + numBytesToRead >= dataFileSizeInBytes:
+				break
+			blockRead = binaryArray[startAddress: startAddress+numBytesToRead]
+			if blockRead == bytesToFind:
+				foundTheBytes = True
+				foundAtAddress = startAddress
+			startAddress += 1
+	else:
+		with open(dataFileName, "rb") as file:
+			while True:
+				if foundTheBytes or startAddress + numBytesToRead >= dataFileSizeInBytes:
+					break
+				try:
+					PRINT("Attempting to find the bytes from addres",startAddress)
+					file.seek(startAddress, os.SEEK_SET)
+					blockRead = file.read(numBytesToRead)	
+					PRINT("type(blockRead) =",type(blockRead))	# This is of type "bytes" in Python3 but "str" in Python2
+					if blockRead == bytesToFind:
+						foundTheBytes = True
+						foundAtAddress = startAddress
+				except ValueError: 
+					PRINT ("ValueError on trying to read ",numBytesToRead,"bytes from file offset",startAddress )
+					return [False, None]
+				except:
+					EXIT ("Unknown error while trying to read the file in findBytesInFile() - exiting")
+				startAddress += 1
+	PRINT ("type(blockRead) = ",type(blockRead))	# str in Python 2, but bytes in Python 3
+	PRINT ("len(blockRead) = ",len(blockRead))
+	return [True, foundAtAddress]
+
+# Given a initialized variableId, it will lookFromAddress for its initialization value
+def findHardcodedDataInFile(partnerId, lookFromAddress):
+	if not checkIfIntegral(partnerId) or partnerId not in range(len(variableDeclarations)):
+		errorMessage = "Error in findHardcodedDataInFile : illegal partnerId of "+STR(partnerId)
+		errorRoutine(errorMessage)
+		return [False, None]
+	elif not variableDeclarations[partnerId][4]["isInitialized"]:
+		errorMessage = "Error in findHardcodedDataInFile : supplied partnerId of "+STR(partnerId)+" is NOT an initialized variable"
+		errorRoutine(errorMessage)
+		return [False, None]
+
+	# We can look for the initialization value only when we know its datatype, value etc. very precisely. If it is a dynamic variable, too bad
+	initializationValue = variableDeclarations[partnerId][4]["initializationValue"]
+	if isinstance(initializationValue, list) and len(initializationValue)==1 and checkIfNumber(initializationValue[0]):
+		MUST_PRINT("The partnerId of",partnerId,"is initialized to a constant value of",initializationValue[0])
+		decimalValue = initializationValue[0]
+		littleEndianOrBigEndian = DEFAULT_ENDIANNESS
+		datatype = variableDeclarations[partnerId][4]["datatype"]
+		containerSizeBits = primitiveDatatypeLength[dataype]*BITS_IN_BYTE
+		signedOrUnsigned = variableDeclarations[partnerId][4]["signedOrUnsigned"]
+		if "offsetWithinStruct" in getDictKeyList(variableDeclarations[partnerId][4]):
+			offsetWithinStruct = variableDeclarations[partnerId][4]["offsetWithinStruct"]
+			if not checkIfIntegral(bitOffsetWithinStruct):
+				return [True, None]
+		else:
+			return [True, None]
+			
+		if variableDeclarations[partnerId][4]["isBitField"]:
+			bitFieldWidth = variableDeclarations[partnerId][4]["bitFieldWidth"]
+			if not checkIfIntegral(bitFieldWidth):
+				return [True, None]
+			else:
+				bitFieldSize = bitFieldWidth
+			if "bitOffsetWithinStruct" in getDictKeyList(variableDeclarations[partnerId][4]):
+				bitOffsetWithinStruct = variableDeclarations[partnerId][4]["bitOffsetWithinStruct"]
+				if not checkIfIntegral(bitOffsetWithinStruct):
+					return [True, None]
+				else:
+					bitStartPosition = bitOffsetWithinStruct%BITS_IN_BYTE
+					offsetWithinStruct += integerDivision(bitOffsetWithinStruct, BITS_IN_BYTE)
+					mask = ((1<<bitFieldSize)-1)<<(containerSizeBits-bitStartPosition-bitFieldSize)
+			else:
+				return [True, None]
+		else:	# Not a bitfield
+			bitFieldSize = 0
+			bitStartPosition = 0
+			mask = (1<<containerSizeBits)-1
+	else:
+		return [False, None]
+		
+	MUST_PRINT("Let's try to find some value in the file")
+#	decimalValue = -1.4748612360084967e20
+#	encodeValueResult = encodeValue(decimalValue, LITTLE_ENDIAN, "float", "signed", 0, 0)
+	encodeValueResult = encodeValue(decimalValue, littleEndianOrBigEndian, datatype, signedOrUnsigned, bitFieldSize, bitStartPosition)
+	if encodeValueResult[0]==True:
+		encodedBytes=encodeValueResult[1]
+		hexString = "0x"
+		for encodedByte in encodedBytes:
+			hexString += hex(ORD(encodedByte))
+		PRINT("The encoded byte(s) for", decimalValue,"is",hexString)
+		findBytesInFileResult = findBytesInFile(encodedBytes, lookFromAddress, mask)
+		if findBytesInFileResult[0]==True:
+			foundAtAddress = findBytesInFileResult[1]
+			MUST_PRINT("Value of",decimalValue,"found at offset",foundAtAddress)
+		else:
+			MUST_PRINT("Offset not found")
+	PRINT("Exiting displayAndColorDataWindows()\n")
+		
 '''
 runtimeStatementLocationsInGlobalScope = [] # These are the runtime statements that are OUTSIDE any struct definition. 
 											#Every row = [line#, globalTokenNumberStart, globalTokenNumberEnd, [runtime token list] ] 
@@ -16300,7 +16544,7 @@ def populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize():
 			if statementOrVarIdOrStructId[n][1] in ('if', 'loop'):	# Starting of a if-elif-else-endif block
 				# First figure out the which all source code statements are impacted by this if statement.
 				# There might be multiple code blocks between the if-elif-elif-else-endif statements, but only one of them would succeed.
-				
+				PRINT("From populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize(), calling checkPreprocessingDirectivesInterleaving(runtimeLines[n:],True)")
 				checkPreprocessingDirectivesInterleavingResult = checkPreprocessingDirectivesInterleaving(runtimeLines[n:],True)
 				if checkPreprocessingDirectivesInterleavingResult == False:
 					errorMessage = "ERROR in populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize() after calling checkPreprocessingDirectivesInterleaving() from line %d"%n
@@ -18227,6 +18471,7 @@ class MainWindow:
 		dumpDetailsForDebug()
 
 		if not unraveled:	# No BG coloring possible
+#			findHardcodedDataInFile()
 			return True
 
 		
@@ -18502,8 +18747,6 @@ class MainWindow:
 			
 			tags = (self.colorTagsData[j],)
 		
-
-		PRINT("Exiting displayAndColorDataWindows()\n")
 		
 		return True
 
