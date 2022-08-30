@@ -821,6 +821,7 @@
 # 2022-05-11 - encodeValue now working
 # 2022-05-12 - Now we can search for an encoded value in a file using findHardcodedDataInFile.
 # 2022-08-25 - Small Bug fix regarding #ifndef handling.
+# 2022-08-30 - Small Bug fix regarding #include handling.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -7258,7 +7259,6 @@ def condenseMultilineMacroIntoOneLine():
 
 # This function takes the input lines and applied all possible macros on it
 def invokeMacrosOnLine(lines, i):
-	
 	global runtimeStatementLineNumbers	# Keeps a list of which all line numbers are runtime statements. We need this so that we can invoke the interleaving check judiciously.
 	
 	######################################################################
@@ -7607,125 +7607,129 @@ def invokeMacrosOnLine(lines, i):
 							PRINT ("===============================================" )
 		
 
-				# All macro invocations have been done. Now let's re-tokenize
-				tokenizeLinesResult = tokenizeLines(lines[i])
-				PRINT("tokenized lines[",i,"] =",tokenizeLinesResult)
-				
-				if tokenizeLinesResult == False:
-					errorMessage = "ERROR in invokeMacrosOnLine() before doing macro expansion after calling tokenizeLines(currLine) for currLine =" + lines[i]
+		# I am shifting two identations to the left
+
+		# All macro invocations have been done. Now let's re-tokenize
+		tokenizeLinesResult = tokenizeLines(lines[i])
+		PRINT("tokenized lines[",i,"] =",tokenizeLinesResult)
+		
+		if tokenizeLinesResult == False:
+			errorMessage = "ERROR in invokeMacrosOnLine() before doing macro expansion after calling tokenizeLines(currLine) for currLine =" + lines[i]
+			errorRoutine(errorMessage)
+			return False
+		else:
+			macroTokenList = tokenizeLinesResult[0]
+
+		PRINT ("searching for preprocessing commands in line # ",i, lines[i] )
+		currLine = lines[i]
+		PRINT("lines[",i,"] =",lines[i], "macroTokenList =",macroTokenList)
+
+		#preprocessingDirectives = ('#include', '#if', '#ifdef', '#ifndef', '#else', '#elif', '#endif', '#define', '#undef', '#line', '#error', '#pragma')
+
+		if macroTokenList and macroTokenList[0] in preprocessingDirectives:
+			PRINT("macroTokenList[0] =",macroTokenList[0],"is a preprocessingDirectives")
+		
+		##########################################################
+		##														##
+		##				I N C L U D E							##
+		##														##
+		##########################################################
+		
+		# Handle the include statements
+		# Recall that when there is user-level included files, they are enclosed in double-quotes. So the parser would include the whole thing as a solitary
+		# double-quoted string.
+		# On the other hand, if the include statement is like #include <a.txt>, then the parser would break up <a.txt> as '<','a','.','txt','>'. 
+		# So, you would want to join all the tokens in between the <...>
+		if macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>= 2 and macroTokenList[1]=='include':
+			if "<" not in macroTokenList and len(macroTokenList) != 3:
+				errorMessage = "ERROR in invokeMacrosOnLine() after calling tokenizeLines() for line # %d = <%s> - #include must have exactly one arguement" %(i,lines[i] )
+				errorRoutine(errorMessage)
+				return False
+			elif "<" in macroTokenList and ">" in macroTokenList and len(macroTokenList) < 5:
+				errorMessage = "ERROR in invokeMacrosOnLine() after calling tokenizeLines() for line # %d = <%s> - #include must have exactly one arguement" %(i,lines[i] )
+				errorRoutine(errorMessage)
+				return False
+			elif len(macroTokenList) >= 5 and not (macroTokenList[2] == '<' and macroTokenList[-1] == '>'):
+					errorMessage = "ERROR in invokeMacrosOnLine() after calling tokenizeLines() for line # %d = <%s> - must be like #include <filename>" %(i,lines[i] )
 					errorRoutine(errorMessage)
 					return False
-				else:
-					macroTokenList = tokenizeLinesResult[0]
-
-				PRINT ("searching for preprocessing commands in line # ",i, lines[i] )
-				currLine = lines[i]
-				PRINT("lines[",i,"] =",lines[i], "macroTokenList =",macroTokenList)
-
-				#preprocessingDirectives = ('#include', '#if', '#ifdef', '#ifndef', '#else', '#elif', '#endif', '#define', '#undef', '#line', '#error', '#pragma')
-
-				if macroTokenList and macroTokenList[0] in preprocessingDirectives:
-					PRINT("macroTokenList[0] =",macroTokenList[0],"is a preprocessingDirectives")
-				
-				##########################################################
-				##														##
-				##				I N C L U D E							##
-				##														##
-				##########################################################
-				
-				# Handle the include statements
-				# Recall that when there is user-level included files, they are enclosed in double-quotes. So the parser would include the whole thing as a solitary
-				# double-quoted string.
-				# On the other hand, if the include statement is like #include <a.txt>, then the parser would break up <a.txt> as '<','a','.','txt','>'. 
-				# So, you would want to join all the tokens in between the <...>
-				if macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>= 2 and macroTokenList[1]=='include':
-					if "<" not in macroTokenList and len(macroTokenList) != 3:
-						errorMessage = "ERROR in invokeMacrosOnLine() after calling tokenizeLines() for line # %d = <%s> - #include must have exactly one arguement" %(i,lines[i] )
-						errorRoutine(errorMessage)
-						return False
-					elif "<" in macroTokenList and ">" in macroTokenList and len(macroTokenList) < 5:
-						errorMessage = "ERROR in invokeMacrosOnLine() after calling tokenizeLines() for line # %d = <%s> - #include must have exactly one arguement" %(i,lines[i] )
-						errorRoutine(errorMessage)
-						return False
-					elif len(macroTokenList) >= 5 and not (macroTokenList[2] == '<' and macroTokenList[-1] == '>'):
-							errorMessage = "ERROR in invokeMacrosOnLine() after calling tokenizeLines() for line # %d = <%s> - must be like #include <filename>" %(i,lines[i] )
+			elif len(macroTokenList) == 3 and (macroTokenList[2][0] != '"' or macroTokenList[2][-1] != '"' or len(macroTokenList[2])<=2):
+					errorMessage = "ERROR in invokeMacrosOnLine() after calling tokenizeLines() for line # %d = <%s> - must be like #include \"filename\"" %(i,lines[i] )
+					errorRoutine(errorMessage)
+					return False
+			else: 
+				includedFileName = macroTokenList[2][1:-1].strip() if len(macroTokenList) == 3 else ''.join(macroTokenList[3:-1])
+				if not includedFileName:
+					errorMessage = "ERROR in invokeMacrosOnLine() - included filename cannot be blank"
+					errorRoutine(errorMessage)
+					return False
+					
+				PRINT("includedFileName =",includedFileName)
+				slash = "\\" if "\\" in os.getcwd() else "/" if "/" in os.getcwd() else ""
+				includeFilePaths = returnFilePathList(INCLUDE_FILE_PATHS)
+				fileFound = False
+				if os.path.exists(includedFileName):
+					path = os.getcwd()
+					path = path if path[-1] == slash else path+slash
+					fileFound = True
+					PRINT("The file",includedFileName,"is present in the current working directory",path)
+				elif includeFilePaths != False and includeFilePaths != []:
+					for item in includeFilePaths:
+						if not checkIfString(item) or item[-1]!=slash:
+							errorMessage = "ERROR in invokeMacrosOnLine() - included file path <%s> is illegal"%(STR(item))
 							errorRoutine(errorMessage)
 							return False
-					elif len(macroTokenList) == 3 and (macroTokenList[2][0] != '"' or macroTokenList[2][-1] != '"' or len(macroTokenList[2])<=2):
-							errorMessage = "ERROR in invokeMacrosOnLine() after calling tokenizeLines() for line # %d = <%s> - must be like #include \"filename\"" %(i,lines[i] )
-							errorRoutine(errorMessage)
-							return False
-					else: 
-						includedFileName = macroTokenList[2][1:-1].strip() if len(macroTokenList) == 3 else ''.join(macroTokenList[3:-1])
-						if not includedFileName:
-							errorMessage = "ERROR in invokeMacrosOnLine() - included filename cannot be blank"
-							errorRoutine(errorMessage)
-							return False
-							
-						PRINT("includedFileName =",includedFileName)
-						slash = "\\" if "\\" in os.getcwd() else "/" if "/" in os.getcwd() else ""
-						includeFilePaths = returnFilePathList(INCLUDE_FILE_PATHS)
-						fileFound = False
-						if os.path.exists(includedFileName):
-							path = os.getcwd()
-							path = path if path[-1] == slash else path+slash
+						if os.path.isfile(item+includedFileName):
+							path = item
 							fileFound = True
-							PRINT("The file",includedFileName,"is present in the current working directory",path)
-						elif includeFilePaths != False and includeFilePaths != []:
-							for item in includeFilePaths:
-								if not checkIfString(item) or item[-1]!=slash:
-									errorMessage = "ERROR in invokeMacrosOnLine() - included file path <%s> is illegal"%(STR(item))
-									errorRoutine(errorMessage)
-									return False
-								if os.path.isfile(item+includedFileName):
-									path = item
-									fileFound = True
-									PRINT("The file",includedFileName,"is present in the include file path",path)
-									break
-						if fileFound:
-							with open(path+includedFileName, "r") as includedFile:
-								try:
-									includedLines = includedFile.readlines()
-									if not checkIfStringOrListOfStrings(includedLines):
-										errorMessage = "ERROR in invokeMacrosOnLine(): Bad coding: input code file content is NOT string - type(includedLines) = "+STR(type(asciiLines))
-										errorRoutine(errorMessage)
-										return False
-									
-								except ValueError: # Empty file
-									includedLines = [""]
-						else:
-							errorMessage = "ERROR in invokeMacrosOnLine() - cannot open included code file <"+includedFileName+">"
-							errorRoutine(errorMessage)
-							return False
+							PRINT("The file",includedFileName,"is present in the include file path",path)
+							break
+				if fileFound:
+					with open(path+includedFileName, "r") as includedFile:
+						try:
+							includedLines = includedFile.readlines()
+							if not checkIfStringOrListOfStrings(includedLines):
+								errorMessage = "ERROR in invokeMacrosOnLine(): Bad coding: input code file content is NOT string - type(includedLines) = "+STR(type(asciiLines))
+								errorRoutine(errorMessage)
+								return False
 							
-						PRINT ("Included code file has",len(includedLines),"lines, which contains:", includedLines )
-						PRINT ("Before inserting, len(lines) =",len(lines))
-						
-						oldNumberOfLines = len(lines)
-						# Insert the newly included lines in lines
-						tempLines = lines[:i]
-						tempLines.extend(includedLines)
-						if i<len(lines)-1:
-							tempLines.extend(lines[i+1:])
-
-						# Overwrite the lines
-						lines = tempLines
-						PRINT ("After inserting, len(lines) =",len(lines))
-						newNumberOfLines = len(lines)
-						
-						if runtimeStatementLineNumbers and newNumberOfLines > oldNumberOfLines:
-							PRINT("Thanks to the #include statement on line #",i,", a total of",(newNumberOfLines - oldNumberOfLines),"new lines were added.")
-							PRINT("Therefore, we need to change the runtime statement line numbers that previously occurred after line #",i)
-							PRINT("Before changing the line numbers past",i,", runtimeStatementLineNumbers =",runtimeStatementLineNumbers)
-							for r in range(len(runtimeStatementLineNumbers)):
-								if runtimeStatementLineNumbers[r]>i:
-									runtimeStatementLineNumbers[r] += newNumberOfLines - oldNumberOfLines
-							PRINT("After  changing the line numbers past",i,", runtimeStatementLineNumbers =",runtimeStatementLineNumbers)
-
-				if currentLineBeforeMacroInvocationsAndIncludeProcessing != lines[i]:
-					processCurrentLineAgain = True
+						except ValueError: # Empty file
+							includedLines = [""]
 				else:
-					processCurrentLineAgain = False
+					errorMessage = "ERROR in invokeMacrosOnLine() - cannot open included code file <"+includedFileName+">"
+					errorRoutine(errorMessage)
+					return False
+					
+				PRINT ("Included code file has",len(includedLines),"lines, which contains:", includedLines )
+				PRINT ("Before inserting, len(lines) =",len(lines))
+				
+				oldNumberOfLines = len(lines)
+				# Insert the newly included lines in lines
+				tempLines = lines[:i]
+				tempLines.extend(includedLines)
+				if i<len(lines)-1:
+					tempLines.extend(lines[i+1:])
+
+				# Overwrite the lines
+				lines = tempLines
+				PRINT ("After inserting, len(lines) =",len(lines))
+				newNumberOfLines = len(lines)
+				
+				if runtimeStatementLineNumbers and newNumberOfLines > oldNumberOfLines:
+					PRINT("Thanks to the #include statement on line #",i,", a total of",(newNumberOfLines - oldNumberOfLines),"new lines were added.")
+					PRINT("Therefore, we need to change the runtime statement line numbers that previously occurred after line #",i)
+					PRINT("Before changing the line numbers past",i,", runtimeStatementLineNumbers =",runtimeStatementLineNumbers)
+					for r in range(len(runtimeStatementLineNumbers)):
+						if runtimeStatementLineNumbers[r]>i:
+							runtimeStatementLineNumbers[r] += newNumberOfLines - oldNumberOfLines
+					PRINT("After  changing the line numbers past",i,", runtimeStatementLineNumbers =",runtimeStatementLineNumbers)
+
+		if currentLineBeforeMacroInvocationsAndIncludeProcessing != lines[i]:
+			processCurrentLineAgain = True
+		else:
+			processCurrentLineAgain = False
+	
+	return True
 
 ############################################################################
 #  1. PROCESS COMMENTS                                                     #
@@ -7832,8 +7836,11 @@ def preProcess():
 			##														##
 			##########################################################
 			
-			invokeMacrosOnLine(lines, i)		
-			
+			invokeMacrosOnLineStatus = invokeMacrosOnLine(lines, i)
+			if invokeMacrosOnLineStatus != True:
+				errorMessage = "ERROR in preProcess(), after all macro invocations and #include statement processing has been done, right after calling tokenizeLines(currLine) for currLine = " + lines[i]
+				errorRoutine(errorMessage)
+				return False
 				
 			##########################################################
 			##														##
@@ -7902,7 +7909,8 @@ def preProcess():
 					errorRoutine(errorMessage)
 					return False
 				elif not re.search("^\s*[a-zA-Z_]+\w*", macroTokenList[2]):
-					PRINT ("ERROR in preProcess() - Macro must have a valid name", macroTokenList[2], " -- exiting!" )
+					errorMessage = "ERROR in preProcess() - Macro must have a valid name <"+ STR(macroTokenList[2])+ "> -- exiting!" 
+					errorRoutine(errorMessage)
 					return False
 				elif macroTokenList[2] in illegalVariableNames:
 					errorMessage = "ERROR in line <%s> - Macro must have a valid name - <%s> is not allow -- exiting!"%(lines[i],macroTokenList[2])
@@ -8225,7 +8233,11 @@ def preProcess():
 					targetLineNumber = scope[k][0]+i
 					ordinaryPreprocessingOrRuntimeStatementLineNumbers.append(targetLineNumber)
 					
-					invokeMacrosOnLine(lines, targetLineNumber)		# We are invoking macro ONLY on this line, nothing else.
+					invokeMacrosOnLineStatus = invokeMacrosOnLine(lines, targetLineNumber)	# We are invoking macro ONLY on this line, nothing else.
+					if invokeMacrosOnLineStatus != True:
+						errorMessage = "ERROR in preProcess(), during processing preprocessing statements for targetLineNumber = " + lines[targetLineNumber]
+						errorRoutine(errorMessage)
+						return False
 					
 					PRINT("Tokenizing line #",targetLineNumber)
 
@@ -14496,6 +14508,12 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 					else:
 						runtimeStatementLocationsInGlobalScope.append([runTimeLineNumStart, resultPair[0], resultPair[1], tokenList[resultPair[0]:resultPair[1]+1]])
 				else:
+					runTimeLineNumStart = tokenListInformation[1][resultPair[0]][2][0][0]
+					runTimeLineNumEnd 	= tokenListInformation[1][resultPair[1]][2][0][0]
+					if tokenList[i]==preProcessorSymbol and i+1<len(tokenList) and tokenList[i+1] in preprocessingDirectives:
+						OUTPUT("Forgot to include this boundary condition here, runTimeLineNumStart=",runTimeLineNumStart,", runTimeLineNumEnd =",runTimeLineNumEnd)
+						OUTPUT("lines[runTimeLineNumStart]=",lines[runTimeLineNumStart])
+						OUTPUT("lines[runTimeLineNumEnd]=",lines[runTimeLineNumEnd])
 					OUTPUT("ERROR in parseCodeSnippet() - really BAD coding - Something wrong!!")
 					sys.exit()
 				i = resultPair[1] + 1	# Move the pointer
