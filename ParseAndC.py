@@ -821,7 +821,8 @@
 # 2022-05-11 - encodeValue now working
 # 2022-05-12 - Now we can search for an encoded value in a file using findHardcodedDataInFile.
 # 2022-08-25 - Small Bug fix regarding #ifndef handling.
-# 2022-08-30 - Small Bug fix regarding #include handling.
+# 2022-08-30 - Small Bug fix regarding #include handling in invokeMacrosOnLine(), indentation issue.
+# 2022-08-31 - Small Bug fix regarding #include handling in invokeMacrosOnLine(), forgot to declare lines as global.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -7258,8 +7259,8 @@ def condenseMultilineMacroIntoOneLine():
 #sys.exit()
 
 # This function takes the input lines and applied all possible macros on it
-def invokeMacrosOnLine(lines, i):
-	global runtimeStatementLineNumbers	# Keeps a list of which all line numbers are runtime statements. We need this so that we can invoke the interleaving check judiciously.
+def invokeMacrosOnLine(i):
+	global lines, runtimeStatementLineNumbers	# Keeps a list of which all line numbers are runtime statements. We need this so that we can invoke the interleaving check judiciously.
 	
 	######################################################################
 	##																	##
@@ -7641,6 +7642,7 @@ def invokeMacrosOnLine(lines, i):
 		# On the other hand, if the include statement is like #include <a.txt>, then the parser would break up <a.txt> as '<','a','.','txt','>'. 
 		# So, you would want to join all the tokens in between the <...>
 		if macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>= 2 and macroTokenList[1]=='include':
+			MUST_PRINT("Processing included files in lines[",i,"] =",lines[i])
 			if "<" not in macroTokenList and len(macroTokenList) != 3:
 				errorMessage = "ERROR in invokeMacrosOnLine() after calling tokenizeLines() for line # %d = <%s> - #include must have exactly one arguement" %(i,lines[i] )
 				errorRoutine(errorMessage)
@@ -7666,6 +7668,11 @@ def invokeMacrosOnLine(lines, i):
 					
 				PRINT("includedFileName =",includedFileName)
 				slash = "\\" if "\\" in os.getcwd() else "/" if "/" in os.getcwd() else ""
+				if slash not in ["\\","/"]:
+					errorMessage = "ERROR in invokeMacrosOnLine() - cannot figure out if Windows or Unix - exiting"
+					errorRoutine(errorMessage)
+					return False
+					
 				includeFilePaths = returnFilePathList(INCLUDE_FILE_PATHS)
 				fileFound = False
 				if os.path.exists(includedFileName):
@@ -7836,7 +7843,7 @@ def preProcess():
 			##														##
 			##########################################################
 			
-			invokeMacrosOnLineStatus = invokeMacrosOnLine(lines, i)
+			invokeMacrosOnLineStatus = invokeMacrosOnLine(i)
 			if invokeMacrosOnLineStatus != True:
 				errorMessage = "ERROR in preProcess(), after all macro invocations and #include statement processing has been done, right after calling tokenizeLines(currLine) for currLine = " + lines[i]
 				errorRoutine(errorMessage)
@@ -8233,7 +8240,7 @@ def preProcess():
 					targetLineNumber = scope[k][0]+i
 					ordinaryPreprocessingOrRuntimeStatementLineNumbers.append(targetLineNumber)
 					
-					invokeMacrosOnLineStatus = invokeMacrosOnLine(lines, targetLineNumber)	# We are invoking macro ONLY on this line, nothing else.
+					invokeMacrosOnLineStatus = invokeMacrosOnLine(targetLineNumber)	# We are invoking macro ONLY on this line, nothing else.
 					if invokeMacrosOnLineStatus != True:
 						errorMessage = "ERROR in preProcess(), during processing preprocessing statements for targetLineNumber = " + lines[targetLineNumber]
 						errorRoutine(errorMessage)
@@ -18832,7 +18839,7 @@ class MainWindow:
 
 	def openCodeFileDialogue(self, *args):
 		global codeFileName
-		codeFileName = filedialog.askopenfilename(title="Open - {}".format(TOOL_NAME))
+		codeFileName = filedialog.askopenfilename(title="Open code file - {}".format(TOOL_NAME))
 		self.openCodeFile()
 		
 	def openCodeFile(self, demoCodeIndexPassed=-1):
@@ -18874,7 +18881,7 @@ class MainWindow:
 			
 	def openDataFileDialogue(self, *args):
 		global dataFileName
-		dataFileNameChosen = filedialog.askopenfilename(title="Open - {}".format(TOOL_NAME))
+		dataFileNameChosen = filedialog.askopenfilename(title="Open data file - {}".format(TOOL_NAME))
 		
 		if dataFileNameChosen == None or dataFileNameChosen == "":
 				return
