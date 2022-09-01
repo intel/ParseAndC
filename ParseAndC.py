@@ -823,6 +823,7 @@
 # 2022-08-25 - Small Bug fix regarding #ifndef handling.
 # 2022-08-30 - Small Bug fix regarding #include handling in invokeMacrosOnLine(), indentation issue.
 # 2022-08-31 - Small Bug fix regarding #include handling in invokeMacrosOnLine(), forgot to declare lines as global.
+# 2022-09-01 - Bug fix regarding #include handling in invokeMacrosOnLine() and preProcess()
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -848,6 +849,7 @@ STRUCT_END_PADDING_ON = True	# Whether to add additional padding at the end of a
 DISPLAY_INTEGRAL_VALUES_IN_HEX = False	#If True, -17 would now be displayed as -0x11
 SNAPSHOT_FILE_NAME = "snapshot.csv"		# This is the output file name where the formatted data snapshot would be written in the current folder
 MAP_TYPEDEFS_TOO = True	# Usually, we do not create any storage for typedef (so no mapping), but if that's all your structure has and you do not want to create extra declaration, turn it to True
+PRINT_UNDEF_WARNING = True		# If the code wants to undefine a variable that is not defined yet, it throws a warning. But if there are many such instances, you can turn it off
 
 anonymousStructPrefix = "Anonymous#"
 dummyVariableNamePrefix = "DummyVar#"
@@ -7235,7 +7237,9 @@ def condenseMultilineMacroIntoOneLine():
 	while i < len(lines):
 		#PRINT ("searching for macro in", lines[i] )
 		currLine = lines[i].strip()					# TO-DO: This could be a problem if a string liternal spans over multiple lines and any such line ends with a space
-		if re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+.+', currLine): 
+		# BUG - there is no guarantee that only #define macro defintions can span over multiple lines. Even an #if condition can.
+#		if re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+.+', currLine): 
+		if re.search(r'^\s*'+preProcessorSymbol+r'\s*.+', currLine): 
 			ongoingMacro = True
 			macroFoundInLine = i
 			while currLine[-1:] == "\\":
@@ -7672,6 +7676,22 @@ def invokeMacrosOnLine(i):
 					errorMessage = "ERROR in invokeMacrosOnLine() - cannot figure out if Windows or Unix - exiting"
 					errorRoutine(errorMessage)
 					return False
+				
+				# It is possible that we have statements like #include "machine/ansi.h" where the slash is already supplied
+				if "\\" in includedFileName or "/" in includedFileName:
+					PRINT ("We have the case where the included file",includedFileName, "already contains a folder")
+					if "\\" in includedFileName and slash != "\\":
+						includedFileNameModified = includedFileName.replace("\\",slash)
+						PRINT("includedFileName =<"+includedFileName+"> now replaced with <"+includedFileNameModified+">")
+						includedFileName = includedFileNameModified
+					elif "/" in includedFileName and slash != "/":
+						includedFileNameModified = includedFileName.replace("/",slash)
+						PRINT("includedFileName =<"+includedFileName+"> now replaced with <"+includedFileNameModified+">")
+						includedFileName = includedFileNameModified
+					else:
+						errorMessage = "ERROR in invokeMacrosOnLine() - bad coding for include file handling - exiting"
+						errorRoutine(errorMessage)
+						return False
 					
 				includeFilePaths = returnFilePathList(INCLUDE_FILE_PATHS)
 				fileFound = False
@@ -7731,11 +7751,22 @@ def invokeMacrosOnLine(i):
 							runtimeStatementLineNumbers[r] += newNumberOfLines - oldNumberOfLines
 					PRINT("After  changing the line numbers past",i,", runtimeStatementLineNumbers =",runtimeStatementLineNumbers)
 
+		# Remove Multi-line comments. We really should not have to do this again and again since the macros are not supposed to create new comments.
+		# Still, suppose one included file contained the beginning of a comment like /* ....., and another included file contained the end of comment like ..... */
+#		removeComments()
+		
+		# Condense each Multi-line Macro into a single-line macro 
+		status = condenseMultilineMacroIntoOneLine()
+		if status == False:
+			errorMessage = "ERROR in invokeMacrosOnLine() after calling condenseMultilineMacroIntoOneLine()"
+			errorRoutine(errorMessage)
+			return False
+			
 		if currentLineBeforeMacroInvocationsAndIncludeProcessing != lines[i]:
 			processCurrentLineAgain = True
 		else:
 			processCurrentLineAgain = False
-	
+			
 	return True
 
 ############################################################################
@@ -7829,7 +7860,7 @@ def preProcess():
 					return False
 				else:
 					currentMacroNames.append(macroDefinitions[macroIndex][0])
-			PRINT("Before processing line #",i,", currentMacroNames =", STR(currentMacroNames))
+			PRINT("\nBefore processing line #",i," = <",lines[i],">, currentMacroNames =", STR(currentMacroNames))
 			
 			# Deal with blank lines right away
 			if lines[i].strip() == "":
@@ -8168,8 +8199,9 @@ def preProcess():
 					errorRoutine(errorMessage)
 					return False
 				elif macroTokenList[2] not in currentMacroNames:
-					warningMessage = "ERROR in preProcess() - "+preProcessorSymbol+"undef must have some valid macroname (<"+macroTokenList[2]+"> is not a valid macro name)"
-					warningRoutine(warningMessage)
+					if PRINT_UNDEF_WARNING:
+						warningMessage = "ERROR in preProcess() - "+preProcessorSymbol+"undef must have some valid macroname to undefine it - (<"+macroTokenList[2]+"> has not been defined yet)"
+						warningRoutine(warningMessage)
 				else:
 					macroName = macroTokenList[2]
 					macroIndex = currentMacroNames.index(macroName)
@@ -8279,7 +8311,8 @@ def preProcess():
 						
 						# Calculate the if condition result (True or False). By here we know that all ifdef etc. things have proper arguments
 						ifConditionEvaluationResult = False	# The default value
-
+						
+						PRINT("Now going to evaluate the condition", targetLineTokenList)
 						if targetLineTokenList[0] == preProcessorSymbol and len(targetLineTokenList)>=2 and targetLineTokenList[1] == 'else': 	# If you are falling on an #else, it is by defintion true
 							ifConditionEvaluationResult = True
 							PRINT("The '"+preProcessorSymbol+"else' succeeded")
@@ -8300,19 +8333,45 @@ def preProcess():
 							else:
 								PRINT("The '",STR(targetLineTokenList[0:3]),"' failed")
 						elif targetLineTokenList[0] == preProcessorSymbol and len(targetLineTokenList)>=2 and targetLineTokenList[1] in ('if','elif'):
-							
+						
+							PRINT("Found an if/elif condition - ",targetLineTokenList)
 							# Handle one special case - before calling parseArithmeticExpression(), we must resolve the case of defined().
 							# This is because parseArithmeticExpression() is agnostic of exactly where in the source file the code is,
 							# but the result of a defined(symbol) depends precisely on that. So parseArithmeticExpression() cannot
 							# figure that out. So, we handle it locally first. We relace the defined(symbol) with 1 or 0.
 							
 							if 'defined' in targetLineTokenList:
+								PRINT("Before handling checking for defined, targetLineTokenList =",targetLineTokenList)
 								currLineTokenListTransformed = targetLineTokenList
 								while True:
 									if 'defined' in currLineTokenListTransformed:
 										definedIndex = currLineTokenListTransformed.index('defined')
-										if definedIndex +3 < len(currLineTokenListTransformed) and currLineTokenListTransformed[definedIndex+1] == '(' and currLineTokenListTransformed[definedIndex+3] == ')':
-											symbolToCheckIfDefined = currLineTokenListTransformed[definedIndex+2]
+										# The symbol we are checking may or may not be parenthesized, and one may use multiple parenthizations instead of just one
+#										if definedIndex +3 < len(currLineTokenListTransformed) and currLineTokenListTransformed[definedIndex+1] == '(' and currLineTokenListTransformed[definedIndex+3] == ')':
+										if definedIndex +3 < len(currLineTokenListTransformed) and currLineTokenListTransformed[definedIndex+1] == '(' and ')' in currLineTokenListTransformed[definedIndex+2:]:
+											numberOfOpeningBraces = 1
+											while True:
+												if currLineTokenListTransformed[definedIndex+1+numberOfOpeningBraces] == '(':
+													numberOfOpeningBraces += 1
+												else:
+													break
+											PRINT("We seem to be have numberOfOpeningBraces =",numberOfOpeningBraces)
+											
+											symbolToCheckIfDefined = currLineTokenListTransformed[definedIndex+numberOfOpeningBraces+1]
+
+											numberOfClosingBraces = 0
+											while True:
+												if definedIndex+numberOfOpeningBraces+2+numberOfClosingBraces < len(currLineTokenListTransformed) and currLineTokenListTransformed[definedIndex+numberOfOpeningBraces+2+numberOfClosingBraces] == ')':
+													numberOfClosingBraces += 1
+												else:
+													break
+											PRINT("We seem to be have numberOfClosingBraces =",numberOfClosingBraces)
+											# It is OK to have more numberOfClosingBraces, because there might be other nested conditions
+											if numberOfOpeningBraces > numberOfClosingBraces:
+												errorMessage = "ERROR in preProcess(): mismatching number of braces around "+currLineTokenListTransformed[definedIndex+numberOfOpeningBraces+1]+" in line "+list2plaintext(currLineTokenListTransformed)
+												errorRoutine(errorMessage)
+												return False
+											
 											#replace the 'defined' token with 1 or 0, and delete the three subsequent tokens signifying (symbol)
 											PRINT("Looking for Symbol", symbolToCheckIfDefined,"in currentMacroNames =",STR(symbolToCheckIfDefined))
 											if symbolToCheckIfDefined in currentMacroNames:
@@ -8321,14 +8380,31 @@ def preProcess():
 											else:
 												currLineTokenListTransformed[definedIndex] = '0'
 												PRINT("Did not find it - replacing defined(",symbolToCheckIfDefined,") with 0")
-											del currLineTokenListTransformed[definedIndex+1:definedIndex+4]
-									else:
+											#del currLineTokenListTransformed[definedIndex+1:definedIndex+4]
+											# Observe that we are not using numberOfClosingBraces in the following statement, that is deliberate
+											currLineTokenListTransformed = currLineTokenListTransformed[:definedIndex+1]+currLineTokenListTransformed[definedIndex + numberOfOpeningBraces + 1 + numberOfOpeningBraces + 1:]
+										else:	# No parenthesization
+											symbolToCheckIfDefined = currLineTokenListTransformed[definedIndex+1]
+											#replace the 'defined' token with 1 or 0, and delete the three subsequent tokens signifying (symbol)
+											PRINT("Looking for Symbol", symbolToCheckIfDefined,"in currentMacroNames =",STR(symbolToCheckIfDefined))
+											if symbolToCheckIfDefined in currentMacroNames:
+												currLineTokenListTransformed[definedIndex] = '1'
+												PRINT("Found it - replacing defined(",symbolToCheckIfDefined,") with 1")
+											else:
+												currLineTokenListTransformed[definedIndex] = '0'
+												PRINT("Did not find it - replacing defined(",symbolToCheckIfDefined,") with 0")
+											#del currLineTokenListTransformed[definedIndex+1:definedIndex+1]
+											currLineTokenListTransformed = currLineTokenListTransformed[:definedIndex+1]+currLineTokenListTransformed[definedIndex+2:]
+										
+									else:	# No more #defined, all have been resolved
 										break
 								targetLineTokenList = currLineTokenListTransformed
+								PRINT("After handling checking for defined, targetLineTokenList =",targetLineTokenList)
 								
 						
 							parseArithmeticExpressionResult = parseArithmeticExpression(targetLineTokenList[2:])
 							if parseArithmeticExpressionResult == False:
+								OUTPUT("Encountered error while evaluating parseArithmeticExpression(targetLineTokenList[2:]), where targetLineTokenList[2:] =", list2plaintext(targetLineTokenList[2:]))
 								errorMessage = "ERROR in preProcess() parsing <%s>"%tokenizeLinesResult
 								errorRoutine(errorMessage)
 								return False
@@ -8364,6 +8440,7 @@ def preProcess():
 							elif ifConditionEvaluationResult == LOGICAL_TEST_RESULT_INDETERMINATE:
 								PRINT("The if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> can only be determined at runtime")
 
+						PRINT("Condition evaluated. ifConditionEvaluationResult =",ifConditionEvaluationResult,", ifConditionTruthValueAlreadyFound =",ifConditionTruthValueAlreadyFound)
 						if ifConditionEvaluationResult == True:
 							ifConditionTruthValueAlreadyFound = True
 							PRINT("The overall if condition in line#",targetLineNumber," = <",lines[targetLineNumber],"> succeeded")
