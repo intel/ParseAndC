@@ -3519,7 +3519,7 @@ def evaluateArithmeticExpression(inputAST):
 						result = 1
 					elif isinstance(op0, float) or isinstance(op2, float):
 						result = 1 if areFloatsCloseEnough(op0, op2) else 0
-#						MUST_PRINT("Result = ",result," after calling areFloatsCloseEnough(op0=",op0, ", op2=",op2,")")
+#						PRINT("Result = ",result," after calling areFloatsCloseEnough(op0=",op0, ", op2=",op2,")")
 					else:
 						result = 0
 				elif inputList[1] == '!=':
@@ -7613,6 +7613,7 @@ def invokeMacrosOnLine(i):
 		
 
 		# I am shifting two identations to the left
+		PRINT("After handling macro invocations, lines[",i,"] = ",lines[i])
 
 		# All macro invocations have been done. Now let's re-tokenize
 		tokenizeLinesResult = tokenizeLines(lines[i])
@@ -7627,7 +7628,7 @@ def invokeMacrosOnLine(i):
 
 		PRINT ("searching for preprocessing commands in line # ",i, lines[i] )
 		currLine = lines[i]
-		PRINT("lines[",i,"] =",lines[i], "macroTokenList =",macroTokenList)
+		PRINT("lines[",i,"] = <"+lines[i]+">, macroTokenList =",macroTokenList)
 
 		#preprocessingDirectives = ('#include', '#if', '#ifdef', '#ifndef', '#else', '#elif', '#endif', '#define', '#undef', '#line', '#error', '#pragma')
 
@@ -7645,8 +7646,8 @@ def invokeMacrosOnLine(i):
 		# double-quoted string.
 		# On the other hand, if the include statement is like #include <a.txt>, then the parser would break up <a.txt> as '<','a','.','txt','>'. 
 		# So, you would want to join all the tokens in between the <...>
-		if macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>= 2 and macroTokenList[1]=='include':
-			MUST_PRINT("Processing included files in lines[",i,"] =",lines[i])
+		if macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>= 2 and macroTokenList[1]=='include':
+			PRINT("Processing included files in lines[",i,"] =",lines[i])
 			if "<" not in macroTokenList and len(macroTokenList) != 3:
 				errorMessage = "ERROR in invokeMacrosOnLine() after calling tokenizeLines() for line # %d = <%s> - #include must have exactly one arguement" %(i,lines[i] )
 				errorRoutine(errorMessage)
@@ -7753,7 +7754,7 @@ def invokeMacrosOnLine(i):
 
 		# Remove Multi-line comments. We really should not have to do this again and again since the macros are not supposed to create new comments.
 		# Still, suppose one included file contained the beginning of a comment like /* ....., and another included file contained the end of comment like ..... */
-#		removeComments()
+		removeComments()
 		
 		# Condense each Multi-line Macro into a single-line macro 
 		status = condenseMultilineMacroIntoOneLine()
@@ -7879,6 +7880,12 @@ def preProcess():
 				errorMessage = "ERROR in preProcess(), after all macro invocations and #include statement processing has been done, right after calling tokenizeLines(currLine) for currLine = " + lines[i]
 				errorRoutine(errorMessage)
 				return False
+
+			# Again, deal with blank lines right away
+			if lines[i].strip() == "":
+				i += 1
+				continue
+
 				
 			##########################################################
 			##														##
@@ -7935,7 +7942,7 @@ def preProcess():
 			else:
 				macroTokenList = macroTokenListResult[0]
 			
-			if macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == "define":
+			if macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == "define":
 				
 				#  Each row of this macros table will have 4 parts: [macroName, macroArguments, macroExpansionText, macroProperties]
 				# (Recall that multi-line macros have alredy been converted to single-line macros).
@@ -8193,7 +8200,7 @@ def preProcess():
 			##														##
 			##########################################################
 
-			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == "undef":	# Not a #define statement
+			elif macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == "undef":	# Not a #define statement
 				if len(macroTokenList)<3:
 					errorMessage = "ERROR in preProcess() - "+preProcessorSymbol+"undef must have some valid macroname"
 					errorRoutine(errorMessage)
@@ -8223,10 +8230,10 @@ def preProcess():
 				# Preprocessing is not part of actual C anyway.
 				lines[i] = ""
 						
-			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == 'error':
+			elif macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == 'error':
 				warningMessage = "This tool currently ignores all "+preProcessorSymbol+"error statements: <"+lines[i]+">"
 				warningRoutine(warningMessage)
-			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == 'line':
+			elif macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == 'line':
 				warningMessage = "This tool currently ignores all "+preProcessorSymbol+"line statements: <"+lines[i]+">"
 				warningRoutine(warningMessage)
 
@@ -8236,14 +8243,14 @@ def preProcess():
 			##																##
 			##################################################################
 			
-			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('elif','else','endif') and i in runtimeStatementLineNumbers:
+			elif macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('elif','else','endif') and i in runtimeStatementLineNumbers:
 				PRINT("These are #elif/#else/#endif statements that are part of a valid #if/#elif/#else/#endif construct - no need to invoke checkPreprocessingDirectivesInterleaving()")
 
 #			runtimeDirectives = ('if','elif','else','endif','loop','endloop')
 
 #			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('if','ifdef','ifndef','elif'):
 #			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in runtimeDirectives:					# <=== BUG		# MANNA_MANNA
-			elif macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('if','ifdef','ifndef','elif','elif','else','loop','endloop'):
+			elif macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] in ('if','ifdef','ifndef','elif','elif','else','loop','endloop'):
 
 				# First figure out the which all source code statements are impacted by this if statement.
 				# There might be multiple code blocks between the if-elif-elif-else-endif statements, but only one of them would succeed.
@@ -11489,7 +11496,7 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 					break
 			if isAncestorOfBlankArray:
 				if blankDimensionArrayVariableId == ancestorOfBlankDimensionArrayVariableId and partnerVariableId == ancestorOfInitializationPartner and partnerVariableId == blankDimensionArrayVariableId+1:
-					MUST_PRINT("\nWe have the situation where the initialization partner is the very next sibling variable in a struct\n")
+					PRINT("\nWe have the situation where the initialization partner is the very next sibling variable in a struct\n")
 				PRINT("The current executionStateStack[] has the followin identifierRecord and speculativeValue: ")
 				for row in executionStateStack:
 					PRINT("identifierRecord =",row["identifierRecord"],", speculativeValue =",row["speculativeValue"])
@@ -15931,10 +15938,10 @@ def encodeValue(decimalValue, littleEndianOrBigEndian=LITTLE_ENDIAN, datatype="i
 		val = "0x{:02X}".format(x)
 		returnByteArrayHex.append(val)
 	if littleEndianOrBigEndian==LITTLE_ENDIAN and len(returnByteArrayHex)>1:
-		MUST_PRINT("Reversing the returnByteArrayHex since it is Little endian")
-		MUST_PRINT("returnByteArray =", returnByteArray[::-1],", returnByteArrayHex =",returnByteArrayHex[::-1])
+		PRINT("Reversing the returnByteArrayHex since it is Little endian")
+		PRINT("returnByteArray =", returnByteArray[::-1],", returnByteArrayHex =",returnByteArrayHex[::-1])
 	else:
-		MUST_PRINT("returnByteArray =", returnByteArray,", returnByteArrayHex =",returnByteArrayHex)
+		PRINT("returnByteArray =", returnByteArray,", returnByteArrayHex =",returnByteArrayHex)
 
 	# Python 2 and 3 stores the string separately. So we need to encode it differently.
 	
@@ -16400,7 +16407,7 @@ def findHardcodedDataInFile(partnerId, lookFromAddress):
 	# We can look for the initialization value only when we know its datatype, value etc. very precisely. If it is a dynamic variable, too bad
 	initializationValue = variableDeclarations[partnerId][4]["initializationValue"]
 	if isinstance(initializationValue, list) and len(initializationValue)==1 and checkIfNumber(initializationValue[0]):
-		MUST_PRINT("The partnerId of",partnerId,"is initialized to a constant value of",initializationValue[0])
+		PRINT("The partnerId of",partnerId,"is initialized to a constant value of",initializationValue[0])
 		decimalValue = initializationValue[0]
 		littleEndianOrBigEndian = DEFAULT_ENDIANNESS
 		datatype = variableDeclarations[partnerId][4]["datatype"]
@@ -16436,7 +16443,7 @@ def findHardcodedDataInFile(partnerId, lookFromAddress):
 	else:
 		return [False, None]
 		
-	MUST_PRINT("Let's try to find some value in the file")
+	PRINT("Let's try to find some value in the file")
 #	decimalValue = -1.4748612360084967e20
 #	encodeValueResult = encodeValue(decimalValue, LITTLE_ENDIAN, "float", "signed", 0, 0)
 	encodeValueResult = encodeValue(decimalValue, littleEndianOrBigEndian, datatype, signedOrUnsigned, bitFieldSize, bitStartPosition)
@@ -16449,9 +16456,9 @@ def findHardcodedDataInFile(partnerId, lookFromAddress):
 		findBytesInFileResult = findBytesInFile(encodedBytes, lookFromAddress, mask)
 		if findBytesInFileResult[0]==True:
 			foundAtAddress = findBytesInFileResult[1]
-			MUST_PRINT("Value of",decimalValue,"found at offset",foundAtAddress)
+			PRINT("Value of",decimalValue,"found at offset",foundAtAddress)
 		else:
-			MUST_PRINT("Offset not found")
+			PRINT("Offset not found")
 	PRINT("Exiting displayAndColorDataWindows()\n")
 		
 '''
