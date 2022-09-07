@@ -851,6 +851,7 @@ DISPLAY_INTEGRAL_VALUES_IN_HEX = False	#If True, -17 would now be displayed as -
 SNAPSHOT_FILE_NAME = "snapshot.csv"		# This is the output file name where the formatted data snapshot would be written in the current folder
 MAP_TYPEDEFS_TOO = True	# Usually, we do not create any storage for typedef (so no mapping), but if that's all your structure has and you do not want to create extra declaration, turn it to True
 PRINT_UNDEF_WARNING = True		# If the code wants to undefine a variable that is not defined yet, it throws a warning. But if there are many such instances, you can turn it off
+PRINT_ENUM_LITERALS = True	# When set, it will print enum literals rather than value. Viz, for enum DAYS {SUN, MON, TUE} day=0; it will print day's value as "SUN" rather than 0.
 
 anonymousStructPrefix = "Anonymous#"
 dummyVariableNamePrefix = "DummyVar#"
@@ -2016,7 +2017,7 @@ def printHelp():
 
 
 def parseCommandLineArguments():
-	global funcName, BATCHMODE, codeFileName, dataLocationOffset, inputVariables, PRINT_DEBUG_MSG, MAP_TYPEDEFS_TOO, COMPILER_PADDING_ON, STRUCT_END_PADDING_ON, INCLUDE_FILE_PATHS, dummyVariableNamePrefix
+	global funcName, BATCHMODE, DISPLAY_INTEGRAL_VALUES_IN_HEX, codeFileName, dataLocationOffset, inputVariables, PRINT_DEBUG_MSG, MAP_TYPEDEFS_TOO, COMPILER_PADDING_ON, STRUCT_END_PADDING_ON, INCLUDE_FILE_PATHS, dummyVariableNamePrefix
 	funcName = "parseCommandLineArguments"
 	PRINT ("sys.argv = ",sys.argv)
 	
@@ -2050,6 +2051,7 @@ def parseCommandLineArguments():
 				sys.exit()
 			else:
 				INCLUDE_FILE_PATHS = sys.argv[N]
+				OUTPUT("INCLUDE_FILE_PATHS =",INCLUDE_FILE_PATHS)
 			N += 1
 		elif sys.argv[N].lower() in ("-x", "--x", "-hex", "--hex", "-hexadecimal", "--hexadecimal"):
 			PRINT ("Integral values will be printed in Hexadecimal (default is Decimal)")
@@ -6705,6 +6707,8 @@ def parseVariableDeclaration(inputList):
 		variableDescriptionExtended["signedOrUnsigned"]=signedOrUnsigned
 		variableDescriptionExtended["arrayElementSize"]=arrayElementSize
 		variableDescriptionExtended["typeSpecifierEndIndex"]=typeSpecifierEndIndex
+		variableDescriptionExtended["enumType"]= enumTypesIntypeSpecifierList[0] if enumTypesIntypeSpecifierList else None
+		enumTypesIntypeSpecifierList
 		variableDescriptionExtended["variableNameIndex"]=variableNameIndex
 		variableDescriptionExtended["currentDeclarationSegmentStartIndex"]=currentDeclarationSegmentStartIndex 
 		variableDescriptionExtended["currentDeclarationSegmentEndIndexInclusive"]=currentDeclarationSegmentEndIndexInclusive
@@ -12419,7 +12423,7 @@ def printUnraveled(unraveled):
 	elif not isinstance(unraveled, list):
 		PRINT ("unraveled is NOT a list")
 	else:
-		PRINT ("\n\n","=="*100,"\nunraveled (level, variable, datatype, starting offset (inclusive), ending offset+1 (exclusive), Raw Hex Bytes, Value (LE), Value (BE), [Ancestry list ending with current variableId] \n","=="*100,"\n")
+		PRINT ("\n\n","=="*100,"\nunraveled format (level, variable, datatype, starting offset (inclusive), ending offset+1 (exclusive), Raw Hex Bytes, Value (LE), Value (BE), [Ancestry list ending with current variableId] \n","=="*100,"\n")
 		for row in unraveled:
 			rowText = "["+STR(row[0])
 			for N in range(1,len(row)):
@@ -16200,8 +16204,11 @@ def prettyPrintUnraveled(displayAncestry=False):
 			else:
 				addrStart = hex(unraveled[N][3])
 				addrEnd = hex(unraveled[N][4]-1)
-			
-			treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5],STR(unraveled[N][6]),STR(unraveled[N][7])]
+			if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][8][-1]][4]["enumType"]!=None:
+				MUST_PRINT("Printing enum literals for variableId",unraveled[N][8][-1])
+				treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5],STR(unraveled[N][6]),STR(unraveled[N][7])]
+			else:
+				treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5],STR(unraveled[N][6]),STR(unraveled[N][7])]
 			treeViewAllRowsValues.append(treeViewSingleRowValues)
 		except IndexError:
 			OUTPUT ("IndexError in prettyPrintUnraveled(): List index out of range for N = ",N)
@@ -16318,6 +16325,9 @@ def dumpDetailsForDebug(MUST=False):
 	for item in macroDefinitions:
 		PRINT (item)
 	PRINT ("\n\n","==="*50)
+	PRINT("\n\nenums =",enums)
+	PRINT ("\n\n","==="*50)
+	PRINT("\n\nenumFieldValues =",enumFieldValues)
 	if blankArraysAndTerminationInfo:
 		PRINT ("blankArraysAndTerminationInfo =")
 		for key in getDictKeyList(blankArraysAndTerminationInfo):
