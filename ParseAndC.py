@@ -824,6 +824,7 @@
 # 2022-08-30 - Small Bug fix regarding #include handling in invokeMacrosOnLine(), indentation issue.
 # 2022-08-31 - Small Bug fix regarding #include handling in invokeMacrosOnLine(), forgot to declare lines as global.
 # 2022-09-01 - Bug fix regarding #include handling in invokeMacrosOnLine() and preProcess()
+# 2022-09-06 - Bug fix for #pragma pack() being the last statement, plus feature addition of being able to set the dummy variable name prefix
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -1594,6 +1595,7 @@ def checkIfIntegral(inputNum):
 	else:
 		return False
 
+
 def checkIfStringIsNumeric(inputStr):
 #	print ("inputStr = ", inputStr)
 #	print ("type(inputStr) = <%s>"%type(inputStr))
@@ -2010,11 +2012,11 @@ def printHelp():
 	OUTPUT("-t, --typedef             followed by Yes/No to indicate if typedefs will be mapped as regular variables or not")
 	OUTPUT("-v, --verbose, --debug    to indicate if debug messages will be printed or not")
 	OUTPUT("-b, --batch               to indicate that the tool will run in the non-interactive, non-GUI, terminal batch mode")
-	
+	OUTPUT("--dummyVarNamePrefix      All dummy variables will start with this prefix")
 
 
 def parseCommandLineArguments():
-	global funcName, BATCHMODE, codeFileName, dataLocationOffset, inputVariables, PRINT_DEBUG_MSG, MAP_TYPEDEFS_TOO, COMPILER_PADDING_ON, STRUCT_END_PADDING_ON, INCLUDE_FILE_PATHS
+	global funcName, BATCHMODE, codeFileName, dataLocationOffset, inputVariables, PRINT_DEBUG_MSG, MAP_TYPEDEFS_TOO, COMPILER_PADDING_ON, STRUCT_END_PADDING_ON, INCLUDE_FILE_PATHS, dummyVariableNamePrefix
 	funcName = "parseCommandLineArguments"
 	PRINT ("sys.argv = ",sys.argv)
 	
@@ -2153,6 +2155,20 @@ def parseCommandLineArguments():
 				else:
 					OUTPUT("Must tell whether to map typedefs too or not, following the %s option - %s is not a valid response"%(sys.argv[N-1]),map_typedefs_too_response)
 					sys.exit()
+				N +=1
+		elif sys.argv[N].lower() in ("-dummyvarprefix", "--dummyvarprefix", "-dummyvariableprefix", "--dummyvariableprefix","-dummyvarnameprefix","--dummyvarnameprefix","-dummyvariablenameprefix","--dummyvariablenameprefix"):
+			N += 1
+			if N > len(sys.argv)-1:
+				OUTPUT("Must supply the Dummy Variable Name Prefix following the %s option"%sys.argv[N-1])
+				sys.exit()
+			else:
+				temp = sys.argv[N]
+				if len(temp)>=3 and temp[0] in ('"',"'") and temp[-1] in ('"',"'"):
+					temp = temp[1:-1]
+				if re.match(r'^[_a-zA-Z][_a-zA-Z0-9]*$',temp):
+					OUTPUT("Careful! Supplied Dummy Variable Name Prefix of "+temp+" might clash with regular code variable names")
+				OUTPUT("Setting dummyVariableNamePrefix to <"+temp+">")
+				dummyVariableNamePrefix = temp	
 				N +=1
 		else:
 			PRINT ("N = ",N,"len(sys.argv)-1 =",len(sys.argv)-1)
@@ -3191,22 +3207,46 @@ def evaluateArithmeticExpression(inputAST):
 			else:
 				return [True, int(inputList)]
 		elif len(inputList)>=3 and inputList[:2]=="0x": 
-			if re.match("^[a-fA-F0-9]+$",inputList[2:]):
-				return [True,int(inputList,16)]
+			if re.match("^[a-fA-F0-9]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[2:]):
+				if inputList[-3:] in ('ULL','ull'):
+					value2convert = inputList[:-3]
+				elif inputList[-2:] in ('LL','ll', 'ul','UL'):
+					value2convert = inputList[:-2]
+				elif inputList[-1] in ('L','l', 'u','U'):
+					value2convert = inputList[:-1]
+				else:
+					value2convert = inputList[:-1]
+				return [True,int(value2convert,16)]
 			else:
 				errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate HEX undefined constant"%(STR(inputList))
 				errorRoutine(errorMessage)
 				return [False, None]
 		elif len(inputList)>=3 and inputList[:2]=="0o": 
-			if re.match("^[0-7]+$",inputList[2:]):
-				return [True,int(inputList,8)]
+			if re.match("^[0-7]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[2:]):
+				if inputList[-3:] in ('ULL','ull'):
+					value2convert = inputList[:-3]
+				elif inputList[-2:] in ('LL','ll', 'ul','UL'):
+					value2convert = inputList[:-2]
+				elif inputList[-1] in ('L','l', 'u','U'):
+					value2convert = inputList[:-1]
+				else:
+					value2convert = inputList[:-1]
+				return [True,int(value2convert,8)]
 			else:
 				errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate Octal undefined constant"%(STR(inputList))
 				errorRoutine(errorMessage)
 				return [False, None]
 		elif len(inputList)>=3 and inputList[:2]=="0b": 
-			if re.match("^[01]+$",inputList[2:]):
-				return [True,int(inputList,2)]
+			if re.match("^[01]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[2:]):
+				if inputList[-3:] in ('ULL','ull'):
+					value2convert = inputList[:-3]
+				elif inputList[-2:] in ('LL','ll', 'ul','UL'):
+					value2convert = inputList[:-2]
+				elif inputList[-1] in ('L','l', 'u','U'):
+					value2convert = inputList[:-1]
+				else:
+					value2convert = inputList[:-1]
+				return [True,int(value2convert,2)]
 			else:
 				errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate Binary undefined constant"%(STR(inputList))
 				errorRoutine(errorMessage)
@@ -14381,11 +14421,14 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 			# A Compiler directive like #define statement does not necessarily end with a semicolon
 			PRINT("Preprocessing statement starting with",tokenList[i+1],"does not end with a semicolon")
 			pass
+		elif tokenList[i] == 'pragma':
+			PRINT("Covering the case that the last code statement is a #pragma pack(). Which makes no sense, but don't want the \"No semicolon\" error")
+			pass
 		elif checkIfFunctionDefinition(tokenList[i:])[0] == True:
 			PRINT("Functions starting with",tokenList[i],"does not end with a semicolon")
 			pass
 		else:
-			errorMessage = "ERROR in parseCodeSnippet() - every non-#define C variable declaration must end with a semicolon - the current segment <%s> doesn't - hence exiting"%(STR(list2string(tokenList[i:])))
+			errorMessage = "ERROR in parseCodeSnippet() - every non-preprocessor C variable declaration must end with a semicolon - the current segment <%s> doesn't - hence exiting"%(STR(list2string(tokenList[i:])))
 			errorRoutine(errorMessage)
 			PRINT ("ERROR in parseCodeSnippet()" )
 			return False
@@ -14470,8 +14513,11 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 				OUTPUT("Possible error handling #pragma")
 				
 			if tokenList[i+1] == "pack":
-				if tokenList[i+2] != "(":
-					errorMessage = "ERROR in parseCodeSnippet() - must supply the parenthesized alignment value after a #pragma pack statement - no beginning parenthesis"
+				if tokenList[i+2] == "()":	# If we are tokenizing () as "()" instead of "(" followed by ")", then handle that case directly
+					pragmaPackCurrentValue = pragmaPackDefaultValue		#pragma pack()     /* restore compiler's default alignment setting */
+					i = i + 3
+				elif tokenList[i+2] != "(":
+					errorMessage = "ERROR in parseCodeSnippet() - must supply the parenthesized alignment value after a #pragma pack statement - no beginning parenthesis - instead got "+tokenList[i+2]
 					errorRoutine(errorMessage)
 					return False
 				elif ")" not in tokenList[i+3:]:
@@ -14483,6 +14529,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 					nextFirstBraceEndIndex = nextFirstBraceBeginIndex + matchingBraceDistance(tokenList[nextFirstBraceBeginIndex:])
 					if nextFirstBraceEndIndex == nextFirstBraceBeginIndex + 1:		#pragma pack()     /* restore compiler's default alignment setting */
 						pragmaPackCurrentValue = pragmaPackDefaultValue
+						i = nextFirstBraceEndIndex + 1
 					else:
 						parseArgumentListResult = parseArgumentList(tokenList[nextFirstBraceBeginIndex:nextFirstBraceEndIndex+1])
 						if parseArgumentListResult == False:
