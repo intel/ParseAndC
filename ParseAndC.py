@@ -825,6 +825,7 @@
 # 2022-08-31 - Small Bug fix regarding #include handling in invokeMacrosOnLine(), forgot to declare lines as global.
 # 2022-09-01 - Bug fix regarding #include handling in invokeMacrosOnLine() and preProcess()
 # 2022-09-06 - Bug fix for #pragma pack() being the last statement, plus feature addition of being able to set the dummy variable name prefix
+# 2022-09-07 - Added capability to show the enum literals instead of just values by introducing the PRINT_ENUM_LITERALS
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -932,7 +933,7 @@ ATTRIBUTE_STRING 	= "__attribute__"
 illegalVariableNames = list(preprocessingDirectives) + list(oneCharOperatorList) + list(twoCharOperatorList) + list(threeCharOperatorList) + cDataTypes + cKeywords + integralDataTypes
 
 lines = []
-enums = {}		# This is a dictionary that holds yet another dictionary inside {enumDatatype,{enumFields,enumFieldValues}}
+enums = {}		# This is a dictionary that holds yet another dictionary inside {enumType,{enumFields,enumFieldValues}}
 enumFieldValues = {}	# This is a dictionary of ALL enum fields and their values. We can do this because enum field names are globally unique. We keep this separate to cache the enum values
 typedefs = {}
 suDict = {}	# Dictionary that maps a struct or union name (which may not be unique thanks to #RUNTIME statements) to a unique suId (struct or union id number)
@@ -3217,7 +3218,7 @@ def evaluateArithmeticExpression(inputAST):
 				elif inputList[-1] in ('L','l', 'u','U'):
 					value2convert = inputList[:-1]
 				else:
-					value2convert = inputList[:-1]
+					value2convert = inputList[:]
 				return [True,int(value2convert,16)]
 			else:
 				errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate HEX undefined constant"%(STR(inputList))
@@ -3232,7 +3233,7 @@ def evaluateArithmeticExpression(inputAST):
 				elif inputList[-1] in ('L','l', 'u','U'):
 					value2convert = inputList[:-1]
 				else:
-					value2convert = inputList[:-1]
+					value2convert = inputList[:]
 				return [True,int(value2convert,8)]
 			else:
 				errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate Octal undefined constant"%(STR(inputList))
@@ -3247,7 +3248,7 @@ def evaluateArithmeticExpression(inputAST):
 				elif inputList[-1] in ('L','l', 'u','U'):
 					value2convert = inputList[:-1]
 				else:
-					value2convert = inputList[:-1]
+					value2convert = inputList[:]
 				return [True,int(value2convert,2)]
 			else:
 				errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate Binary undefined constant"%(STR(inputList))
@@ -8698,7 +8699,8 @@ def tokenLocations(lines, tokenList):
 # This function takes in a tokenList where a enum definition or declaration is happening from token # i 
 ################################################################################################################################
 def parseEnum(tokenList, i):
-	global typedefs, enums, lines, structuresAndUnions, suDict, primitiveDatatypeLength, variableDeclarations, totalVariableCount
+#	PRINT=OUTPUT
+	global typedefs, enums, lines, structuresAndUnions, suDict, primitiveDatatypeLength, variableDeclarations, totalVariableCount, variableIdsInGlobalScope
 	
 	if not isinstance(tokenList,list):
 		errorMessage = "ERROR in parseEnum(): tokenList <"+STR(tokenList)+"> is not a list"
@@ -8758,7 +8760,7 @@ def parseEnum(tokenList, i):
 			# 1. enum Declaration YES, Definition NO	- enum WEEKDAY day1,day2;
 			# 2. enum Declaration NO , (named) Definition NO   - enum {Mon, Tue};			- Anonymous
 			# 3. enum Declaration YES, Definition YES   - enum WEEKDAY {Mon, Tue} day1,day2;
-			# 4. enum Declaration NO , Definition YES	- enum {Mon, Tue} day1, day2;
+			# 4. enum Declaration NO , Definition YES	- enum {Mon, Tue} day1, day2;		- Anonymous
 		
 		
 			# Step 1. we handle the enumDataType. There are three cases possible: 1) Previously-defined, 2) Anonymous, and 3) Now-defined
@@ -8833,20 +8835,27 @@ def parseEnum(tokenList, i):
 						lastEnumValue = -1
 						enumFields = {} # This is a dictionary that will hold the various ENUMed values
 						for enumElement in parseArgumentListResult:
-							PRINT ("Handling ENUM element", enumElement, "of length",len(enumElement) )
+							PRINT ("\nHandling ENUM element", enumElement, "of length",len(enumElement) )
 							# When there is explicit assignment to a enum element, we know for sure that the enumElement is returned as a list.
 							# However, when it is just the element itself without any explicit assignment, we do not know if enumElement is a single-element list, or a string.
 							# If enumElement is returned as a string, len(enumElement) will NOT show as 1, but rather the number of characters in the string (1 or more).
 							# Hence, we do explicit assignment of the element name (called "item" here) and the length of the enumElement
-							if isinstance(enumElement,list):
+							if checkIfString(enumElement):
+								item = enumElement
+								enumElementLength = 1
+								PRINT("enumElement =",enumElement,"is a string, hence enumElementLength =",enumElementLength)
+							elif isinstance(enumElement,list):
 								# GCC allows even formations like this: enum {A, B,}. In that case, the parseArgumentListResult will return 3 elements - A, B, and a blank list
 								if not enumElement:
 									continue
 								item = enumElement[0]
 								enumElementLength = len(enumElement)
+								PRINT("enumElement =",enumElement,"is a list, hence enumElementLength =",enumElementLength)
 							else:
 								item = enumElement
 								enumElementLength = 1
+								PRINT("\n\nHow did I come here?\n\n")
+							PRINT("For enumElement =",enumElement,", enumElementLength =",enumElementLength,", item =", item)
 							PRINT ("Going to check if the enum element",item,"already appears as some other enum constant anywhere else" )
 							# This is the list of ALL possible ENUMed field names
 							allEnumedValues = []
@@ -8873,13 +8882,28 @@ def parseEnum(tokenList, i):
 								errorRoutine(errorMessage)
 								return False
 							elif enumElementLength == 3:
-								PRINT ("Simple assignment - no expression to evaluate for enum field", item )
+								PRINT ("Simple assignment for",enumElement," - no expression to evaluate for enum field", item )
 								if checkIfIntegral(enumElement[2]):	# Will it work? "1" is not an integer, 1 is
 									enumFields[enumElement[0]]= enumElement[2]
 									lastEnumValue += 1
 								elif checkIfString(enumElement[2]):	# Will it work? "1" is not an integer, 1 is
-									enumFields[enumElement[0]]= evaluateArithmeticExpression(enumElement[2])
-									lastEnumValue += 1
+									evaluateArithmeticExpressionResult = evaluateArithmeticExpression(enumElement[2])
+									if evaluateArithmeticExpressionResult[0]!=True:
+										errorMessage = "ERROR parseEnum() after calling parseArithmeticExpression("+STR(enumElement[2])+")"
+										errorRoutine(errorMessage)
+										return False
+									else:
+										output= evaluateArithmeticExpressionResult[1]
+										if checkIfIntegral(output):
+											enumFields[enumElement[0]] = output
+											lastEnumValue = output
+											PRINT ("output =",output,"is indeed an assignable integer." )
+										else:
+											errorMessage = "ERROR parseEnum() after calling evaluateArithmeticExpression() - the output ("+str(output)+") is not an integer"
+											errorRoutine(errorMessage)
+											return False
+										enumFields[enumElement[0]]= output
+										lastEnumValue += 1
 								else:
 									errorMessage = "ERROR parseEnum() - illegal enum element assignment <%s> = <%s> (not an integer) - should have been =  .... Exiting"%(enumElement[0],enumElement[2])
 									errorRoutine(errorMessage)
@@ -8920,7 +8944,8 @@ def parseEnum(tokenList, i):
 						enums[enumDataType]=enumFields
 						for field in enumFields.keys():
 							if field in getDictKeyList(enumFieldValues):
-								PRINT ("ERROR: enum field",field,"already defined" )
+								errorMessage = "ERROR: enum field "+STR(field)+" already defined" 
+								errorRoutine(errorMessage)
 								return False
 							else:
 								enumFieldValues[field] = enumFields[field]
@@ -8947,11 +8972,14 @@ def parseEnum(tokenList, i):
 			else:	# No defintion, just declarations
 				memberDeclarationStatement = tokenList[enumStatementStartIndex:nextSemicolonIndex+1]
 				declarationStartIndex = enumStatementStartIndex + 2
+				numFakeEntries = 0
+				
 				
 			PRINT ("Going to parse memberDeclarationStatement =",memberDeclarationStatement )
 			parsed5tupleList = parseVariableDeclaration(memberDeclarationStatement)
 			if parsed5tupleList == False:
-				PRINT ("ERROR in parseEnum() enum declaration after calling parseVariableDeclaration(memberDeclarationStatement) for memberDeclarationStatement =",memberDeclarationStatement )
+				errorMessage = "ERROR in parseEnum() enum declaration after calling parseVariableDeclaration(memberDeclarationStatement) for memberDeclarationStatement = "+STR(memberDeclarationStatement)
+				errorRoutine(errorMessage)
 				return False
 			else:
 				PRINT ("enum variables declaration",parsed5tupleList, "parsed" )
@@ -8962,19 +8990,23 @@ def parseEnum(tokenList, i):
 					# This 6th member now represents the absolute index (within the tokenList) of the variable name.
 					if tokenList[declarationStartIndex+item[3]-numFakeEntries]!=item[0]:
 						PRINT ("ERROR in parseEnum() enum - for declarationStartIndex =",declarationStartIndex,"tokenList[declarationStartIndex+item[3]-numFakeEntries] = tokenList[",declarationStartIndex,"+",item[3],"-",numFakeEntries,"]",tokenList[declarationStartIndex+item[3]-numFakeEntries],"!=item[0]=",item[0] )
+						errorMessage = "ERROR in parseEnum() enum - for declarationStartIndex ="+STR(declarationStartIndex)+" tokenList[declarationStartIndex+item[3]-numFakeEntries] = tokenList["+STR(declarationStartIndex)+"+"+STR(item[3])+"-"+STR(numFakeEntries)+"]"+STR(tokenList[declarationStartIndex+item[3]-numFakeEntries])+"!=item[0]="+STR(item[0]) 
+						errorRoutine(errorMessage)
 						return False
-						sys.exit()
 					else:
+						PRINT ("Properly parsed the variable declaration")
 						globalTokenListIndex = declarationStartIndex+item[3]-numFakeEntries
 						
 						variableDescriptionExtended = item[4]
 						variableDescriptionExtended["globalTokenListIndex"]=globalTokenListIndex
 						variableDescriptionExtended["parentVariableType"]=["enum",enumDataType]
 #						variableDescriptionExtended["parentVariableName"]=enumDataType
-						variableDescriptionExtended["variableId"] = totalVariableCount
+						variableId = totalVariableCount
+						variableDescriptionExtended["variableId"] = variableId
 						totalVariableCount += 1
 						variableDeclarations.append([item[0],item[1],item[2],item[3],variableDescriptionExtended]) 
-		
+						
+						variableIdsInGlobalScope.append([variableId, variableId, variableId])		
 			
 			i = nextSemicolonIndex + 1
 		
@@ -16131,6 +16163,66 @@ def inputFileIsHexText():
 	PRINT ( len(binaryArray),"-size binaryArray =", binaryArray)
 	
 	return True
+	
+################################################################################################
+# This routine takes in a variableId and its value, and it returns its enum literal value.
+################################################################################################
+def returnEnumLiteralForValue(variableId, value):
+	PRINT=OUTPUT
+	if variableId >= len(variableDeclarations):
+		errorMessage = "Error in returnEnumLiteralForValue(): Supplied variableId="+STR(variableId)+" is out of bounds"
+		errorRoutine(errorMessage)
+		return [False, None]
+		
+	enumType = variableDeclarations[variableId][4]["enumType"]
+	if enumType == None:
+		errorMessage = "Error in returnEnumLiteralForValue(): Supplied variableId="+STR(variableId)+" is not enum"
+		errorRoutine(errorMessage)
+		return [False, None]
+		
+	MUST_PRINT("Printing enum literals for variableId",variableId)
+	
+	negativeValue = True if value[0]=="-" else False
+	charsComsumed = 1 if negativeValue else 0
+	if DISPLAY_INTEGRAL_VALUES_IN_HEX:
+		if value[charsComsumed:charsComsumed+2] != "0x":
+			errorMessage = "No 0x in supposedly Hex value of <"+value+">"
+			errorRoutine(errorMessage)
+			return False
+		else:
+			valueList = [value[charsComsumed:]]
+	else:
+		valueList = [value[charsComsumed:]]
+		
+	MUST_PRINT("Calling getRuntimeValue(valueList) for valueList=",STR(valueList))
+	getRuntimeValueResult = getRuntimeValue(valueList)
+	if getRuntimeValueResult[0]==False:
+		errorMessage = "Error evaluating <"+STR(valueList)+">"
+		errorRoutine(errorMessage)
+		return False
+	else:
+		valueActual = getRuntimeValueResult[1]
+		if negativeValue:
+			valueActual = valueActual * (-1)
+		MUST_PRINT("valueActual =",valueActual)
+		valueToDisplay = STR(valueActual)
+		if enumType in getDictKeyList(enums):
+			matchingEnumLiteralList = []	# Multiple literals might match the same value
+			for enumTypeLiteral in getDictKeyList(enums[enumType]):
+				if enums[enumType][enumTypeLiteral] == valueActual:
+					PRINT("Found enum literal "+enumTypeLiteral+" corresponding to "+STR(valueActual))
+					matchingEnumLiteralList.append(enumTypeLiteral)
+			if len(matchingEnumLiteralList) > 0:
+				if len(matchingEnumLiteralList) == 1:
+					valueToDisplay = STR(valueToDisplay)+"("+STR(matchingEnumLiteralList[0])+")"
+				else:
+					valueToDisplay = STR(valueToDisplay)+"("+'/'.join(matchingEnumLiteralList)+")"
+		else:
+			errorMessage = "Error in prettyPrintUnraveled: Unknown enumType <"+STR(enumType)+">"
+			errorRoutine(errorMessage)
+			return False
+	return [True, valueToDisplay]
+
 
 ##############################################################################################
 # This function does a pretty printing of the unraveled list
@@ -16205,8 +16297,29 @@ def prettyPrintUnraveled(displayAncestry=False):
 				addrStart = hex(unraveled[N][3])
 				addrEnd = hex(unraveled[N][4]-1)
 			if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][8][-1]][4]["enumType"]!=None:
-				MUST_PRINT("Printing enum literals for variableId",unraveled[N][8][-1])
-				treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5],STR(unraveled[N][6]),STR(unraveled[N][7])]
+				variableId = unraveled[N][8][-1]
+				
+				valueLE = unraveled[N][6]
+				MUST_PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
+				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
+				if returnEnumLiteralForValueResult[0]==False:
+					errorMessage = "Error in prettyPrintUnraveled(): Cannot enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
+					errorRoutine(errorMessage)
+					return False
+				else:
+					valueLE2Display = returnEnumLiteralForValueResult[1]
+
+				valueBE = unraveled[N][7]
+				MUST_PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
+				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
+				if returnEnumLiteralForValueResult[0]==False:
+					errorMessage = "Error in prettyPrintUnraveled(): Cannot enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
+					errorRoutine(errorMessage)
+					return False
+				else:
+					valueBE2Display = returnEnumLiteralForValueResult[1]
+
+				treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5], valueLE2Display, valueLE2Display]
 			else:
 				treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5],STR(unraveled[N][6]),STR(unraveled[N][7])]
 			treeViewAllRowsValues.append(treeViewSingleRowValues)
@@ -16305,7 +16418,7 @@ def dumpDetailsForDebug(MUST=False):
 	for item in variableDeclarations:
 		PRINT ("\n",item )
 	PRINT ("=="*50,"\n"*3 )
-	PRINT ("\nglobalScopes[variableId, scopeStartVariableId, scopeEndVariableId]) =\n")
+	PRINT ("\nvariableIdsInGlobalScope[variableId, scopeStartVariableId, scopeEndVariableId]) =\n")
 	for item in variableIdsInGlobalScope:
 		PRINT (item, variableDeclarations[item[0]][0])
 	PRINT ("\nglobalScopesSelected [variableId, scopeStartVariableId, scopeEndVariableId]) =\n")
