@@ -826,6 +826,9 @@
 # 2022-09-01 - Bug fix regarding #include handling in invokeMacrosOnLine() and preProcess()
 # 2022-09-06 - Bug fix for #pragma pack() being the last statement, plus feature addition of being able to set the dummy variable name prefix
 # 2022-09-07 - Added capability to show the enum literals instead of just values by introducing the PRINT_ENUM_LITERALS
+# 2022-09-09 - Before separating macro definition handling out of preProcess()
+# 2022-09-09 - After separating macro definition handling out of preProcess()
+# 2022-09-13 - Now displays enum literals while displaying the variable's value
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -853,6 +856,10 @@ SNAPSHOT_FILE_NAME = "snapshot.csv"		# This is the output file name where the fo
 MAP_TYPEDEFS_TOO = True	# Usually, we do not create any storage for typedef (so no mapping), but if that's all your structure has and you do not want to create extra declaration, turn it to True
 PRINT_UNDEF_WARNING = True		# If the code wants to undefine a variable that is not defined yet, it throws a warning. But if there are many such instances, you can turn it off
 PRINT_ENUM_LITERALS = True	# When set, it will print enum literals rather than value. Viz, for enum DAYS {SUN, MON, TUE} day=0; it will print day's value as "SUN" rather than 0.
+PRINT_ENUM_LITERALS_MAX_SIZE_CHAR = 20	# When displaying enums, we cannot display it fully if the enum literals are too big. So we display only the first these many chars.
+WARN_FOR_HASH_ERROR_DIRECTIVES = True	# The tool currently ignores all #error preprocessor commands. Whether it shows a warning in that regard is controlled by this.
+EMULATE_GCC_COMPILATION_ENVIRONMENT = False	# This loads the builtin macros that GCC has
+VERIFICATION_WARNING_COUNT_MAX = 1000000000000000000000000000	# It will show maximum these many warnings after verification fails
 
 anonymousStructPrefix = "Anonymous#"
 dummyVariableNamePrefix = "DummyVar#"
@@ -963,6 +970,11 @@ dummyVariableCount = 0
 dummyZeroWidthBitfieldVariableCount = 0
 totalVariableCount = 0
 
+
+srcFileDetails = []	# Each entry contains a list [ ["src file name","full path"],[segment1StartLine#,segment1EndLine#], [segment2StartLine#,segment2EndLine#], ...]
+					# Basically, as we keep on including more and more header files, it becomes impossible to track which line of code came from where.
+					# This list keeps track of that. Everytime we insert a file, all the entries need to get updated.
+
 runtimeStatementLineNumbers = []	# The runtime statement line numbers
 runtimeStatementLocationsInGlobalScope = [] # These are the runtime statements that are OUTSIDE any struct definition. 
 											# Every row = [line#, globalTokenNumberStart, globalTokenNumberEnd, [runtime token list] ] 
@@ -988,7 +1000,7 @@ MAINLOOP_STARTED = False
 pragmaPackStack = []
 pragmaPackCurrentValue = None
 pragmaPackDefaultValue = ALIGNED_DEFAULT_VALUE
-
+gVerificationWarningCount = 0	# How many times the tool has displayed the Verfication failure warning message (reset with every map() operation)
 
 LARGE_NEGATIVE_NUMBER = -9999999999999999999999999999999		# A number usually associated with default (erroneous) value of Index in an array
 LARGE_POSITIVE_NUMBER = -LARGE_NEGATIVE_NUMBER
@@ -1037,6 +1049,707 @@ typedefsBuiltin = {
 					'intptr_t'	:	['typedef', 'int', '*', 'intptr_t', ';'],
 					'uintptr_t'	:	['typedef', 'unsigned', 'int', '*', 'uintptr_t', ';']
 					}
+
+builtinMacroDefinitions = [
+	'#define _GNU_SOURCE',
+	'#define __SSP_STRONG__ 3',
+	'#define __DBL_MIN_EXP__ (-1021)',
+	'#define __FLT32X_MAX_EXP__ 1024',
+	'#define __UINT_LEAST16_MAX__ 0xffff',
+	'#define __ATOMIC_ACQUIRE 2',
+	'#define __FLT128_MAX_10_EXP__ 4932',
+	'#define __FLT_MIN__ 1.17549435082228750796873653722224568e-38F',
+	'#define __GCC_IEC_559_COMPLEX 2',
+	'#define __UINT_LEAST8_TYPE__ unsigned char',
+	'#define __SIZEOF_FLOAT80__ 16',
+	'#define __INTMAX_C(c) c ## L',
+	'#define __CHAR_BIT__ 8',
+	'#define __UINT8_MAX__ 0xff',
+	'#define __WINT_MAX__ 0xffffffffU',
+	'#define __FLT32_MIN_EXP__ (-125)',
+	'#define __ORDER_LITTLE_ENDIAN__ 1234',
+	'#define __SIZE_MAX__ 0xffffffffffffffffUL',
+	'#define __WCHAR_MAX__ 0x7fffffff',
+	'#define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1 1',
+	'#define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2 1',
+	'#define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4 1',
+	'#define __DBL_DENORM_MIN__ ((double)4.94065645841246544176568792868221372e-324L)',
+	'#define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_8 1',
+	'#define __GCC_ATOMIC_CHAR_LOCK_FREE 2',
+	'#define __GCC_IEC_559 2',
+	'#define __FLT32X_DECIMAL_DIG__ 17',
+	'#define __FLT_EVAL_METHOD__ 0',
+	'#define __unix__ 1',
+	'#define __FLT64_DECIMAL_DIG__ 17',
+	'#define __GCC_ATOMIC_CHAR32_T_LOCK_FREE 2',
+	'#define __x86_64 1',
+	'#define __UINT_FAST64_MAX__ 0xffffffffffffffffUL',
+	'#define __SIG_ATOMIC_TYPE__ int',
+	'#define __DBL_MIN_10_EXP__ (-307)',
+	'#define __FINITE_MATH_ONLY__ 0',
+	'#define __GNUC_PATCHLEVEL__ 0',
+	'#define __FLT32_HAS_DENORM__ 1',
+	'#define __UINT_FAST8_MAX__ 0xff',
+	'#define __has_include(STR) __has_include__(STR)',
+	'#define __DEC64_MAX_EXP__ 385',
+	'#define __INT8_C(c) c',
+	'#define __INT_LEAST8_WIDTH__ 8',
+	'#define __UINT_LEAST64_MAX__ 0xffffffffffffffffUL',
+	'#define __SHRT_MAX__ 0x7fff',
+	'#define __LDBL_MAX__ 1.18973149535723176502126385303097021e+4932L',
+	'#define __FLT64X_MAX_10_EXP__ 4932',
+	'#define __UINT_LEAST8_MAX__ 0xff',
+	'#define __GCC_ATOMIC_BOOL_LOCK_FREE 2',
+	'#define __FLT128_DENORM_MIN__ 6.47517511943802511092443895822764655e-4966F128',
+	'#define __UINTMAX_TYPE__ long unsigned int',
+	'#define __linux 1',
+	'#define __DEC32_EPSILON__ 1E-6DF',
+	'#define __FLT_EVAL_METHOD_TS_18661_3__ 0',
+	'#define __unix 1',
+	'#define __UINT32_MAX__ 0xffffffffU',
+	'#define __LDBL_MAX_EXP__ 16384',
+	'#define __FLT128_MIN_EXP__ (-16381)',
+	'#define __WINT_MIN__ 0U',
+	'#define __linux__ 1',
+	'#define __FLT128_MIN_10_EXP__ (-4931)',
+	'#define __INT_LEAST16_WIDTH__ 16',
+	'#define __SCHAR_MAX__ 0x7f',
+	'#define __FLT128_MANT_DIG__ 113',
+	'#define __WCHAR_MIN__ (-__WCHAR_MAX__ - 1)',
+	'#define __INT64_C(c) c ## L',
+	'#define __DBL_DIG__ 15',
+	'#define __GCC_ATOMIC_POINTER_LOCK_FREE 2',
+	'#define __FLT64X_MANT_DIG__ 64',
+	'#define __SIZEOF_INT__ 4',
+	'#define __SIZEOF_POINTER__ 8',
+	'#define __USER_LABEL_PREFIX__',
+	'#define __FLT64X_EPSILON__ 1.08420217248550443400745280086994171e-19F64x',
+	'#define __STDC_HOSTED__ 1',
+	'#define __LDBL_HAS_INFINITY__ 1',
+	'#define __FLT32_DIG__ 6',
+	'#define __FLT_EPSILON__ 1.19209289550781250000000000000000000e-7F',
+	'#define __SHRT_WIDTH__ 16',
+	'#define __LDBL_MIN__ 3.36210314311209350626267781732175260e-4932L',
+	'#define __STDC_UTF_16__ 1',
+	'#define __DEC32_MAX__ 9.999999E96DF',
+	'#define __FLT64X_DENORM_MIN__ 3.64519953188247460252840593361941982e-4951F64x',
+	'#define __FLT32X_HAS_INFINITY__ 1',
+	'#define __INT32_MAX__ 0x7fffffff',
+	'#define __INT_WIDTH__ 32',
+	'#define __SIZEOF_LONG__ 8',
+	'#define __STDC_IEC_559__ 1',
+	'#define __STDC_ISO_10646__ 201706L',
+	'#define __UINT16_C(c) c',
+	'#define __PTRDIFF_WIDTH__ 64',
+	'#define __DECIMAL_DIG__ 21',
+	'#define __FLT64_EPSILON__ 2.22044604925031308084726333618164062e-16F64',
+	'#define __gnu_linux__ 1',
+	'#define __INTMAX_WIDTH__ 64',
+	'#define __has_include_next(STR) __has_include_next__(STR)',
+	'#define __FLT64X_MIN_10_EXP__ (-4931)',
+	'#define __LDBL_HAS_QUIET_NAN__ 1',
+	'#define __FLT64_MANT_DIG__ 53',
+	'#define __GNUC__ 7',
+	'#define __pie__ 2',
+	'#define __MMX__ 1',
+	'#define __FLT_HAS_DENORM__ 1',
+	'#define __SIZEOF_LONG_DOUBLE__ 16',
+	'#define __BIGGEST_ALIGNMENT__ 16',
+	'#define __FLT64_MAX_10_EXP__ 308',
+	'#define __DBL_MAX__ ((double)1.79769313486231570814527423731704357e+308L)',
+	'#define __INT_FAST32_MAX__ 0x7fffffffffffffffL',
+	'#define __DBL_HAS_INFINITY__ 1',
+	'#define __DEC32_MIN_EXP__ (-94)',
+	'#define __INTPTR_WIDTH__ 64',
+	'#define __FLT32X_HAS_DENORM__ 1',
+	'#define __INT_FAST16_TYPE__ long int',
+	'#define __LDBL_HAS_DENORM__ 1',
+	'#define __FLT128_HAS_INFINITY__ 1',
+	'#define __DEC128_MAX__ 9.999999999999999999999999999999999E6144DL',
+	'#define __INT_LEAST32_MAX__ 0x7fffffff',
+	'#define __DEC32_MIN__ 1E-95DF',
+	'#define __DBL_MAX_EXP__ 1024',
+	'#define __WCHAR_WIDTH__ 32',
+	'#define __FLT32_MAX__ 3.40282346638528859811704183484516925e+38F32',
+	'#define __DEC128_EPSILON__ 1E-33DL',
+	'#define __SSE2_MATH__ 1',
+	'#define __ATOMIC_HLE_RELEASE 131072',
+	'#define __PTRDIFF_MAX__ 0x7fffffffffffffffL',
+	'#define __amd64 1',
+	'#define __STDC_NO_THREADS__ 1',
+	'#define __ATOMIC_HLE_ACQUIRE 65536',
+	'#define __FLT32_HAS_QUIET_NAN__ 1',
+	'#define __LONG_LONG_MAX__ 0x7fffffffffffffffLL',
+	'#define __SIZEOF_SIZE_T__ 8',
+	'#define __FLT64X_MIN_EXP__ (-16381)',
+	'#define __SIZEOF_WINT_T__ 4',
+	'#define __LONG_LONG_WIDTH__ 64',
+	'#define __FLT32_MAX_EXP__ 128',
+	'#define __GCC_HAVE_DWARF2_CFI_ASM 1',
+	'#define __GXX_ABI_VERSION 1011',
+	'#define __FLT_MIN_EXP__ (-125)',
+	'#define __FLT64X_HAS_QUIET_NAN__ 1',
+	'#define __INT_FAST64_TYPE__ long int',
+	'#define __FLT64_DENORM_MIN__ 4.94065645841246544176568792868221372e-324F64',
+	'#define __DBL_MIN__ ((double)2.22507385850720138309023271733240406e-308L)',
+	'#define __PIE__ 2',
+	'#define __LP64__ 1',
+	'#define __FLT32X_EPSILON__ 2.22044604925031308084726333618164062e-16F32x',
+	'#define __DECIMAL_BID_FORMAT__ 1',
+	'#define __FLT64_MIN_EXP__ (-1021)',
+	'#define __FLT64_MIN_10_EXP__ (-307)',
+	'#define __FLT64X_DECIMAL_DIG__ 21',
+	'#define __DEC128_MIN__ 1E-6143DL',
+	'#define __REGISTER_PREFIX__',
+	'#define __UINT16_MAX__ 0xffff',
+	'#define __DBL_HAS_DENORM__ 1',
+	'#define __FLT32_MIN__ 1.17549435082228750796873653722224568e-38F32',
+	'#define __UINT8_TYPE__ unsigned char',
+	'#define __NO_INLINE__ 1',
+	'#define __FLT_MANT_DIG__ 24',
+	'#define __LDBL_DECIMAL_DIG__ 21',
+	'#define __VERSION__ "7.4.0"',
+	'#define __UINT64_C(c) c ## UL',
+	'#define _STDC_PREDEF_H 1',
+	'#define __GCC_ATOMIC_INT_LOCK_FREE 2',
+	'#define __FLT128_MAX_EXP__ 16384',
+	'#define __FLT32_MANT_DIG__ 24',
+	'#define __FLOAT_WORD_ORDER__ __ORDER_LITTLE_ENDIAN__',
+	'#define __STDC_IEC_559_COMPLEX__ 1',
+	'#define __FLT128_HAS_DENORM__ 1',
+	'#define __FLT128_DIG__ 33',
+	'#define __SCHAR_WIDTH__ 8',
+	'#define __INT32_C(c) c',
+	'#define __DEC64_EPSILON__ 1E-15DD',
+	'#define __ORDER_PDP_ENDIAN__ 3412',
+	'#define __DEC128_MIN_EXP__ (-6142)',
+	'#define __FLT32_MAX_10_EXP__ 38',
+	'#define __INT_FAST32_TYPE__ long int',
+	'#define __UINT_LEAST16_TYPE__ short unsigned int',
+	'#define __FLT64X_HAS_INFINITY__ 1',
+	'#define unix 1',
+	'#define __INT16_MAX__ 0x7fff',
+	'#define __SIZE_TYPE__ long unsigned int',
+	'#define __UINT64_MAX__ 0xffffffffffffffffUL',
+	'#define __FLT64X_DIG__ 18',
+	'#define __INT8_TYPE__ signed char',
+	'#define __ELF__ 1',
+	'#define __GCC_ASM_FLAG_OUTPUTS__ 1',
+	'#define __FLT_RADIX__ 2',
+	'#define __INT_LEAST16_TYPE__ short int',
+	'#define __LDBL_EPSILON__ 1.08420217248550443400745280086994171e-19L',
+	'#define __UINTMAX_C(c) c ## UL',
+	'#define __SSE_MATH__ 1',
+	'#define __k8 1',
+	'#define __SIG_ATOMIC_MAX__ 0x7fffffff',
+	'#define __GCC_ATOMIC_WCHAR_T_LOCK_FREE 2',
+	'#define __SIZEOF_PTRDIFF_T__ 8',
+	'#define __FLT32X_MANT_DIG__ 53',
+	'#define __x86_64__ 1',
+	'#define __FLT32X_MIN_EXP__ (-1021)',
+	'#define __DEC32_SUBNORMAL_MIN__ 0.000001E-95DF',
+	'#define __INT_FAST16_MAX__ 0x7fffffffffffffffL',
+	'#define __FLT64_DIG__ 15',
+	'#define __UINT_FAST32_MAX__ 0xffffffffffffffffUL',
+	'#define __UINT_LEAST64_TYPE__ long unsigned int',
+	'#define __FLT_HAS_QUIET_NAN__ 1',
+	'#define __FLT_MAX_10_EXP__ 38',
+	'#define __LONG_MAX__ 0x7fffffffffffffffL',
+	'#define __FLT64X_HAS_DENORM__ 1',
+	'#define __DEC128_SUBNORMAL_MIN__ 0.000000000000000000000000000000001E-6143DL',
+	'#define __FLT_HAS_INFINITY__ 1',
+	'#define __UINT_FAST16_TYPE__ long unsigned int',
+	'#define __DEC64_MAX__ 9.999999999999999E384DD',
+	'#define __INT_FAST32_WIDTH__ 64',
+	'#define __CHAR16_TYPE__ short unsigned int',
+	'#define __PRAGMA_REDEFINE_EXTNAME 1',
+	'#define __SIZE_WIDTH__ 64',
+	'#define __SEG_FS 1',
+	'#define __INT_LEAST16_MAX__ 0x7fff',
+	'#define __DEC64_MANT_DIG__ 16',
+	'#define __INT64_MAX__ 0x7fffffffffffffffL',
+	'#define __UINT_LEAST32_MAX__ 0xffffffffU',
+	'#define __SEG_GS 1',
+	'#define __FLT32_DENORM_MIN__ 1.40129846432481707092372958328991613e-45F32',
+	'#define __GCC_ATOMIC_LONG_LOCK_FREE 2',
+	'#define __SIG_ATOMIC_WIDTH__ 32',
+	'#define __INT_LEAST64_TYPE__ long int',
+	'#define __INT16_TYPE__ short int',
+	'#define __INT_LEAST8_TYPE__ signed char',
+	'#define __STDC_VERSION__ 201112L',
+	'#define __DEC32_MAX_EXP__ 97',
+	'#define __INT_FAST8_MAX__ 0x7f',
+	'#define __FLT128_MAX__ 1.18973149535723176508575932662800702e+4932F128',
+	'#define __INTPTR_MAX__ 0x7fffffffffffffffL',
+	'#define linux 1',
+	'#define __FLT64_HAS_QUIET_NAN__ 1',
+	'#define __FLT32_MIN_10_EXP__ (-37)',
+	'#define __SSE2__ 1',
+	'#define __FLT32X_DIG__ 15',
+	'#define __LDBL_MANT_DIG__ 64',
+	'#define __DBL_HAS_QUIET_NAN__ 1',
+	'#define __FLT64_HAS_INFINITY__ 1',
+	'#define __FLT64X_MAX__ 1.18973149535723176502126385303097021e+4932F64x',
+	'#define __SIG_ATOMIC_MIN__ (-__SIG_ATOMIC_MAX__ - 1)',
+	'#define __code_model_small__ 1',
+	'#define __k8__ 1',
+	'#define __INTPTR_TYPE__ long int',
+	'#define __UINT16_TYPE__ short unsigned int',
+	'#define __WCHAR_TYPE__ int',
+	'#define __SIZEOF_FLOAT__ 4',
+	'#define __pic__ 2',
+	'#define __UINTPTR_MAX__ 0xffffffffffffffffUL',
+	'#define __INT_FAST64_WIDTH__ 64',
+	'#define __DEC64_MIN_EXP__ (-382)',
+	'#define __FLT32_DECIMAL_DIG__ 9',
+	'#define __INT_FAST64_MAX__ 0x7fffffffffffffffL',
+	'#define __GCC_ATOMIC_TEST_AND_SET_TRUEVAL 1',
+	'#define __FLT_DIG__ 6',
+	'#define __FLT32_HAS_INFINITY__ 1',
+	'#define __FLT64X_MAX_EXP__ 16384',
+	'#define __UINT_FAST64_TYPE__ long unsigned int',
+	'#define __INT_MAX__ 0x7fffffff',
+	'#define __amd64__ 1',
+	'#define __INT64_TYPE__ long int',
+	'#define __FLT_MAX_EXP__ 128',
+	'#define __ORDER_BIG_ENDIAN__ 4321',
+	'#define __DBL_MANT_DIG__ 53',
+	'#define __SIZEOF_FLOAT128__ 16',
+	'#define __INT_LEAST64_MAX__ 0x7fffffffffffffffL',
+	'#define __GCC_ATOMIC_CHAR16_T_LOCK_FREE 2',
+	'#define __DEC64_MIN__ 1E-383DD',
+	'#define __WINT_TYPE__ unsigned int',
+	'#define __UINT_LEAST32_TYPE__ unsigned int',
+	'#define __SIZEOF_SHORT__ 2',
+	'#define __SSE__ 1',
+	'#define __LDBL_MIN_EXP__ (-16381)',
+	'#define __FLT64_MAX__ 1.79769313486231570814527423731704357e+308F64',
+	'#define __WINT_WIDTH__ 32',
+	'#define __INT_LEAST8_MAX__ 0x7f',
+	'#define __FLT32X_MAX_10_EXP__ 308',
+	'#define __SIZEOF_INT128__ 16',
+	'#define __LDBL_MAX_10_EXP__ 4932',
+	'#define __ATOMIC_RELAXED 0',
+	'#define __DBL_EPSILON__ ((double)2.22044604925031308084726333618164062e-16L)',
+	'#define __FLT128_MIN__ 3.36210314311209350626267781732175260e-4932F128',
+	'#define _LP64 1',
+	'#define __UINT8_C(c) c',
+	'#define __FLT64_MAX_EXP__ 1024',
+	'#define __INT_LEAST32_TYPE__ int',
+	'#define __SIZEOF_WCHAR_T__ 4',
+	'#define __UINT64_TYPE__ long unsigned int',
+	'#define __FLT128_HAS_QUIET_NAN__ 1',
+	'#define __INT_FAST8_TYPE__ signed char',
+	'#define __FLT64X_MIN__ 3.36210314311209350626267781732175260e-4932F64x',
+	'#define __GNUC_STDC_INLINE__ 1',
+	'#define __FLT64_HAS_DENORM__ 1',
+	'#define __FLT32_EPSILON__ 1.19209289550781250000000000000000000e-7F32',
+	'#define __DBL_DECIMAL_DIG__ 17',
+	'#define __STDC_UTF_32__ 1',
+	'#define __INT_FAST8_WIDTH__ 8',
+	'#define __FXSR__ 1',
+	'#define __DEC_EVAL_METHOD__ 2',
+	'#define __FLT32X_MAX__ 1.79769313486231570814527423731704357e+308F32x',
+	'#define __UINT32_C(c) c ## U',
+	'#define __INTMAX_MAX__ 0x7fffffffffffffffL',
+	'#define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__',
+	'#define __FLT_DENORM_MIN__ 1.40129846432481707092372958328991613e-45F',
+	'#define __INT8_MAX__ 0x7f',
+	'#define __LONG_WIDTH__ 64',
+	'#define __PIC__ 2',
+	'#define __UINT_FAST32_TYPE__ long unsigned int',
+	'#define __CHAR32_TYPE__ unsigned int',
+	'#define __FLT_MAX__ 3.40282346638528859811704183484516925e+38F',
+	'#define __INT32_TYPE__ int',
+	'#define __SIZEOF_DOUBLE__ 8',
+	'#define __FLT_MIN_10_EXP__ (-37)',
+	'#define __FLT64_MIN__ 2.22507385850720138309023271733240406e-308F64',
+	'#define __INT_LEAST32_WIDTH__ 32',
+	'#define __INTMAX_TYPE__ long int',
+	'#define __DEC128_MAX_EXP__ 6145',
+	'#define __FLT32X_HAS_QUIET_NAN__ 1',
+	'#define __ATOMIC_CONSUME 1',
+	'#define __GNUC_MINOR__ 4',
+	'#define __INT_FAST16_WIDTH__ 64',
+	'#define __UINTMAX_MAX__ 0xffffffffffffffffUL',
+	'#define __DEC32_MANT_DIG__ 7',
+	'#define __FLT32X_DENORM_MIN__ 4.94065645841246544176568792868221372e-324F32x',
+	'#define __DBL_MAX_10_EXP__ 308',
+	'#define __LDBL_DENORM_MIN__ 3.64519953188247460252840593361941982e-4951L',
+	'#define __INT16_C(c) c',
+	'#define __STDC__ 1',
+	'#define __PTRDIFF_TYPE__ long int',
+	'#define __ATOMIC_SEQ_CST 5',
+	'#define __UINT32_TYPE__ unsigned int',
+	'#define __FLT32X_MIN_10_EXP__ (-307)',
+	'#define __UINTPTR_TYPE__ long unsigned int',
+	'#define __DEC64_SUBNORMAL_MIN__ 0.000000000000001E-383DD',
+	'#define __DEC128_MANT_DIG__ 34',
+	'#define __LDBL_MIN_10_EXP__ (-4931)',
+	'#define __FLT128_EPSILON__ 1.92592994438723585305597794258492732e-34F128',
+	'#define __SIZEOF_LONG_LONG__ 8',
+	'#define __FLT128_DECIMAL_DIG__ 36',
+	'#define __GCC_ATOMIC_LLONG_LOCK_FREE 2',
+	'#define __FLT32X_MIN__ 2.22507385850720138309023271733240406e-308F32x',
+	'#define __LDBL_DIG__ 18',
+	'#define __FLT_DECIMAL_DIG__ 9',
+	'#define __UINT_FAST16_MAX__ 0xffffffffffffffffUL',
+	'#define __GCC_ATOMIC_SHORT_LOCK_FREE 2',
+	'#define __INT_LEAST64_WIDTH__ 64',
+	'#define __UINT_FAST8_TYPE__ unsigned char',
+	'#define __ATOMIC_ACQ_REL 4',
+	'#define __ATOMIC_RELEASE 3'
+	]
+
+builtinMacros = {
+					'__SSP_STRONG__'  						:  ['#define', '__SSP_STRONG__', '3'],
+					'__DBL_MIN_EXP__'  						:  ['#define', '__DBL_MIN_EXP__', '(-1021)'],
+					'__FLT32X_MAX_EXP__'  					:  ['#define', '__FLT32X_MAX_EXP__', '1024'],
+					'__UINT_LEAST16_MAX__'  				:  ['#define', '__UINT_LEAST16_MAX__', '0xffff'],
+					'__ATOMIC_ACQUIRE'  					:  ['#define', '__ATOMIC_ACQUIRE', '2'],
+					'__FLT128_MAX_10_EXP__'  				:  ['#define', '__FLT128_MAX_10_EXP__', '4932'],
+					'__FLT_MIN__'  							:  ['#define', '__FLT_MIN__', '1.17549435082228750796873653722224568e-38F'],
+					'__GCC_IEC_559_COMPLEX'  				:  ['#define', '__GCC_IEC_559_COMPLEX', '2'],
+					'__UINT_LEAST8_TYPE__'  				:  ['#define', '__UINT_LEAST8_TYPE__', 'unsigned char'],
+					'__SIZEOF_FLOAT80__'  					:  ['#define', '__SIZEOF_FLOAT80__', '16'],
+					'__INTMAX_C(c)'  						:  ['#define', '__INTMAX_C','(','c',')', 'c', '##', 'L'],
+					'__CHAR_BIT__'  						:  ['#define', '__CHAR_BIT__', '8'],
+					'__UINT8_MAX__'  						:  ['#define', '__UINT8_MAX__', '0xff'],
+					'__WINT_MAX__'  						:  ['#define', '__WINT_MAX__', '0xffffffffU'],
+					'__FLT32_MIN_EXP__'  					:  ['#define', '__FLT32_MIN_EXP__', '(-125)'],
+					'__ORDER_LITTLE_ENDIAN__'  				:  ['#define', '__ORDER_LITTLE_ENDIAN__', '1234'],
+					'__SIZE_MAX__'  						:  ['#define', '__SIZE_MAX__', '0xffffffffffffffffUL'],
+					'__WCHAR_MAX__'  						:  ['#define', '__WCHAR_MAX__', '0x7fffffff'],
+					'__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1'  	:  ['#define', '__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1', '1'],
+					'__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2'  	:  ['#define', '__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2', '1'],
+					'__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4'  	:  ['#define', '__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4', '1'],
+					'__DBL_DENORM_MIN__'  					:  ['#define', '__DBL_DENORM_MIN__', '((double)4.94065645841246544176568792868221372e-324L)'],
+					'__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8'  	:  ['#define', '__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8', '1'],
+					'__GCC_ATOMIC_CHAR_LOCK_FREE'  			:  ['#define', '__GCC_ATOMIC_CHAR_LOCK_FREE', '2'],
+					'__GCC_IEC_559'  						:  ['#define', '__GCC_IEC_559', '2'],
+					'__FLT32X_DECIMAL_DIG__'  				:  ['#define', '__FLT32X_DECIMAL_DIG__', '17'],
+					'__FLT_EVAL_METHOD__'  					:  ['#define', '__FLT_EVAL_METHOD__', '0'],
+					'__unix__'  							:  ['#define', '__unix__', '1'],
+					'__FLT64_DECIMAL_DIG__'  				:  ['#define', '__FLT64_DECIMAL_DIG__', '17'],
+					'__GCC_ATOMIC_CHAR32_T_LOCK_FREE'  		:  ['#define', '__GCC_ATOMIC_CHAR32_T_LOCK_FREE', '2'],
+					'__x86_64'  							:  ['#define', '__x86_64', '1'],
+					'__UINT_FAST64_MAX__'  					:  ['#define', '__UINT_FAST64_MAX__', '0xffffffffffffffffUL'],
+					'__SIG_ATOMIC_TYPE__'  					:  ['#define', '__SIG_ATOMIC_TYPE__', 'int'],
+					'__DBL_MIN_10_EXP__'  					:  ['#define', '__DBL_MIN_10_EXP__', '(-307)'],
+					'__FINITE_MATH_ONLY__'  				:  ['#define', '__FINITE_MATH_ONLY__', '0'],
+					'__GNUC_PATCHLEVEL__'  					:  ['#define', '__GNUC_PATCHLEVEL__', '0'],
+					'__FLT32_HAS_DENORM__'  				:  ['#define', '__FLT32_HAS_DENORM__', '1'],
+					'__UINT_FAST8_MAX__'  					:  ['#define', '__UINT_FAST8_MAX__', '0xff'],
+					'__has_include(STR)'  					:  ['#define', '__has_include(STR)', '__has_include__(STR)'],
+					'__DEC64_MAX_EXP__'  					:  ['#define', '__DEC64_MAX_EXP__', '385'],
+					'__INT8_C(c)'  							:  ['#define', '__INT8_C','(','c',')', 'c'],
+					'__INT_LEAST8_WIDTH__'  				:  ['#define', '__INT_LEAST8_WIDTH__', '8'],
+					'__UINT_LEAST64_MAX__'  				:  ['#define', '__UINT_LEAST64_MAX__', '0xffffffffffffffffUL'],
+					'__SHRT_MAX__'  						:  ['#define', '__SHRT_MAX__', '0x7fff'],
+					'__LDBL_MAX__'  						:  ['#define', '__LDBL_MAX__', '1.18973149535723176502126385303097021e+4932L'],
+					'__FLT64X_MAX_10_EXP__'  				:  ['#define', '__FLT64X_MAX_10_EXP__', '4932'],
+					'__UINT_LEAST8_MAX__'  					:  ['#define', '__UINT_LEAST8_MAX__', '0xff'],
+					'__GCC_ATOMIC_BOOL_LOCK_FREE'  			:  ['#define', '__GCC_ATOMIC_BOOL_LOCK_FREE', '2'],
+					'__FLT128_DENORM_MIN__'  				:  ['#define', '__FLT128_DENORM_MIN__', '6.47517511943802511092443895822764655e-4966F128'],
+					'__UINTMAX_TYPE__'  					:  ['#define', '__UINTMAX_TYPE__', 'long unsigned int'],
+					'__linux'  								:  ['#define', '__linux', '1'],
+					'__DEC32_EPSILON__'  					:  ['#define', '__DEC32_EPSILON__', '1E-6DF'],
+					'__FLT_EVAL_METHOD_TS_18661_3__'  		:  ['#define', '__FLT_EVAL_METHOD_TS_18661_3__', '0'],
+					'__unix'  								:  ['#define', '__unix', '1'],
+					'__UINT32_MAX__'  						:  ['#define', '__UINT32_MAX__', '0xffffffffU'],
+					'__LDBL_MAX_EXP__'  					:  ['#define', '__LDBL_MAX_EXP__', '16384'],
+					'__FLT128_MIN_EXP__'  					:  ['#define', '__FLT128_MIN_EXP__', '(-16381)'],
+					'__WINT_MIN__'  						:  ['#define', '__WINT_MIN__', '0U'],
+					'__linux__'  							:  ['#define', '__linux__', '1'],
+					'__FLT128_MIN_10_EXP__'  				:  ['#define', '__FLT128_MIN_10_EXP__', '(-4931)'],
+					'__INT_LEAST16_WIDTH__'  				:  ['#define', '__INT_LEAST16_WIDTH__', '16'],
+					'__SCHAR_MAX__'  						:  ['#define', '__SCHAR_MAX__', '0x7f'],
+					'__FLT128_MANT_DIG__'  					:  ['#define', '__FLT128_MANT_DIG__', '113'],
+					'__WCHAR_MIN__'  						:  ['#define', '__WCHAR_MIN__', '(-__WCHAR_MAX__ - 1)'],
+					'__INT64_C(c)'  						:  ['#define', '__INT64_C','(','c',')', 'c', '##', 'L'],
+					'__DBL_DIG__'  							:  ['#define', '__DBL_DIG__', '15'],
+					'__GCC_ATOMIC_POINTER_LOCK_FREE'  		:  ['#define', '__GCC_ATOMIC_POINTER_LOCK_FREE', '2'],
+					'__FLT64X_MANT_DIG__'  					:  ['#define', '__FLT64X_MANT_DIG__', '64'],
+					'__SIZEOF_INT__'  						:  ['#define', '__SIZEOF_INT__', '4'],
+					'__SIZEOF_POINTER__'  					:  ['#define', '__SIZEOF_POINTER__', '8'],
+					'__USER_LABEL_PREFIX__'  				:  ['#define', '__USER_LABEL_PREFIX__', ''],
+					'__FLT64X_EPSILON__'  					:  ['#define', '__FLT64X_EPSILON__', '1.08420217248550443400745280086994171e-19F64x'],
+					'__STDC_HOSTED__'  						:  ['#define', '__STDC_HOSTED__', '1'],
+					'__LDBL_HAS_INFINITY__'  				:  ['#define', '__LDBL_HAS_INFINITY__', '1'],
+					'__FLT32_DIG__'  						:  ['#define', '__FLT32_DIG__', '6'],
+					'__FLT_EPSILON__'  						:  ['#define', '__FLT_EPSILON__', '1.19209289550781250000000000000000000e-7F'],
+					'__SHRT_WIDTH__'  						:  ['#define', '__SHRT_WIDTH__', '16'],
+					'__LDBL_MIN__'  						:  ['#define', '__LDBL_MIN__', '3.36210314311209350626267781732175260e-4932L'],
+					'__STDC_UTF_16__'  						:  ['#define', '__STDC_UTF_16__', '1'],
+					'__DEC32_MAX__'  						:  ['#define', '__DEC32_MAX__', '9.999999E96DF'],
+					'__FLT64X_DENORM_MIN__'  				:  ['#define', '__FLT64X_DENORM_MIN__', '3.64519953188247460252840593361941982e-4951F64x'],
+					'__FLT32X_HAS_INFINITY__'  				:  ['#define', '__FLT32X_HAS_INFINITY__', '1'],
+					'__INT32_MAX__'  						:  ['#define', '__INT32_MAX__', '0x7fffffff'],
+					'__INT_WIDTH__'  						:  ['#define', '__INT_WIDTH__', '32'],
+					'__SIZEOF_LONG__'  						:  ['#define', '__SIZEOF_LONG__', '8'],
+					'__STDC_IEC_559__'  					:  ['#define', '__STDC_IEC_559__', '1'],
+					'__STDC_ISO_10646__'  					:  ['#define', '__STDC_ISO_10646__', '201706L'],
+					'__UINT16_C(c)'  						:  ['#define', '__UINT16_C(c)', 'c'],
+					'__PTRDIFF_WIDTH__'  					:  ['#define', '__PTRDIFF_WIDTH__', '64'],
+					'__DECIMAL_DIG__'  						:  ['#define', '__DECIMAL_DIG__', '21'],
+					'__FLT64_EPSILON__'  					:  ['#define', '__FLT64_EPSILON__', '2.22044604925031308084726333618164062e-16F64'],
+					'__gnu_linux__'  						:  ['#define', '__gnu_linux__', '1'],
+					'__INTMAX_WIDTH__'  					:  ['#define', '__INTMAX_WIDTH__', '64'],
+					'__has_include_next(STR)'  				:  ['#define', '__has_include_next','(','STR',')', '__has_include_next__', '(', 'STR', ')'],
+					'__FLT64X_MIN_10_EXP__'  				:  ['#define', '__FLT64X_MIN_10_EXP__', '(-4931)'],
+					'__LDBL_HAS_QUIET_NAN__'  				:  ['#define', '__LDBL_HAS_QUIET_NAN__', '1'],
+					'__FLT64_MANT_DIG__'  					:  ['#define', '__FLT64_MANT_DIG__', '53'],
+					'__GNUC__'  							:  ['#define', '__GNUC__', '7'],
+					'__pie__'  								:  ['#define', '__pie__', '2'],
+					'__MMX__'  								:  ['#define', '__MMX__', '1'],
+					'__FLT_HAS_DENORM__'  					:  ['#define', '__FLT_HAS_DENORM__', '1'],
+					'__SIZEOF_LONG_DOUBLE__'  				:  ['#define', '__SIZEOF_LONG_DOUBLE__', '16'],
+					'__BIGGEST_ALIGNMENT__'  				:  ['#define', '__BIGGEST_ALIGNMENT__', '16'],
+					'__FLT64_MAX_10_EXP__'  				:  ['#define', '__FLT64_MAX_10_EXP__', '308'],
+					'__DBL_MAX__'  							:  ['#define', '__DBL_MAX__', '((double)1.79769313486231570814527423731704357e+308L)'],
+					'__INT_FAST32_MAX__'  					:  ['#define', '__INT_FAST32_MAX__', '0x7fffffffffffffffL'],
+					'__DBL_HAS_INFINITY__'  				:  ['#define', '__DBL_HAS_INFINITY__', '1'],
+					'__DEC32_MIN_EXP__'  					:  ['#define', '__DEC32_MIN_EXP__', '(-94)'],
+					'__INTPTR_WIDTH__'  					:  ['#define', '__INTPTR_WIDTH__', '64'],
+					'__FLT32X_HAS_DENORM__'  				:  ['#define', '__FLT32X_HAS_DENORM__', '1'],
+					'__INT_FAST16_TYPE__'  					:  ['#define', '__INT_FAST16_TYPE__', 'long int'],
+					'__LDBL_HAS_DENORM__'  					:  ['#define', '__LDBL_HAS_DENORM__', '1'],
+					'__FLT128_HAS_INFINITY__'  				:  ['#define', '__FLT128_HAS_INFINITY__', '1'],
+					'__DEC128_MAX__'  						:  ['#define', '__DEC128_MAX__', '9.999999999999999999999999999999999E6144DL'],
+					'__INT_LEAST32_MAX__'  					:  ['#define', '__INT_LEAST32_MAX__', '0x7fffffff'],
+					'__DEC32_MIN__'  						:  ['#define', '__DEC32_MIN__', '1E-95DF'],
+					'__DBL_MAX_EXP__'  						:  ['#define', '__DBL_MAX_EXP__', '1024'],
+					'__WCHAR_WIDTH__'  						:  ['#define', '__WCHAR_WIDTH__', '32'],
+					'__FLT32_MAX__'  						:  ['#define', '__FLT32_MAX__', '3.40282346638528859811704183484516925e+38F32'],
+					'__DEC128_EPSILON__'  					:  ['#define', '__DEC128_EPSILON__', '1E-33DL'],
+					'__SSE2_MATH__'  						:  ['#define', '__SSE2_MATH__', '1'],
+					'__ATOMIC_HLE_RELEASE'  				:  ['#define', '__ATOMIC_HLE_RELEASE', '131072'],
+					'__PTRDIFF_MAX__'  						:  ['#define', '__PTRDIFF_MAX__', '0x7fffffffffffffffL'],
+					'__amd64'  								:  ['#define', '__amd64', '1'],
+					'__STDC_NO_THREADS__'  					:  ['#define', '__STDC_NO_THREADS__', '1'],
+					'__ATOMIC_HLE_ACQUIRE'  				:  ['#define', '__ATOMIC_HLE_ACQUIRE', '65536'],
+					'__FLT32_HAS_QUIET_NAN__'  				:  ['#define', '__FLT32_HAS_QUIET_NAN__', '1'],
+					'__LONG_LONG_MAX__'  					:  ['#define', '__LONG_LONG_MAX__', '0x7fffffffffffffffLL'],
+					'__SIZEOF_SIZE_T__'  					:  ['#define', '__SIZEOF_SIZE_T__', '8'],
+					'__FLT64X_MIN_EXP__'  					:  ['#define', '__FLT64X_MIN_EXP__', '(-16381)'],
+					'__SIZEOF_WINT_T__'  					:  ['#define', '__SIZEOF_WINT_T__', '4'],
+					'__LONG_LONG_WIDTH__'  					:  ['#define', '__LONG_LONG_WIDTH__', '64'],
+					'__FLT32_MAX_EXP__'  					:  ['#define', '__FLT32_MAX_EXP__', '128'],
+					'__GCC_HAVE_DWARF2_CFI_ASM'  			:  ['#define', '__GCC_HAVE_DWARF2_CFI_ASM', '1'],
+					'__GXX_ABI_VERSION'  					:  ['#define', '__GXX_ABI_VERSION', '1011'],
+					'__FLT_MIN_EXP__'  						:  ['#define', '__FLT_MIN_EXP__', '(-125)'],
+					'__FLT64X_HAS_QUIET_NAN__'  			:  ['#define', '__FLT64X_HAS_QUIET_NAN__', '1'],
+					'__INT_FAST64_TYPE__'  					:  ['#define', '__INT_FAST64_TYPE__', 'long int'],
+					'__FLT64_DENORM_MIN__'  				:  ['#define', '__FLT64_DENORM_MIN__', '4.94065645841246544176568792868221372e-324F64'],
+					'__DBL_MIN__'  							:  ['#define', '__DBL_MIN__', '((double)2.22507385850720138309023271733240406e-308L)'],
+					'__PIE__'  								:  ['#define', '__PIE__', '2'],
+					'__LP64__'  							:  ['#define', '__LP64__', '1'],
+					'__FLT32X_EPSILON__'  					:  ['#define', '__FLT32X_EPSILON__', '2.22044604925031308084726333618164062e-16F32x'],
+					'__DECIMAL_BID_FORMAT__'  				:  ['#define', '__DECIMAL_BID_FORMAT__', '1'],
+					'__FLT64_MIN_EXP__'  					:  ['#define', '__FLT64_MIN_EXP__', '(-1021)'],
+					'__FLT64_MIN_10_EXP__'  				:  ['#define', '__FLT64_MIN_10_EXP__', '(-307)'],
+					'__FLT64X_DECIMAL_DIG__'  				:  ['#define', '__FLT64X_DECIMAL_DIG__', '21'],
+					'__DEC128_MIN__'  						:  ['#define', '__DEC128_MIN__', '1E-6143DL'],
+					'__REGISTER_PREFIX__'  					:  ['#define', '__REGISTER_PREFIX__', ''],
+					'__UINT16_MAX__'  						:  ['#define', '__UINT16_MAX__', '0xffff'],
+					'__DBL_HAS_DENORM__'  					:  ['#define', '__DBL_HAS_DENORM__', '1'],
+					'__FLT32_MIN__'  						:  ['#define', '__FLT32_MIN__', '1.17549435082228750796873653722224568e-38F32'],
+					'__UINT8_TYPE__'  						:  ['#define', '__UINT8_TYPE__', 'unsigned char'],
+					'__NO_INLINE__'  						:  ['#define', '__NO_INLINE__', '1'],
+					'__FLT_MANT_DIG__'  					:  ['#define', '__FLT_MANT_DIG__', '24'],
+					'__LDBL_DECIMAL_DIG__'  				:  ['#define', '__LDBL_DECIMAL_DIG__', '21'],
+					'__VERSION__'  							:  ['#define', '__VERSION__', '7.4.0'],
+					'__UINT64_C(c)'  						:  ['#define', '__UINT64_C','(','c',')', 'c', '##', 'UL'],
+					'_STDC_PREDEF_H'  						:  ['#define', '_STDC_PREDEF_H', '1'],
+					'__GCC_ATOMIC_INT_LOCK_FREE'  			:  ['#define', '__GCC_ATOMIC_INT_LOCK_FREE', '2'],
+					'__FLT128_MAX_EXP__'  					:  ['#define', '__FLT128_MAX_EXP__', '16384'],
+					'__FLT32_MANT_DIG__'  					:  ['#define', '__FLT32_MANT_DIG__', '24'],
+					'__FLOAT_WORD_ORDER__'  				:  ['#define', '__FLOAT_WORD_ORDER__', '__ORDER_LITTLE_ENDIAN__'],
+					'__STDC_IEC_559_COMPLEX__'  			:  ['#define', '__STDC_IEC_559_COMPLEX__', '1'],
+					'__FLT128_HAS_DENORM__'  				:  ['#define', '__FLT128_HAS_DENORM__', '1'],
+					'__FLT128_DIG__'  						:  ['#define', '__FLT128_DIG__', '33'],
+					'__SCHAR_WIDTH__'  						:  ['#define', '__SCHAR_WIDTH__', '8'],
+					'__INT32_C(c)'  						:  ['#define', '__INT32_C','(','c',')', 'c'],
+					'__DEC64_EPSILON__'  					:  ['#define', '__DEC64_EPSILON__', '1E-15DD'],
+					'__ORDER_PDP_ENDIAN__'  				:  ['#define', '__ORDER_PDP_ENDIAN__', '3412'],
+					'__DEC128_MIN_EXP__'  					:  ['#define', '__DEC128_MIN_EXP__', '(-6142)'],
+					'__FLT32_MAX_10_EXP__'  				:  ['#define', '__FLT32_MAX_10_EXP__', '38'],
+					'__INT_FAST32_TYPE__'  					:  ['#define', '__INT_FAST32_TYPE__', 'long int'],
+					'__UINT_LEAST16_TYPE__'  				:  ['#define', '__UINT_LEAST16_TYPE__', 'short unsigned int'],
+					'__FLT64X_HAS_INFINITY__'  				:  ['#define', '__FLT64X_HAS_INFINITY__', '1'],
+					'unix'  								:  ['#define', 'unix', '1'],
+					'__INT16_MAX__'  						:  ['#define', '__INT16_MAX__', '0x7fff'],
+					'__SIZE_TYPE__'  						:  ['#define', '__SIZE_TYPE__', 'long unsigned int'],
+					'__UINT64_MAX__'  						:  ['#define', '__UINT64_MAX__', '0xffffffffffffffffUL'],
+					'__FLT64X_DIG__'  						:  ['#define', '__FLT64X_DIG__', '18'],
+					'__INT8_TYPE__'  						:  ['#define', '__INT8_TYPE__', 'signed char'],
+					'__ELF__'  								:  ['#define', '__ELF__', '1'],
+					'__GCC_ASM_FLAG_OUTPUTS__'  			:  ['#define', '__GCC_ASM_FLAG_OUTPUTS__', '1'],
+					'__FLT_RADIX__'  						:  ['#define', '__FLT_RADIX__', '2'],
+					'__INT_LEAST16_TYPE__'  				:  ['#define', '__INT_LEAST16_TYPE__', 'short int'],
+					'__LDBL_EPSILON__'  					:  ['#define', '__LDBL_EPSILON__', '1.08420217248550443400745280086994171e-19L'],
+					'__UINTMAX_C(c)'  						:  ['#define', '__UINTMAX_C','(','c',')', 'c', '##', 'UL'],
+					'__SSE_MATH__'  						:  ['#define', '__SSE_MATH__', '1'],
+					'__k8'  								:  ['#define', '__k8', '1'],
+					'__SIG_ATOMIC_MAX__'  					:  ['#define', '__SIG_ATOMIC_MAX__', '0x7fffffff'],
+					'__GCC_ATOMIC_WCHAR_T_LOCK_FREE'  		:  ['#define', '__GCC_ATOMIC_WCHAR_T_LOCK_FREE', '2'],
+					'__SIZEOF_PTRDIFF_T__'  				:  ['#define', '__SIZEOF_PTRDIFF_T__', '8'],
+					'__FLT32X_MANT_DIG__'  					:  ['#define', '__FLT32X_MANT_DIG__', '53'],
+					'__x86_64__'  							:  ['#define', '__x86_64__', '1'],
+					'__FLT32X_MIN_EXP__'  					:  ['#define', '__FLT32X_MIN_EXP__', '(-1021)'],
+					'__DEC32_SUBNORMAL_MIN__'  				:  ['#define', '__DEC32_SUBNORMAL_MIN__', '0.000001E-95DF'],
+					'__INT_FAST16_MAX__'  					:  ['#define', '__INT_FAST16_MAX__', '0x7fffffffffffffffL'],
+					'__FLT64_DIG__'  						:  ['#define', '__FLT64_DIG__', '15'],
+					'__UINT_FAST32_MAX__'  					:  ['#define', '__UINT_FAST32_MAX__', '0xffffffffffffffffUL'],
+					'__UINT_LEAST64_TYPE__'  				:  ['#define', '__UINT_LEAST64_TYPE__', 'long unsigned int'],
+					'__FLT_HAS_QUIET_NAN__'  				:  ['#define', '__FLT_HAS_QUIET_NAN__', '1'],
+					'__FLT_MAX_10_EXP__'  					:  ['#define', '__FLT_MAX_10_EXP__', '38'],
+					'__LONG_MAX__'  						:  ['#define', '__LONG_MAX__', '0x7fffffffffffffffL'],
+					'__FLT64X_HAS_DENORM__'  				:  ['#define', '__FLT64X_HAS_DENORM__', '1'],
+					'__DEC128_SUBNORMAL_MIN__'  			:  ['#define', '__DEC128_SUBNORMAL_MIN__', '0.000000000000000000000000000000001E-6143DL'],
+					'__FLT_HAS_INFINITY__'  				:  ['#define', '__FLT_HAS_INFINITY__', '1'],
+					'__UINT_FAST16_TYPE__'  				:  ['#define', '__UINT_FAST16_TYPE__', 'long unsigned int'],
+					'__DEC64_MAX__'  						:  ['#define', '__DEC64_MAX__', '9.999999999999999E384DD'],
+					'__INT_FAST32_WIDTH__'  				:  ['#define', '__INT_FAST32_WIDTH__', '64'],
+					'__CHAR16_TYPE__'  						:  ['#define', '__CHAR16_TYPE__', 'short unsigned int'],
+					'__PRAGMA_REDEFINE_EXTNAME'  			:  ['#define', '__PRAGMA_REDEFINE_EXTNAME', '1'],
+					'__SIZE_WIDTH__'  						:  ['#define', '__SIZE_WIDTH__', '64'],
+					'__SEG_FS'  							:  ['#define', '__SEG_FS', '1'],
+					'__INT_LEAST16_MAX__'  					:  ['#define', '__INT_LEAST16_MAX__', '0x7fff'],
+					'__DEC64_MANT_DIG__'  					:  ['#define', '__DEC64_MANT_DIG__', '16'],
+					'__INT64_MAX__'  						:  ['#define', '__INT64_MAX__', '0x7fffffffffffffffL'],
+					'__UINT_LEAST32_MAX__'  				:  ['#define', '__UINT_LEAST32_MAX__', '0xffffffffU'],
+					'__SEG_GS'  							:  ['#define', '__SEG_GS', '1'],
+					'__FLT32_DENORM_MIN__'  				:  ['#define', '__FLT32_DENORM_MIN__', '1.40129846432481707092372958328991613e-45F32'],
+					'__GCC_ATOMIC_LONG_LOCK_FREE'  			:  ['#define', '__GCC_ATOMIC_LONG_LOCK_FREE', '2'],
+					'__SIG_ATOMIC_WIDTH__'  				:  ['#define', '__SIG_ATOMIC_WIDTH__', '32'],
+					'__INT_LEAST64_TYPE__'  				:  ['#define', '__INT_LEAST64_TYPE__', 'long int'],
+					'__INT16_TYPE__'  						:  ['#define', '__INT16_TYPE__', 'short int'],
+					'__INT_LEAST8_TYPE__'  					:  ['#define', '__INT_LEAST8_TYPE__', 'signed char'],
+					'__STDC_VERSION__'  					:  ['#define', '__STDC_VERSION__', '201112L'],
+					'__DEC32_MAX_EXP__'  					:  ['#define', '__DEC32_MAX_EXP__', '97'],
+					'__INT_FAST8_MAX__'  					:  ['#define', '__INT_FAST8_MAX__', '0x7f'],
+					'__FLT128_MAX__'  						:  ['#define', '__FLT128_MAX__', '1.18973149535723176508575932662800702e+4932F128'],
+					'__INTPTR_MAX__'  						:  ['#define', '__INTPTR_MAX__', '0x7fffffffffffffffL'],
+					'linux'  								:  ['#define', 'linux', '1'],
+					'__FLT64_HAS_QUIET_NAN__'  				:  ['#define', '__FLT64_HAS_QUIET_NAN__', '1'],
+					'__FLT32_MIN_10_EXP__'  				:  ['#define', '__FLT32_MIN_10_EXP__', '(-37)'],
+					'__SSE2__'  							:  ['#define', '__SSE2__', '1'],
+					'__FLT32X_DIG__'  						:  ['#define', '__FLT32X_DIG__', '15'],
+					'__LDBL_MANT_DIG__'  					:  ['#define', '__LDBL_MANT_DIG__', '64'],
+					'__DBL_HAS_QUIET_NAN__'  				:  ['#define', '__DBL_HAS_QUIET_NAN__', '1'],
+					'__FLT64_HAS_INFINITY__'  				:  ['#define', '__FLT64_HAS_INFINITY__', '1'],
+					'__FLT64X_MAX__'  						:  ['#define', '__FLT64X_MAX__', '1.18973149535723176502126385303097021e+4932F64x'],
+					'__SIG_ATOMIC_MIN__'  					:  ['#define', '__SIG_ATOMIC_MIN__', '(-__SIG_ATOMIC_MAX__ - 1)'],
+					'__code_model_small__'  				:  ['#define', '__code_model_small__', '1'],
+					'__k8__'  								:  ['#define', '__k8__', '1'],
+					'__INTPTR_TYPE__'  						:  ['#define', '__INTPTR_TYPE__', 'long int'],
+					'__UINT16_TYPE__'  						:  ['#define', '__UINT16_TYPE__', 'short unsigned int'],
+					'__WCHAR_TYPE__'  						:  ['#define', '__WCHAR_TYPE__', 'int'],
+					'__SIZEOF_FLOAT__'  					:  ['#define', '__SIZEOF_FLOAT__', '4'],
+					'__pic__'  								:  ['#define', '__pic__', '2'],
+					'__UINTPTR_MAX__'  						:  ['#define', '__UINTPTR_MAX__', '0xffffffffffffffffUL'],
+					'__INT_FAST64_WIDTH__'  				:  ['#define', '__INT_FAST64_WIDTH__', '64'],
+					'__DEC64_MIN_EXP__'  					:  ['#define', '__DEC64_MIN_EXP__', '(-382)'],
+					'__FLT32_DECIMAL_DIG__'  				:  ['#define', '__FLT32_DECIMAL_DIG__', '9'],
+					'__INT_FAST64_MAX__'  					:  ['#define', '__INT_FAST64_MAX__', '0x7fffffffffffffffL'],
+					'__GCC_ATOMIC_TEST_AND_SET_TRUEVAL'  	:  ['#define', '__GCC_ATOMIC_TEST_AND_SET_TRUEVAL', '1'],
+					'__FLT_DIG__'  							:  ['#define', '__FLT_DIG__', '6'],
+					'__FLT32_HAS_INFINITY__'  				:  ['#define', '__FLT32_HAS_INFINITY__', '1'],
+					'__FLT64X_MAX_EXP__'  					:  ['#define', '__FLT64X_MAX_EXP__', '16384'],
+					'__UINT_FAST64_TYPE__'  				:  ['#define', '__UINT_FAST64_TYPE__', 'long unsigned int'],
+					'__INT_MAX__'  							:  ['#define', '__INT_MAX__', '0x7fffffff'],
+					'__amd64__'  							:  ['#define', '__amd64__', '1'],
+					'__INT64_TYPE__'  						:  ['#define', '__INT64_TYPE__', 'long int'],
+					'__FLT_MAX_EXP__'  						:  ['#define', '__FLT_MAX_EXP__', '128'],
+					'__ORDER_BIG_ENDIAN__'  				:  ['#define', '__ORDER_BIG_ENDIAN__', '4321'],
+					'__DBL_MANT_DIG__'  					:  ['#define', '__DBL_MANT_DIG__', '53'],
+					'__SIZEOF_FLOAT128__'  					:  ['#define', '__SIZEOF_FLOAT128__', '16'],
+					'__INT_LEAST64_MAX__'  					:  ['#define', '__INT_LEAST64_MAX__', '0x7fffffffffffffffL'],
+					'__GCC_ATOMIC_CHAR16_T_LOCK_FREE'  		:  ['#define', '__GCC_ATOMIC_CHAR16_T_LOCK_FREE', '2'],
+					'__DEC64_MIN__'  						:  ['#define', '__DEC64_MIN__', '1E-383DD'],
+					'__WINT_TYPE__'  						:  ['#define', '__WINT_TYPE__', 'unsigned int'],
+					'__UINT_LEAST32_TYPE__'  				:  ['#define', '__UINT_LEAST32_TYPE__', 'unsigned int'],
+					'__SIZEOF_SHORT__'  					:  ['#define', '__SIZEOF_SHORT__', '2'],
+					'__SSE__'  								:  ['#define', '__SSE__', '1'],
+					'__LDBL_MIN_EXP__'  					:  ['#define', '__LDBL_MIN_EXP__', '(-16381)'],
+					'__FLT64_MAX__'  						:  ['#define', '__FLT64_MAX__', '1.79769313486231570814527423731704357e+308F64'],
+					'__WINT_WIDTH__'  						:  ['#define', '__WINT_WIDTH__', '32'],
+					'__INT_LEAST8_MAX__'  					:  ['#define', '__INT_LEAST8_MAX__', '0x7f'],
+					'__FLT32X_MAX_10_EXP__'  				:  ['#define', '__FLT32X_MAX_10_EXP__', '308'],
+					'__SIZEOF_INT128__'  					:  ['#define', '__SIZEOF_INT128__', '16'],
+					'__LDBL_MAX_10_EXP__'  					:  ['#define', '__LDBL_MAX_10_EXP__', '4932'],
+					'__ATOMIC_RELAXED'  					:  ['#define', '__ATOMIC_RELAXED', '0'],
+					'__DBL_EPSILON__'  						:  ['#define', '__DBL_EPSILON__', '((double)2.22044604925031308084726333618164062e-16L)'],
+					'__FLT128_MIN__'  						:  ['#define', '__FLT128_MIN__', '3.36210314311209350626267781732175260e-4932F128'],
+					'_LP64'  								:  ['#define', '_LP64', '1'],
+					'__UINT8_C(c)'  						:  ['#define', '__UINT8_C','(','c',')', 'c'],
+					'__FLT64_MAX_EXP__'  					:  ['#define', '__FLT64_MAX_EXP__', '1024'],
+					'__INT_LEAST32_TYPE__'  				:  ['#define', '__INT_LEAST32_TYPE__', 'int'],
+					'__SIZEOF_WCHAR_T__'  					:  ['#define', '__SIZEOF_WCHAR_T__', '4'],
+					'__UINT64_TYPE__'  						:  ['#define', '__UINT64_TYPE__', 'long unsigned int'],
+					'__FLT128_HAS_QUIET_NAN__'  			:  ['#define', '__FLT128_HAS_QUIET_NAN__', '1'],
+					'__INT_FAST8_TYPE__'  					:  ['#define', '__INT_FAST8_TYPE__', 'signed char'],
+					'__FLT64X_MIN__'  						:  ['#define', '__FLT64X_MIN__', '3.36210314311209350626267781732175260e-4932F64x'],
+					'__GNUC_STDC_INLINE__'  				:  ['#define', '__GNUC_STDC_INLINE__', '1'],
+					'__FLT64_HAS_DENORM__'  				:  ['#define', '__FLT64_HAS_DENORM__', '1'],
+					'__FLT32_EPSILON__'  					:  ['#define', '__FLT32_EPSILON__', '1.19209289550781250000000000000000000e-7F32'],
+					'__DBL_DECIMAL_DIG__'  					:  ['#define', '__DBL_DECIMAL_DIG__', '17'],
+					'__STDC_UTF_32__'  						:  ['#define', '__STDC_UTF_32__', '1'],
+					'__INT_FAST8_WIDTH__'  					:  ['#define', '__INT_FAST8_WIDTH__', '8'],
+					'__FXSR__'  							:  ['#define', '__FXSR__', '1'],
+					'__DEC_EVAL_METHOD__'  					:  ['#define', '__DEC_EVAL_METHOD__', '2'],
+					'__FLT32X_MAX__'  						:  ['#define', '__FLT32X_MAX__', '1.79769313486231570814527423731704357e+308F32x'],
+					'__UINT32_C(c)'  						:  ['#define', '__UINT32_C(c)', 'c ## U'],
+					'__INTMAX_MAX__'  						:  ['#define', '__INTMAX_MAX__', '0x7fffffffffffffffL'],
+					'__BYTE_ORDER__'  						:  ['#define', '__BYTE_ORDER__', '__ORDER_LITTLE_ENDIAN__'],
+					'__FLT_DENORM_MIN__'  					:  ['#define', '__FLT_DENORM_MIN__', '1.40129846432481707092372958328991613e-45F'],
+					'__INT8_MAX__'  						:  ['#define', '__INT8_MAX__', '0x7f'],
+					'__LONG_WIDTH__'  						:  ['#define', '__LONG_WIDTH__', '64'],
+					'__PIC__'  								:  ['#define', '__PIC__', '2'],
+					'__UINT_FAST32_TYPE__'  				:  ['#define', '__UINT_FAST32_TYPE__', 'long unsigned int'],
+					'__CHAR32_TYPE__'  						:  ['#define', '__CHAR32_TYPE__', 'unsigned int'],
+					'__FLT_MAX__'  							:  ['#define', '__FLT_MAX__', '3.40282346638528859811704183484516925e+38F'],
+					'__INT32_TYPE__'  						:  ['#define', '__INT32_TYPE__', 'int'],
+					'__SIZEOF_DOUBLE__'  					:  ['#define', '__SIZEOF_DOUBLE__', '8'],
+					'__FLT_MIN_10_EXP__'  					:  ['#define', '__FLT_MIN_10_EXP__', '(-37)'],
+					'__FLT64_MIN__'  						:  ['#define', '__FLT64_MIN__', '2.22507385850720138309023271733240406e-308F64'],
+					'__INT_LEAST32_WIDTH__'  				:  ['#define', '__INT_LEAST32_WIDTH__', '32'],
+					'__INTMAX_TYPE__'  						:  ['#define', '__INTMAX_TYPE__', 'long int'],
+					'__DEC128_MAX_EXP__'  					:  ['#define', '__DEC128_MAX_EXP__', '6145'],
+					'__FLT32X_HAS_QUIET_NAN__'  			:  ['#define', '__FLT32X_HAS_QUIET_NAN__', '1'],
+					'__ATOMIC_CONSUME'  					:  ['#define', '__ATOMIC_CONSUME', '1'],
+					'__GNUC_MINOR__'  						:  ['#define', '__GNUC_MINOR__', '4'],
+					'__INT_FAST16_WIDTH__'  				:  ['#define', '__INT_FAST16_WIDTH__', '64'],
+					'__UINTMAX_MAX__'  						:  ['#define', '__UINTMAX_MAX__', '0xffffffffffffffffUL'],
+					'__DEC32_MANT_DIG__'  					:  ['#define', '__DEC32_MANT_DIG__', '7'],
+					'__FLT32X_DENORM_MIN__'  				:  ['#define', '__FLT32X_DENORM_MIN__', '4.94065645841246544176568792868221372e-324F32x'],
+					'__DBL_MAX_10_EXP__'  					:  ['#define', '__DBL_MAX_10_EXP__', '308'],
+					'__LDBL_DENORM_MIN__'  					:  ['#define', '__LDBL_DENORM_MIN__', '3.64519953188247460252840593361941982e-4951L'],
+					'__INT16_C(c)'  						:  ['#define', '__INT16_C','(','c',')', 'c'],
+					'__STDC__'  							:  ['#define', '__STDC__', '1'],
+					'__PTRDIFF_TYPE__'  					:  ['#define', '__PTRDIFF_TYPE__', 'long int'],
+					'__ATOMIC_SEQ_CST'  					:  ['#define', '__ATOMIC_SEQ_CST', '5'],
+					'__UINT32_TYPE__'  						:  ['#define', '__UINT32_TYPE__', 'unsigned int'],
+					'__FLT32X_MIN_10_EXP__'  				:  ['#define', '__FLT32X_MIN_10_EXP__', '(-307)'],
+					'__UINTPTR_TYPE__'  					:  ['#define', '__UINTPTR_TYPE__', 'long unsigned int'],
+					'__DEC64_SUBNORMAL_MIN__'  				:  ['#define', '__DEC64_SUBNORMAL_MIN__', '0.000000000000001E-383DD'],
+					'__DEC128_MANT_DIG__'  					:  ['#define', '__DEC128_MANT_DIG__', '34'],
+					'__LDBL_MIN_10_EXP__'  					:  ['#define', '__LDBL_MIN_10_EXP__', '(-4931)'],
+					'__FLT128_EPSILON__'  					:  ['#define', '__FLT128_EPSILON__', '1.92592994438723585305597794258492732e-34F128'],
+					'__SIZEOF_LONG_LONG__'  				:  ['#define', '__SIZEOF_LONG_LONG__', '8'],
+					'__FLT128_DECIMAL_DIG__'  				:  ['#define', '__FLT128_DECIMAL_DIG__', '36'],
+					'__GCC_ATOMIC_LLONG_LOCK_FREE'  		:  ['#define', '__GCC_ATOMIC_LLONG_LOCK_FREE', '2'],
+					'__FLT32X_MIN__'  						:  ['#define', '__FLT32X_MIN__', '2.22507385850720138309023271733240406e-308F32x'],
+					'__LDBL_DIG__'  						:  ['#define', '__LDBL_DIG__', '18'],
+					'__FLT_DECIMAL_DIG__'  					:  ['#define', '__FLT_DECIMAL_DIG__', '9'],
+					'__UINT_FAST16_MAX__'  					:  ['#define', '__UINT_FAST16_MAX__', '0xffffffffffffffffUL'],
+					'__GCC_ATOMIC_SHORT_LOCK_FREE'  		:  ['#define', '__GCC_ATOMIC_SHORT_LOCK_FREE', '2'],
+					'__INT_LEAST64_WIDTH__'  				:  ['#define', '__INT_LEAST64_WIDTH__', '64'],
+					'__UINT_FAST8_TYPE__'  					:  ['#define', '__UINT_FAST8_TYPE__', 'unsigned char'],
+					'__ATOMIC_ACQ_REL'  					:  ['#define', '__ATOMIC_ACQ_REL', '4'],
+					'__ATOMIC_RELEASE'  					:  ['#define', '__ATOMIC_RELEASE', '3']
+				}
 
 ##
 ##
@@ -1588,19 +2301,25 @@ def checkIfString(inputStr):
 		return False
 
 def checkIfIntegral(inputNum):
-#	print ("inputNum = ", inputNum)
-#	print ("type(inputNum) = <%s>"%type(inputNum))
+#	MUST_PRINT ("inputNum = ", inputNum)
+#	MUST_PRINT ("type(inputNum) = <%s>"%type(inputNum))
+	if checkIfString(inputNum) and re.match("^[0-9]+(L|UL|LU|LL|ULL|LLU|l|ul|lu|ll|ull|llu)$",inputNum):
+#		MUST_PRINT("Compile-time constant",inputNum)
+		inputNum = re.sub('[lLuU]','',inputNum)
+#		MUST_PRINT("Compile-time constant changed to",inputNum)
 	if PYTHON2x and (isinstance(inputNum,int) or isinstance(inputNum,long)):
 		return True
 	elif PYTHON3x and isinstance(inputNum,int):
+#		MUST_PRINT("Returning True (as", inputNum,"is integer)")
 		return True
 	else:
+#		MUST_PRINT("Returning False (as", inputNum,"is NOT integer)")
 		return False
 
 
 def checkIfStringIsNumeric(inputStr):
-#	print ("inputStr = ", inputStr)
-#	print ("type(inputStr) = <%s>"%type(inputStr))
+#	MUST_PRINT ("inputStr = ", inputStr)
+#	MUST_PRINT ("type(inputStr) = <%s>"%type(inputStr))
 	if PYTHON2x and isinstance(inputStr,basestring):
 		if inputStr.isdigit():
 			return True
@@ -1611,8 +2330,11 @@ def checkIfStringIsNumeric(inputStr):
 			except:
 				return False
 	elif PYTHON3x and isinstance(inputStr,str):
-		return inputStr.isnumeric()
+		result = inputStr.isnumeric()
+#		MUST_PRINT("Returning",result)
+		return result
 	else:
+#		MUST_PRINT("Returning False")
 		return False
 
 def checkIfNumber(inputNum):
@@ -2001,25 +2723,28 @@ def warningRoutine(message):
 
 def printHelp():
 	OUTPUT("The way to invoke this tool is the following:\npython2/3 ParseAndC.py [options], where the options are:\n")
-	OUTPUT("-h, --help                Prints the options available")
-	OUTPUT("-i, --include             followed by a single string that contains the include file path(s), separated by semicolon")
-	OUTPUT("-x, --hex                 Prints the integral values in Hex (default is Decimal)")
-	OUTPUT("-d, --datafile            followed by the data file name")
+	OUTPUT("-b, --batch               to indicate that the tool will run in the non-interactive, non-GUI, terminal batch mode")
 	OUTPUT("-c, --codefile            followed by the code file name")
-	OUTPUT("-o, --offset              followed by the offset value (from which offset in the data file the struct will start mapping from)")
-	OUTPUT("                          Offsets can be numbers or expressions, but must be then double-quoted, like \"3KB+0x12*43-(0o62/0b10)\"")
+	OUTPUT("-d, --datafile            followed by the data file name")
+	OUTPUT("--dummyVarNamePrefix      All dummy variables will start with this prefix")
+	OUTPUT("-e, --enum  [Y/N]         Overrides whether to print the enum literal for data values.")
 	OUTPUT("-g, --global              followed by the name of the Global-level variables (or typedefs) that will be mapped")
+	OUTPUT("-gcc                      Attempts to emulate the GCC compilation environment")
 	OUTPUT("                          If providing multiple variable names, then it must be double-quoted (like \"var1 var2\")")
 	OUTPUT("                          If no variable names are provided, every variable at the global level in the code file will be automatically selected")
+	OUTPUT("-h, --help                Prints the options available")
+	OUTPUT("-i, --include             followed by a single string that contains the include file path(s), separated by semicolon")
+	OUTPUT("-o, --offset              followed by the offset value (from which offset in the data file the struct will start mapping from)")
+	OUTPUT("                          Offsets can be numbers or expressions, but must be then double-quoted, like \"3KB+0x12*43-(0o62/0b10)\"")
 	OUTPUT("-t, --typedef             followed by Yes/No to indicate if typedefs will be mapped as regular variables or not")
+	OUTPUT("-u                        Suppress warnings when the code tries to #undef symbols that are not-yet-defined ")
 	OUTPUT("-v, --verbose, --debug    to indicate if debug messages will be printed or not")
-	OUTPUT("-b, --batch               to indicate that the tool will run in the non-interactive, non-GUI, terminal batch mode")
-	OUTPUT("--dummyVarNamePrefix      All dummy variables will start with this prefix")
-
+	OUTPUT("-w [Y/N/maxcount]         To turn on/off the verification warning messages, and not to display such message after a certain max count has been reaches")
+	OUTPUT("-x, --hex                 Prints the integral values in Hex (default is Decimal)")
 
 def parseCommandLineArguments():
-	global funcName, BATCHMODE, DISPLAY_INTEGRAL_VALUES_IN_HEX, codeFileName, dataLocationOffset, inputVariables, PRINT_DEBUG_MSG, MAP_TYPEDEFS_TOO, COMPILER_PADDING_ON, STRUCT_END_PADDING_ON, INCLUDE_FILE_PATHS, dummyVariableNamePrefix
-	funcName = "parseCommandLineArguments"
+	global BATCHMODE, DISPLAY_INTEGRAL_VALUES_IN_HEX, PRINT_UNDEF_WARNING, PRINT_ENUM_LITERALS, codeFileName, dataLocationOffset, inputVariables, VERIFICATION_WARNING_COUNT_MAX
+	global PRINT_DEBUG_MSG, MAP_TYPEDEFS_TOO, COMPILER_PADDING_ON, STRUCT_END_PADDING_ON, INCLUDE_FILE_PATHS, dummyVariableNamePrefix, EMULATE_GCC_COMPILATION_ENVIRONMENT
 	PRINT ("sys.argv = ",sys.argv)
 	
 	DATAFILENAME = None
@@ -2048,11 +2773,19 @@ def parseCommandLineArguments():
 			PRINT ("Include file path")
 			N += 1
 			if N == len(sys.argv) or sys.argv[N].startswith("-"):
-				OUTPUT("Must supply a quoted string containing the include file path(s), separated by semicolon if multiple paths are supplied")
+				OUTPUT("Must supply a double-quoted string containing ALL the include file path(s), separated by semicolon if multiple paths are supplied")
 				sys.exit()
 			else:
 				INCLUDE_FILE_PATHS = sys.argv[N]
-				OUTPUT("INCLUDE_FILE_PATHS =",INCLUDE_FILE_PATHS)
+				# There is a weird case. If one supplies the following: 
+				# $ python ParseAndC.py -i "c:\temp\" -x
+				# Then it will not be able to read the -x command line option, and for -i, it will think the following argument: 
+				#      <c:\temp" -x>
+				if '"' in INCLUDE_FILE_PATHS:
+					OUTPUT("Do NOT end directory paths with a slash. Then it will interpret the last \\\" as simply \".")
+					OUTPUT("Thus, right now it is thinking that you entered the following as your include directory path: ",INCLUDE_FILE_PATHS)
+					sys.exit()
+				MUST_PRINT("INCLUDE_FILE_PATHS =",INCLUDE_FILE_PATHS)
 			N += 1
 		elif sys.argv[N].lower() in ("-x", "--x", "-hex", "--hex", "-hexadecimal", "--hexadecimal"):
 			PRINT ("Integral values will be printed in Hexadecimal (default is Decimal)")
@@ -2172,6 +2905,62 @@ def parseCommandLineArguments():
 					OUTPUT("Careful! Supplied Dummy Variable Name Prefix of "+temp+" might clash with regular code variable names")
 				OUTPUT("Setting dummyVariableNamePrefix to <"+temp+">")
 				dummyVariableNamePrefix = temp	
+				N +=1
+		elif sys.argv[N].lower() in ("-gcc", "--gcc"):
+			OUTPUT("Emulating GCC compilation environment")
+			EMULATE_GCC_COMPILATION_ENVIRONMENT = True
+			N += 1
+		elif sys.argv[N].lower() in ("-u", "--u"):
+			N += 1
+			OUTPUT("Suppressing #undef warnings for symbols that are not defined yet.")
+			PRINT_UNDEF_WARNING = False
+		elif sys.argv[N].lower() in ("-e", "--e", "-enum","--enum"):
+			N += 1
+			if N >= len(sys.argv):
+				OUTPUT("Will display enum literals whenever possible")
+				PRINT_ENUM_LITERALS = True
+			elif sys.argv[N][0]=="-":
+				OUTPUT("Will display enum literals whenever possible")
+				PRINT_ENUM_LITERALS = True
+				N += 1
+			else:
+				temp = sys.argv[N].lower()
+				if temp in TRUE_VALUES:
+					PRINT_ENUM_LITERALS = True
+					OUTPUT("Will display enum literals whenever possible")
+				elif temp in FALSE_VALUES:
+					OUTPUT("Will NOT display enum literals")
+					PRINT_ENUM_LITERALS = False
+				else:
+					EXIT("Unacceptable string following -enum option - exiting")
+				N += 1
+					
+		elif sys.argv[N].lower() in ("-w", "--w", "-warning","--warning"):
+			N += 1
+			if N >= len(sys.argv) or sys.argv[N][0]=="-":
+				EXIT("Need to provide a valid parameter after the verification warning (\"-w\") option")
+			else:
+				temp = sys.argv[N].lower()
+				if temp in TRUE_VALUES:
+					PRINT("Will be printing verification warnings!")
+				elif temp in FALSE_VALUES:
+					OUTPUT("Will NOT be printing verification warnings at all!")
+					VERIFICATION_WARNING_COUNT_MAX = 0
+				else:
+					VERIFICATION_WARNING_COUNT_MAX = sys.argv[N]
+					convertByteUnits2DecimalResult = convertByteUnits2Decimal(VERIFICATION_WARNING_COUNT_MAX)
+					if convertByteUnits2DecimalResult[0] == False:
+						OUTPUT(VERIFICATION_WARNING_COUNT_MAX,"is not a valid verification warning count")
+						sys.exit()
+					elif not checkIfIntegral(convertByteUnits2DecimalResult[1]):
+						OUTPUT("Supplied data offset %s must be an integer"%VERIFICATION_WARNING_COUNT_MAX)
+						sys.exit()
+					elif convertByteUnits2DecimalResult[1] < 0:
+						OUTPUT("Supplied  verification warning count %s must be a non-negative integer"%VERIFICATION_WARNING_COUNT_MAX)
+						sys.exit()
+					else:
+						VERIFICATION_WARNING_COUNT_MAX = convertByteUnits2DecimalResult[1]
+						OUTPUT("Will not be displaying verification warnings after a max count of ",VERIFICATION_WARNING_COUNT_MAX)
 				N +=1
 		else:
 			PRINT ("N = ",N,"len(sys.argv)-1 =",len(sys.argv)-1)
@@ -2545,7 +3334,12 @@ def returnFilePathList(semicolonSeparatedFilePaths):
 			if temp[i][-1] != slashType:
 				temp[i] += slashType
 			paths.append(temp[i])
-			
+	
+	# Finally, add the current directory at the end
+	if cwd[-1]!=slashType:
+		cwd += slashType
+	paths.append(cwd)
+	
 	PRINT("Returning paths =",paths)
 	return paths
 	
@@ -3254,6 +4048,17 @@ def evaluateArithmeticExpression(inputAST):
 				errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate Binary undefined constant"%(STR(inputList))
 				errorRoutine(errorMessage)
 				return [False, None]
+		elif re.match("^[0-9]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList):
+				if inputList[-3:] in ('ULL','ull'):
+					value2convert = inputList[:-3]
+				elif inputList[-2:] in ('LL','ll', 'ul','UL'):
+					value2convert = inputList[:-2]
+				elif inputList[-1] in ('L','l', 'u','U'):
+					value2convert = inputList[:-1]
+				else:
+					value2convert = inputList[:]
+				return [True,int(value2convert)]
+				
 		elif inputList in getDictKeyList(enumFieldValues):
 			return [True, int(enumFieldValues[inputList])]
 			
@@ -7307,9 +8112,379 @@ def condenseMultilineMacroIntoOneLine():
 #MUST_PRINT(parseArithmeticExpression(['a',',','b',',','c',',','d']))
 #sys.exit()
 
+####################################################################################################################################################################	
+# After a source file has been preprocessed (all macros applied and all included files inserted, it becomes very hard to figure out which line in the final source
+# came from which line of which original file.
+# This routine returns a triad (filename, path, line#) that tells exactly that.
+####################################################################################################################################################################	
+def findLineInOriginalSource(targetLineNumber):
+	for row in srcFileDetails:
+		for segmentNum in range(1,len(row)):
+			if row[segmentNum][0]<= targetLineNumber <= row[segmentNum][1]:
+				OUTPUT("Found the targetLineNumber=", targetLineNumber,"within segmentNum=",segmentNum,"in this row=\n",row)
+				includedFileName = row[0][0]
+				path = row[0][1]
+				slash = "\\" if "\\" in os.getcwd() else "/" if "/" in os.getcwd() else ""
+				path = path if path[-1]==slash else path+slash
+				lineNumInFile=0
+				# Add up all the lines upto segmentNum (where the targetLineNumber was found)
+				for seg in range(1,segmentNum+1):
+					PRINT("For segmentNum=",segmentNum,", seg =",seg,", row[seg]=", row[seg])
+					if seg < segmentNum:
+						# We add 1 extra for each segment
+						PRINT("Adding ALL",row[seg][1]-row[seg][0]+1+1,"lines within this segments")
+						lineNumInFile += row[seg][1]-row[seg][0]+1+1
+					elif row[seg][0]<= targetLineNumber <= row[seg][1]:
+						PRINT("Adding ",targetLineNumber-row[seg][0],"lines")
+						lineNumInFile += targetLineNumber-row[seg][0]
+					else:
+						EXIT("BAD Coding in findLineInOriginalSource()!!")
+				OUTPUT("The targetLineNumber=",targetLineNumber,"is approximately line#",lineNumInFile,"in file",row[0])
+				originalLines = []
+				if row[0][0] == "#ORIGINAL#":
+					OUTPUT("This is part of the code pasted in the Code window - cannot fetch")
+				elif os.path.isfile(path+includedFileName):
+					with open(path+includedFileName, "r") as includedFile:
+						try:
+							includedLines = includedFile.readlines()
+							if not checkIfStringOrListOfStrings(includedLines):
+								errorMessage = "ERROR in findLineInOriginalSource(): Bad coding: input code file content is NOT string - type(includedLines) = "+STR(type(includedLines))
+								errorRoutine(errorMessage)
+								return False
+							else:
+								i = lineNumInFile
+								while True:
+									currLine = includedLines[i]
+									originalLines.append(currLine)
+									if re.search(r'^\s*'+preProcessorSymbol+r'\s*.+\\\s*$', currLine):
+										i = i+1
+									else:
+										break
+								OUTPUT("In the original source file",path+includedFileName,"the following line(s) from line#",lineNumInFile,"constitude the current line")
+								OUTPUT(originalLines)
+						except ValueError: # Empty file
+							includedLines = [""]
+				returnValue = [row[0][0],row[0][1],lineNumInFile]
+				return returnValue
+	return False
+
+####################################################################################
+# This routine handles the macro definition in an input line
+####################################################################################
+def defineMacroOnLine(line):		
+#	PRINT=OUTPUT
+	global currentMacroNames, macroDefinitions
+			
+	
+	# If it is a macro definition (doesn't matter if re-definition), then we  add it to the macro dictionary as it is.
+	# We do NOT perform any invocation on either the macro argument list or the macro body.
+	#
+	# If it is a macro definition statement, the C preprocessor will NOT touch that statement for macro expansion
+	# For example,
+	#
+	#	#define CONSTANT 100
+	#	#define TABLESIZE CONSTANT				// <=== C preprocessor will NOT replace this statement as #define TABLESIZE 100
+	#
+	#   printf("TABLESIZE = %d", TABLESIZE);	// Obviously it will print "TABLESIZE = 100"
+	#
+	#	#define CONSTANT 50
+	#   printf("TABLESIZE = %d", TABLESIZE);	// Surprisingly, it will print "TABLESIZE = 50"
+	#
+	# Basically, what is happening is that first the preprocessor is replacing the original statement
+	#
+	# 		printf("TABLESIZE = %d", TABLESIZE);
+	#
+	# with this one:
+	#
+	# 		printf("TABLESIZE = %d", CONSTANT);
+	#
+	# Then it keeps searching again and finds that there is yet another instance of macro invocation (CONSTANT). So now it replaces this statement
+	#
+	# 		printf("TABLESIZE = %d", CONSTANT);
+	#
+	# with this one:
+	#
+	# 		printf("TABLESIZE = %d", 50);
+	#
+	# Now there is no more macro invocations in this last statement, hence it can give it to the compiler. Recall that a preprocessor is NOT part of the C language.
+	#
+	# This also has yet another surprising implication. The order of the macro definitions did not matter. We could also have had it like this
+	# and it would have given us identical result:
+	#
+	#	#define TABLESIZE CONSTANT				
+	#	#define CONSTANT 100
+	#
+	
+	# Now that all possible modification has been done to the current line, let's re-tokenize
+	macroTokenListResult = tokenizeLines(line)
+	if macroTokenListResult == False:
+		errorMessage = "ERROR in defineMacroOnLine(), after all macro invocations and #include statement processing has been done, right after calling tokenizeLines(currLine) for currLine = " + lines[i]
+		errorRoutine(errorMessage)
+		return False
+	else:
+		macroTokenList = macroTokenListResult[0]
+	
+	if macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == "define":
+		
+		#  Each row of this macros table will have 4 parts: [macroName, macroArguments, macroExpansionText, macroProperties]
+		# (Recall that multi-line macros have alredy been converted to single-line macros).
+		# Find out if this macro takes parameters or not. Remember that by now ALL multi-line macros have already been converted to single-line macros
+
+		
+		if len(macroTokenList) < 3:
+			errorMessage = "ERROR in line <%s> - Macro must have a valid name -- exiting!"%line
+			errorRoutine(errorMessage)
+			return False
+		elif not re.search("^\s*[a-zA-Z_]+\w*", macroTokenList[2]):
+			errorMessage = "ERROR in defineMacroOnLine() - Macro must have a valid name <"+ STR(macroTokenList[2])+ "> -- exiting!" 
+			errorRoutine(errorMessage)
+			return False
+		# Apparently anything can be a macro name - nothing is illegal
+#		elif macroTokenList[2] in illegalVariableNames:
+#			errorMessage = "ERROR in defineMacroOnLine() in line <%s> - Macro must have a valid name - <%s> is not allowed -- exiting!"%(line,macroTokenList[2])
+#			errorRoutine(errorMessage)
+#			return False
+		
+		macroName = macroTokenList[2]
+		macroProperties = {}
+		
+		OUTPUT("\t\tline =",line)
+		if re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\s*$', line): # No argument, no body (basically, a blank macro)
+			macroArguments = ""		# We do not use [] to differentiate the case when a macro behaves like a function with zero argument, like NEWMACRO()
+			macroExpansionText = ""
+			macroExpansionTextTokenized = []
+		elif re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\s+\S*', line): # No argument, but has a macro body
+			macroArguments = ""		# We do not use [] to differentiate the case when a macro behaves like a function with zero argument, like NEWMACRO()
+			macroExpansionText = re.sub(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\s+',"",line)
+			macroExpansionTextTokenized = macroTokenList[3:]
+		elif re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\(', line) and macroTokenList[3] == '()': # blank list of arguments
+			# Kludge - unfortunately, I implemented the '()' operator initially, so I must pay the price here
+			PRINT ("Macro ", macroName,"takes EMPTY arguments" )
+#			argumentList = ""
+			macroArguments = []
+			macroExpansionText = re.sub(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\(\s*\)\s+',"",line)
+			macroExpansionTextTokenized = macroTokenList[4:]
+		elif re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\(', line): # Has arguments
+			d = matchingBraceDistance(macroTokenList[3:]) 
+			if d < 0:
+				errorMessage = "ERROR in defineMacroOnLine() - No matching parenthesis for macro argument list - exiting!"
+				errorRoutine(errorMessage)
+				return False
+			else:
+				macroArguments = macroTokenList[3:3+d+1]		# MANNA_MANNA
+				macroExpansionText = re.sub(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\([\w,]*\)\s+',"",line)
+				macroExpansionTextTokenized = macroTokenList[3+d+1:]
+
+			variadicMacro = False
+			variadicMacroExplicitArgumentCount = 0
+			variadicMacroArgSpecialName = ""
+		
+			PRINT ("Macro ", macroName,"takes arguments" )
+			temp = re.sub(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\(', "",line)	# Keep in mind that the temp is missing the first '(' of the argument list
+			PRINT ("temp = <",temp,">" )
+			# There cannot be nested parenthesis inside the argument list for macro  definition (it is allowed during invocation, but not during definition)
+			if ")" not in temp:
+				errorMessage = "ERROR in defineMacroOnLine() - No ending parenthesis for macro argument list - exiting!"
+				errorRoutine(errorMessage)
+				return False
+			else:
+				endParenthesis = temp.index(')');
+				if "(" in temp:
+					newBeginParenthesis = temp.index('(');
+					if newBeginParenthesis < endParenthesis:
+						errorMessage = "ERROR in defineMacroOnLine() : \"\(\" may not appear in macro parameter list"
+						errorRoutine(errorMessage)
+						return False
+				macroArgumentsDefined = "("+temp[:endParenthesis]+")"
+				tokenizeLinesOutputResult = tokenizeLines(macroArgumentsDefined)
+				if tokenizeLinesOutputResult == False:
+					errorMessage = "ERROR in defineMacroOnLine(): exiting because tokenizeLines(macroArgumentsDefined) = False where macroArgumentsDefined ="+STR(macroArgumentsDefined)
+					errorRoutine(errorMessage)
+					return False
+				else:
+					tokenizeLinesOutput = tokenizeLinesOutputResult[0]
+					if tokenizeLinesOutput[0] != '(' or tokenizeLinesOutput[-1] != ')':
+						errorMessage = "Error in defineMacroOnLine(): Illegal argument list for macro %s: %s"%(macroName, STR(tokenizeLinesOutput))
+						errorRoutine(errorMessage)
+						return False
+					
+				# Variadic macros - check its input argument list format. Valid formats are ([arg1, arg2,...,argn,][specialName] ...)
+				if tokenizeLinesOutput[-2]=='...':
+					variadicMacro = True
+					PRINT("Variadic macro found")
+					if tokenizeLinesOutput[-3]!=',' and tokenizeLinesOutput[-3]!='(' : # We have a case like #define MacroName(args ...)
+						variadicMacroArgSpecialName = tokenizeLinesOutput[-3]
+						PRINT("Variadic macro argument it is referenced as",tokenizeLinesOutput[-3])
+						PRINT("Now deleting this ... token from tokenizeLinesOutput =",tokenizeLinesOutput)
+						del tokenizeLinesOutput[-2]	
+						PRINT("After deleting", variadicMacroArgSpecialName, ", tokenizeLinesOutput =",tokenizeLinesOutput)
+					else:
+						tokenizeLinesOutput[-2] = '__VA_ARGS__'	# We do this so that in the expansion we can simply do regular replacements
+					
+					numTokensUnconsumed = len(tokenizeLinesOutput)-3
+					if numTokensUnconsumed %2 != 0:
+						errorMessage = "Error in defineMacroOnLine(): Illegal argument list for macro %s: %s"%(macroName, STR(tokenizeLinesOutput))
+						errorRoutine(errorMessage)
+						return False
+					variadicMacroExplicitArgumentCount = integerDivision(numTokensUnconsumed,2)
+					for t in range(variadicMacroExplicitArgumentCount):
+						if tokenizeLinesOutput[2*(t+1)] != ',' or tokenizeLinesOutput[2*(t+1)-1] == ',':	# Recall that the tokenizeLinesOutput[0] = '('
+							errorMessage = "Error in defineMacroOnLine(): Illegal argument list for macro %s: %s"%(macroName, STR(tokenizeLinesOutput))
+							errorRoutine(errorMessage)
+							return False
+					PRINT("There are", variadicMacroExplicitArgumentCount,"explicit arguments before the ... in this variadic macro")
+					
+					
+				# Remember that for variadic macros with a special name for ... , we have deleted that token	
+				argumentList = parseArgumentList(tokenizeLinesOutput)
+				if argumentList == False:
+					errorMessage ("Error in defineMacroOnLine(): Error parsing for arguments in tokenized version of " + STR(tokenizeLinesOutput) )
+					errorRoutine(errorMessage)
+					return False
+				PRINT ("The macro",macroName,"takes the following argument list:",argumentList )
+				PRINT ("We have used argumentList = parseArgumentList(\"(\"+temp[:endParenthesis]+\")\"). If we had used argumentList = re.sub(\"\s*\",\"\",temp[:endParenthesis]).split(\",\"), then we would have gotten" )
+				PRINT (re.sub("\s*","",temp[:endParenthesis]).split(","))	# Remove all the whitespace from the argumentlist first, and then split it 
+				# argumentList = parseArgumentList("("+temp[:endParenthesis]+")")
+				# Check that there are no repeated arguments. For example, we cannot have a macro like #define func1(a,b,a). All arguments must be unique
+				argIndexI = 0
+				while argIndexI < len(argumentList):
+					argIndexJ = argIndexI + 1
+					while argIndexJ < len(argumentList):
+						if argumentList[argIndexI] == argumentList[argIndexJ]:
+							errorMessage = "ERROR  in defineMacroOnLine() for argument list " + STR(tokenizeLinesOutput) + " for Macro <"+ macroName + "> has repeated argument, argumentList["+STR(argIndexI)+"] ="+ STR(argumentList[argIndexI]), " is same as argumentList[" + STR(argIndexJ)+"]="+ STR(argumentList[argIndexJ])
+							errorRoutine(errorMessage)
+							return False
+						argIndexJ = argIndexJ + 1
+					argIndexI = argIndexI + 1	
+
+				PRINT("Valid argument list for macro ",macroName)
+				
+				# TO-DO: Can we have a case like where macro expansion text contains a quoted string literal that spills over to the next line?
+				macroExpansionText = temp[endParenthesis+1:].strip()
+				PRINT ("The macro",macroName,"expands into: <",macroExpansionText,">" )
+				tokenizeLinesOutputResult = tokenizeLines(macroExpansionText)
+				if tokenizeLinesOutputResult == False:
+					errorMessage = "ERROR in defineMacroOnLine(): tokenizeLines(macroExpansionText) = False for macroExpansionText ="+macroExpansionText
+					errorRoutine(errorMessage)
+					return False
+				else:
+					tokenizeLinesOutput = tokenizeLinesOutputResult[0]
+					
+				if variadicMacro and variadicMacroArgSpecialName and '__VA_ARGS__' in tokenizeLinesOutput:
+					errorMessage = "When we use a special symbol (%s) instead of the '...' for a variadic macro, the macro expansion text (%s) can no longer have '__VA_ARGS__' in it"%(variadicMacroArgSpecialName, list2plaintext(tokenizeLinesOutput))
+					errorRoutine(errorMessage)
+					return False
+					
+				macroExpansionTextAST = parseArithmeticExpression(tokenizeLinesOutput)
+				if macroExpansionTextAST == False:
+					errorMessage = "ERROR in defineMacroOnLine(): ERROR after calling parseArithmeticExpression(tokenizeLinesOutput) for tokenizeLinesOutput ="+STR(tokenizeLinesOutput)
+					errorRoutine(errorMessage)
+					return False
+				else:
+					PRINT ("============================\nmacroExpansionTextAST = \n", macroExpansionTextAST )
+
+				# For variadic macros, when the macro expansion has special terms like __VA_OPT__(things) and ##__VA_ARGS__, 
+				# special things happen when the __VA_ARGS__ part turns out to be null.
+				#
+				# For __VA_OPT__(things), the things part become omitted from the macro expansion when the __VA_ARGS__ part turns out to be null.
+				# for ##__VA_ARGS__, the preceding comma is omitted if __VA_ARGS__ turns out to be null.
+				#
+				# So, for variadic macros with __VA_OPT__(things) and ##__VA_ARGS__ and when __VA_ARGS__ is indeed null, there is an alternative macro expansion.
+				
+				temp = tokenizeLinesOutput
+				
+				token__VA_ARGS__ = variadicMacroArgSpecialName if variadicMacroArgSpecialName else '__VA_ARGS__'
+				
+				PRINT("Before handling ## __VA_ARGS__, tokenizeLinesOutput for macro expansion text =",temp)
+				while True:
+					findIndex = findIndexOfSequenceInList([',','##',token__VA_ARGS__],temp) 
+					if findIndex >= 0:
+						del temp[findIndex:findIndex+3]
+					else:
+						break
+				PRINT("After handling ## __VA_ARGS__, tokenizeLinesOutput for macro expansion text =",temp)
+						
+				while True:
+					findIndex = findIndexOfSequenceInList(['__VA_OPT__','('],temp) 
+					if findIndex >= 0:
+						d = matchingBraceDistance(temp[findIndex+1:])
+						if d < 0:
+							errorMessage = "ERROR in preProcess - no matching ) for __VA_OPT__"
+							errorRoutine(errorMessage)
+							return False
+						del temp[findIndex:findIndex+1+d+1]
+					else:
+						break
+						
+				if '__VA_OPT__' in temp:
+					errorMessage = "ERROR in preProcess - illegal __VA_OPT__"
+					errorRoutine(errorMessage)
+					return False
+				
+				PRINT("After handling __VA_OPT__(), tokenizeLinesOutput for macro expansion text =",temp)
+
+				while True:	# There still might be some __VA_ARGS__ without any preceding ## or __VA_OPT__
+					findIndex = findIndexOfSequenceInList([token__VA_ARGS__],temp) 
+					if findIndex >= 0:
+						del temp[findIndex]
+					else:
+						break
+				PRINT("After blanking out all other  __VA_ARGS__, tokenizeLinesOutput for macro expansion text =",temp)
+				
+				null__VA_ARGS__tokenizeLinesOutput = temp
+
+				null__VA_ARGS__macroExpansionTextAST = parseArithmeticExpression(null__VA_ARGS__tokenizeLinesOutput)
+				if null__VA_ARGS__macroExpansionTextAST == False:
+					errorMessage = "ERROR in defineMacroOnLine(): ERROR after calling parseArithmeticExpression() for null__VA_ARGS__tokenizeLinesOutput ="+STR(null__VA_ARGS__tokenizeLinesOutput)
+					errorRoutine(errorMessage)
+					return False
+				else:
+					PRINT ("============================\nnull__VA_ARGS__macroExpansionTextAST = \n", null__VA_ARGS__macroExpansionTextAST )
+					
+
+		# macroDefinitions[] is a list of [macroName, macroArguments, macroExpansionText, macroProperties]
+
+		# The fourth term, macroProperties{} has variable number of entries depending on what kind of macro it is.
+
+		# Updated for all macros
+		macroProperties["macroExpansionTextTokenized"] = macroExpansionTextTokenized
+		
+		# Special cases when the macro takes arguments
+		if macroArguments:
+			PRINT("\t\tAdding arguments",macroArguments, "for macro",macroName)
+			PRINT("\t\targumentList =",argumentList)
+			macroProperties["argumentList"] = argumentList
+			macroProperties["macroExpansionTextAST"] = macroExpansionTextAST
+			macroProperties["variadicMacro"] = variadicMacro
+		
+			# Special cases when the macro takes variable arguments
+			if variadicMacro:
+				macroProperties["variadicMacroExplicitArgumentCount"] = variadicMacroExplicitArgumentCount
+				macroProperties["variadicMacroArgSpecialName"] = variadicMacroArgSpecialName
+				macroProperties["null__VA_ARGS__macroExpansionTextAST"] = null__VA_ARGS__macroExpansionTextAST
+		
+		# First find out if it already exists on macroDefinitions or not. That is an ordered array of [macroName, macroArguments, macroExpansionText, macroProperties]
+		
+		if macroName in currentMacroNames:
+			macroIndex = currentMacroNames.index(macroName)
+			# Sanity check once again
+			if len(currentMacroNames) != len(macroDefinitions) or not isinstance(macroDefinitions[macroIndex],list) or macroDefinitions[macroIndex][0] != currentMacroNames[macroIndex]:
+				OUTPUT("Coding error - currentMacroNames and macroDefinitions out of sync - exiting")
+				OUTPUT("\ncurrentMacroNames =",STR(currentMacroNames),"\n", "macroDefinitions =",STR(macroDefinitions))
+				sys.exit()
+			PRINT("Re-definition of existing macro", macroName, "at macroIndex =",macroIndex,", of currentMacroNames. Exiting entry =",macroDefinitions[macroIndex])
+			PRINT("updating existing entry.")
+			macroDefinitions[macroIndex] = [macroName, macroArguments, macroExpansionText, macroProperties]
+		else:
+			PRINT("New definition of existing macro", macroName, " - adding it at the end of the array.")
+			macroDefinitions.append([macroName, macroArguments, macroExpansionText, macroProperties])
+			currentMacroNames.append(macroName)
+	
+	return True
+
 # This function takes the input lines and applied all possible macros on it
 def invokeMacrosOnLine(i):
-	global lines, runtimeStatementLineNumbers	# Keeps a list of which all line numbers are runtime statements. We need this so that we can invoke the interleaving check judiciously.
+	global lines, srcFileDetails, runtimeStatementLineNumbers	# Keeps a list of which all line numbers are runtime statements. We need this so that we can invoke the interleaving check judiciously.
 	
 	######################################################################
 	##																	##
@@ -7716,7 +8891,7 @@ def invokeMacrosOnLine(i):
 					errorRoutine(errorMessage)
 					return False
 					
-				PRINT("includedFileName =",includedFileName)
+				MUST_PRINT("includedFileName =",includedFileName)
 				slash = "\\" if "\\" in os.getcwd() else "/" if "/" in os.getcwd() else ""
 				if slash not in ["\\","/"]:
 					errorMessage = "ERROR in invokeMacrosOnLine() - cannot figure out if Windows or Unix - exiting"
@@ -7741,11 +8916,13 @@ def invokeMacrosOnLine(i):
 					
 				includeFilePaths = returnFilePathList(INCLUDE_FILE_PATHS)
 				fileFound = False
+				# First look into the current directory
 				if os.path.exists(includedFileName):
 					path = os.getcwd()
 					path = path if path[-1] == slash else path+slash
 					fileFound = True
 					PRINT("The file",includedFileName,"is present in the current working directory",path)
+				# Next look into the included paths
 				elif includeFilePaths != False and includeFilePaths != []:
 					for item in includeFilePaths:
 						if not checkIfString(item) or item[-1]!=slash:
@@ -7757,12 +8934,41 @@ def invokeMacrosOnLine(i):
 							fileFound = True
 							PRINT("The file",includedFileName,"is present in the include file path",path)
 							break
+				# Next look into the subdirectories of the included paths
+				if not fileFound:
+					PRINT("Looking into all subdirectories of included paths")
+					for item in includeFilePaths:
+						for folder, subfolder, files in os.walk(item):
+							if folder != item:
+								if slash in includedFileName:
+									if os.path.isfile(os.path.join(folder,includedFileName)):
+										path = folder
+										if path[-1]!=slash:
+											path += slash
+										fileFound = True
+										PRINT("The file",includedFileName,"is present in the include file path",path)
+										break
+								else:
+									for f in files:
+										if includedFileName == f:
+											PRINT ("File exists, path is ", os.path.join(folder, f))
+											fileFound = True
+											path = folder
+											if path[-1]!=slash:
+												path += slash
+											PRINT("The file",includedFileName,"is present in the following subdirectory in the include file path",path)
+											break
+							if fileFound:
+								break
+						if fileFound:
+							break
+								
 				if fileFound:
 					with open(path+includedFileName, "r") as includedFile:
 						try:
 							includedLines = includedFile.readlines()
 							if not checkIfStringOrListOfStrings(includedLines):
-								errorMessage = "ERROR in invokeMacrosOnLine(): Bad coding: input code file content is NOT string - type(includedLines) = "+STR(type(asciiLines))
+								errorMessage = "ERROR in invokeMacrosOnLine(): Bad coding: input code file content is NOT string - type(includedLines) = "+STR(type(includedLines))
 								errorRoutine(errorMessage)
 								return False
 							
@@ -7775,6 +8981,26 @@ def invokeMacrosOnLine(i):
 					
 				PRINT ("Included code file has",len(includedLines),"lines, which contains:", includedLines )
 				PRINT ("Before inserting, len(lines) =",len(lines))
+
+				# Sanity check before inserting the included file
+				totalLineCount = 0
+				maxLineNumber = -1
+				for row in srcFileDetails:
+					for segmentNum in range(1,len(row)):
+						totalLineCount += row[segmentNum][1]-row[segmentNum][0]+1
+						if row[segmentNum][1] > maxLineNumber:
+							maxLineNumber = row[segmentNum][1]
+				if totalLineCount != len(lines) or totalLineCount != maxLineNumber+1:
+					OUTPUT("Error: totalLineCount (",totalLineCount,")  != len(lines) (",len(lines),") or maxLineNumber(",maxLineNumber,")+1\nsrcFileDetails=\n")
+					for row in srcFileDetails:
+						OUTPUT(row)
+					EXIT("Bad coding")
+					
+				PRINT("\nBefore inserting includedFileName =",includedFileName,"at line #",i,"srcFileDetails =")
+				PRINT("srcFileDetails =\n")
+				for row in srcFileDetails:
+					PRINT(row)
+				PRINT("\n\n")
 				
 				oldNumberOfLines = len(lines)
 				# Insert the newly included lines in lines
@@ -7783,10 +9009,114 @@ def invokeMacrosOnLine(i):
 				if i<len(lines)-1:
 					tempLines.extend(lines[i+1:])
 
+#				MUST_PRINT("\nBefore inserting includedFileName =",includedFileName,"at line #",i,"srcFileDetails =")
+#				for row in srcFileDetails:
+#					MUST_PRINT(row)
+				
+				# Important: When we add numAddedLines, the total number of lines goes up by (numAddedLines-1), not numAddedLines. Because we are also consuming one line.
+				numAddedLines = len(includedLines)
+
 				# Overwrite the lines
 				lines = tempLines
 				PRINT ("After inserting, len(lines) =",len(lines))
 				newNumberOfLines = len(lines)
+
+				insertionRow = -10000000000000
+				insertionSegment = -100000000000000000
+				
+
+				# update the srcFileDetails
+				if srcFileDetails:
+					insertionPointFound = False
+					insertionPointFoundRowNum = None
+					for rowNum in range(len(srcFileDetails)):
+						row = srcFileDetails[rowNum]
+						if insertionPointFound:
+							break
+						PRINT("Now dealing with", row)
+						for segmentNum in range(1,len(row)):
+							start = row[segmentNum][0]
+							end = row[segmentNum][1]
+							if start > end:
+								OUTPUT("Bad coding - start > end in row =", row)
+								sys.exit()
+							if start <= i <= end:
+								insertionPointFound = True
+								insertionPointFoundRowNum = rowNum
+								# Split the existing entry by updating the end of existing entry and adding one after that
+								row[segmentNum][1] = i-1
+								#Insert new
+#								MUST_PRINT("Before inserting the new entry, row =",row)
+								# It is a pretty bad idea to insert into a row you are looping on. But since we are breaking immediately, it is OK to do it here
+								row.insert(segmentNum+1,[i+numAddedLines,end+numAddedLines-1])
+								# Update the entries in row # insertionPointFoundRowNum, because we will NOT touch this row later
+								for entryIndex in range(segmentNum+2,len(row)):
+									row[entryIndex][0] += numAddedLines-1
+									row[entryIndex][1] += numAddedLines-1
+#								MUST_PRINT("After inserting the new entry, row =",row)
+								break
+					if not insertionPointFound:
+						OUTPUT("Bad coding - by now should have found the insertion point i=",i)
+						OUTPUT("srcFileDetails =\n")
+						for row in srcFileDetails:
+							OUTPUT(row)
+						sys.exit()
+					srcFileDetails.append([[includedFileName,path],[i,i+numAddedLines-1]])
+					
+					# Shift all the subsequent by (numAddedLines-1)
+					for rowNum in range(len(srcFileDetails)):
+						row = srcFileDetails[rowNum]
+						if rowNum == insertionPointFoundRowNum:
+							continue
+						for segmentNum in range(1,len(row)):
+							start = row[segmentNum][0]
+							end = row[segmentNum][1]
+							if start > i:
+								row[segmentNum][0] += numAddedLines-1
+								row[segmentNum][1] += numAddedLines-1
+						
+				# Delete the impossible entries (start < end)
+				if srcFileDetails:
+					newSrcFileDetails = []	# It is very hard to propertly DELETE items from a list
+					for row in srcFileDetails:
+						newRow = []
+						PRINT("Now dealing with", row)
+						for segmentNum in range(1,len(row)):
+							start = row[segmentNum][0]
+							end = row[segmentNum][1]
+							if start <= end:
+								newRow.append(row[segmentNum])
+#							else:
+#								MUST_PRINT("Not copying row[segmentNum=",segmentNum,"] = ",row[segmentNum])
+						if len(newRow)>0:
+							newRow.insert(0,row[0])
+							newSrcFileDetails.append(newRow[:])
+							
+				# Overwrite the original file			
+				srcFileDetails = newSrcFileDetails[:]
+				
+				# Sanity check again
+				totalLineCount = 0
+				maxLineNumber = -1
+				for row in srcFileDetails:
+					for segmentNum in range(1,len(row)):
+						totalLineCount += row[segmentNum][1]-row[segmentNum][0]+1
+						if row[segmentNum][1] > maxLineNumber:
+							maxLineNumber = row[segmentNum][1]
+				if totalLineCount != len(lines) or totalLineCount != maxLineNumber+1:
+					OUTPUT("Error: totalLineCount (",totalLineCount,")  != len(lines) (",len(lines),") or maxLineNumber(",maxLineNumber,")+1\nsrcFileDetails=\n")
+					for row in srcFileDetails:
+						OUTPUT(row)
+					EXIT("Bad coding")
+				else:
+					PRINT("After adding content of file",includedFileName, ", totalLineCount (",totalLineCount,")  == len(lines) (",len(lines),")\nsrcFileDetails=\nlines=")
+					PRINT(lines)
+				
+				PRINT("\nAfter inserting includedFileName =",includedFileName,"at line #",i,"srcFileDetails =")
+				PRINT("srcFileDetails =\n")
+				for row in srcFileDetails:
+					PRINT(row)
+				PRINT("\n\n")
 				
 				if runtimeStatementLineNumbers and newNumberOfLines > oldNumberOfLines:
 					PRINT("Thanks to the #include statement on line #",i,", a total of",(newNumberOfLines - oldNumberOfLines),"new lines were added.")
@@ -7828,7 +9158,7 @@ def invokeMacrosOnLine(i):
 ############################################################################
 def preProcess():
 #	PRINT=OUTPUT
-	global lines, currentMacroNames, macroDefinitions, PRINT_DEBUG_MSG, runtimeStatementLocationsInGlobalScope, runtimeStatementLineNumbers
+	global lines, srcFileDetails, currentMacroNames, macroDefinitions, PRINT_DEBUG_MSG, runtimeStatementLocationsInGlobalScope, runtimeStatementLineNumbers
 	
 #	PRINT_DEBUG_MSG = True
 	
@@ -7852,6 +9182,18 @@ def preProcess():
 		currentMacroNames = []		# A cache of just the macro names
 		runtimeStatementLocationsInGlobalScope = []
 		runtimeStatementLineNumbers = []
+		srcFileDetails = []
+		
+		srcFileDetails.append([["#ORIGINAL#","#ORIGINAL#"],[0, len(lines)-1]])		# The string "#ORIGINAL#" indicates the code that is pasted in the code window originally
+
+		# Process all the builtin macro definitions
+		if EMULATE_GCC_COMPILATION_ENVIRONMENT:
+			for line in builtinMacroDefinitions:
+				defineMacroOnLineStatus = defineMacroOnLine(line)
+				if defineMacroOnLineStatus != True:
+					errorMessage = "ERROR in preProcess(), after calling defineMacroOnLine() for current line = " + line
+					errorRoutine(errorMessage)
+					return False
 
 		# The line pointer
 		i=0
@@ -7937,47 +9279,7 @@ def preProcess():
 			##			M A C R O    D E F I N I T I O N			##
 			##														##
 			##########################################################
-			
-			
-			# If it is a macro definition (doesn't matter if re-definition), then we  add it to the macro dictionary as it is.
-			# We do NOT perform any invocation on either the macro argument list or the macro body.
-			#
-			# If it is a macro definition statement, the C preprocessor will NOT touch that statement for macro expansion
-			# For example,
-			#
-			#	#define CONSTANT 100
-			#	#define TABLESIZE CONSTANT				// <=== C preprocessor will NOT replace this statement as #define TABLESIZE 100
-			#
-			#   printf("TABLESIZE = %d", TABLESIZE);	// Obviously it will print "TABLESIZE = 100"
-			#
-			#	#define CONSTANT 50
-			#   printf("TABLESIZE = %d", TABLESIZE);	// Surprisingly, it will print "TABLESIZE = 50"
-			#
-			# Basically, what is happening is that first the preprocessor is replacing the original statement
-			#
-			# 		printf("TABLESIZE = %d", TABLESIZE);
-			#
-			# with this one:
-			#
-			# 		printf("TABLESIZE = %d", CONSTANT);
-			#
-			# Then it keeps searching again and finds that there is yet another instance of macro invocation (CONSTANT). So now it replaces this statement
-			#
-			# 		printf("TABLESIZE = %d", CONSTANT);
-			#
-			# with this one:
-			#
-			# 		printf("TABLESIZE = %d", 50);
-			#
-			# Now there is no more macro invocations in this last statement, hence it can give it to the compiler. Recall that a preprocessor is NOT part of the C language.
-			#
-			# This also has yet another surprising implication. The order of the macro definitions did not matter. We could also have had it like this
-			# and it would have given us identical result:
-			#
-			#	#define TABLESIZE CONSTANT				
-			#	#define CONSTANT 100
-			#
-			
+
 			# Now that all possible modification has been done to the current line, let's re-tokenize
 			macroTokenListResult = tokenizeLines(lines[i])
 			if macroTokenListResult == False:
@@ -7988,252 +9290,13 @@ def preProcess():
 				macroTokenList = macroTokenListResult[0]
 			
 			if macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == "define":
-				
-				#  Each row of this macros table will have 4 parts: [macroName, macroArguments, macroExpansionText, macroProperties]
-				# (Recall that multi-line macros have alredy been converted to single-line macros).
-				# Find out if this macro takes parameters or not. Remember that by now ALL multi-line macros have already been converted to single-line macros
-
-				
-				if len(macroTokenList) < 3:
-					errorMessage = "ERROR in line <%s> - Macro must have a valid name -- exiting!"%lines[i]
-					errorRoutine(errorMessage)
-					return False
-				elif not re.search("^\s*[a-zA-Z_]+\w*", macroTokenList[2]):
-					errorMessage = "ERROR in preProcess() - Macro must have a valid name <"+ STR(macroTokenList[2])+ "> -- exiting!" 
-					errorRoutine(errorMessage)
-					return False
-				elif macroTokenList[2] in illegalVariableNames:
-					errorMessage = "ERROR in line <%s> - Macro must have a valid name - <%s> is not allow -- exiting!"%(lines[i],macroTokenList[2])
-					errorRoutine(errorMessage)
-					return False
-				
-				macroName = macroTokenList[2]
-				macroProperties = {}
-				
-				if re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\s*$', lines[i]): # No argument, no body (basically, a blank macro)
-					macroArguments = ""		# We do not use [] to differentiate the case when a macro behaves like a function with zero argument, like NEWMACRO()
-					macroExpansionText = ""
-					macroExpansionTextTokenized = []
-				elif re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\s+\S*', lines[i]): # No argument, but has a macro body
-					macroArguments = ""		# We do not use [] to differentiate the case when a macro behaves like a function with zero argument, like NEWMACRO()
-					macroExpansionText = re.sub(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\s+',"",lines[i])
-					macroExpansionTextTokenized = macroTokenList[3:]
-				elif re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\(', lines[i]): # Has arguments
-					if macroTokenList[3] != '(' or ')' not in macroTokenList[4:]:
-						errorMessage = "ERROR in preProcess() - No ending parenthesis for macro argument list - exiting!"
+				defineMacroOnLineStatus = defineMacroOnLine(lines[i])
+				if defineMacroOnLineStatus != True:
+					findLineInOriginalSourceResult = findLineInOriginalSource(i)
+					if findLineInOriginalSourceResult != False:
+						errorMessage = "ERROR in preProcess(), after calling defineMacroOnLine(lines["+STR(i)+"]) for current line = " + lines[i]
 						errorRoutine(errorMessage)
 						return False
-					d = matchingBraceDistance(macroTokenList[3:]) 
-					if d < 0:
-						errorMessage = "ERROR in preProcess() - No matching parenthesis for macro argument list - exiting!"
-						errorRoutine(errorMessage)
-						return False
-					else:
-						macroArguments = macroTokenList[3:3+d]
-						macroExpansionText = re.sub(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\([\w,]*\)\s+',"",lines[i])
-						macroExpansionTextTokenized = macroTokenList[3+d+1:]
-
-					variadicMacro = False
-					variadicMacroExplicitArgumentCount = 0
-					variadicMacroArgSpecialName = ""
-				
-					PRINT ("Macro ", macroName,"takes arguments" )
-					temp = re.sub(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\(', "",lines[i])	# Keep in mind that the temp is missing the first '(' of the argument list
-					PRINT ("temp = <",temp,">" )
-					# There cannot be nested parenthesis inside the argument list for macro  definition (it is allowed during invocation, but not during definition)
-					if ")" not in temp:
-						errorMessage = "ERROR in preProcess() - No ending parenthesis for macro argument list - exiting!"
-						errorRoutine(errorMessage)
-						return False
-					else:
-						endParenthesis = temp.index(')');
-						if "(" in temp:
-							newBeginParenthesis = temp.index('(');
-							if newBeginParenthesis < endParenthesis:
-								errorMessage = "ERROR in  preProcess() : \"\(\" may not appear in macro parameter list"
-								errorRoutine(errorMessage)
-								return False
-						macroArgumentsDefined = "("+temp[:endParenthesis]+")"
-						tokenizeLinesOutputResult = tokenizeLines(macroArgumentsDefined)
-						if tokenizeLinesOutputResult == False:
-							PRINT ("ERROR - exiting because tokenizeLines(macroArgumentsDefined) = False where macroArgumentsDefined =",macroArgumentsDefined )
-							return False
-						else:
-							tokenizeLinesOutput = tokenizeLinesOutputResult[0]
-							if tokenizeLinesOutput[0] != '(' or tokenizeLinesOutput[-1] != ')':
-								errorMessage = "Illegal argument list for macro %s: %s"%(macroName, STR(tokenizeLinesOutput))
-								errorRoutine(errorMessage)
-								return False
-							
-						# Variadic macros - check its input argument list format. Valid formats are ([arg1, arg2,...,argn,][specialName] ...)
-						if tokenizeLinesOutput[-2]=='...':
-							variadicMacro = True
-							PRINT("Variadic macro found")
-							if tokenizeLinesOutput[-3]!=',' and tokenizeLinesOutput[-3]!='(' : # We have a case like #define MacroName(args ...)
-								variadicMacroArgSpecialName = tokenizeLinesOutput[-3]
-								PRINT("Variadic macro argument it is referenced as",tokenizeLinesOutput[-3])
-								PRINT("Now deleting this ... token from tokenizeLinesOutput =",tokenizeLinesOutput)
-								del tokenizeLinesOutput[-2]	
-								PRINT("After deleting", variadicMacroArgSpecialName, ", tokenizeLinesOutput =",tokenizeLinesOutput)
-							else:
-								tokenizeLinesOutput[-2] = '__VA_ARGS__'	# We do this so that in the expansion we can simply do regular replacements
-							
-							numTokensUnconsumed = len(tokenizeLinesOutput)-3
-							if numTokensUnconsumed %2 != 0:
-								errorMessage = "Illegal argument list for macro %s: %s"%(macroName, STR(tokenizeLinesOutput))
-								errorRoutine(errorMessage)
-								return False
-							variadicMacroExplicitArgumentCount = integerDivision(numTokensUnconsumed,2)
-							for t in range(variadicMacroExplicitArgumentCount):
-								if tokenizeLinesOutput[2*(t+1)] != ',' or tokenizeLinesOutput[2*(t+1)-1] == ',':	# Recall that the tokenizeLinesOutput[0] = '('
-									errorMessage = "Illegal argument list for macro %s: %s"%(macroName, STR(tokenizeLinesOutput))
-									errorRoutine(errorMessage)
-									return False
-							PRINT("There are", variadicMacroExplicitArgumentCount,"explicit arguments before the ... in this variadic macro")
-							
-							
-						# Remember that for variadic macros with a special name for ... , we have deleted that token	
-						argumentList = parseArgumentList(tokenizeLinesOutput)
-						if argumentList == False:
-							errorMessage ("Exiting - Error parsing for arguments in tokenized version of " + STR(tokenizeLinesOutput) )
-							errorRoutine(errorMessage)
-							return False
-							sys.exit()
-						PRINT ("The macro",macroName,"takes the following argument list:",argumentList )
-						PRINT ("We have used argumentList = parseArgumentList(\"(\"+temp[:endParenthesis]+\")\"). If we had used argumentList = re.sub(\"\s*\",\"\",temp[:endParenthesis]).split(\",\"), then we would have gotten" )
-						PRINT (re.sub("\s*","",temp[:endParenthesis]).split(","))	# Remove all the whitespace from the argumentlist first, and then split it 
-						# argumentList = parseArgumentList("("+temp[:endParenthesis]+")")
-						# Check that there are no repeated arguments. For example, we cannot have a macro like #define func1(a,b,a). All arguments must be unique
-						argIndexI = 0
-						while argIndexI < len(argumentList):
-							argIndexJ = argIndexI + 1
-							while argIndexJ < len(argumentList):
-								if argumentList[argIndexI] == argumentList[argIndexJ]:
-									errorMessage = "ERROR  in preProcess() for argument list " + STR(tokenizeLinesOutput) + " for Macro <"+ macroName + "> has repeated argument, argumentList["+STR(argIndexI)+"] ="+ STR(argumentList[argIndexI]), " is same as argumentList[" + STR(argIndexJ)+"]="+ STR(argumentList[argIndexJ])
-									errorRoutine(errorMessage)
-									return False
-								argIndexJ = argIndexJ + 1
-							argIndexI = argIndexI + 1	
-
-						PRINT("Valid argument list for macro ",macroName)
-						
-						# TO-DO: Can we have a case like where macro expansion text contains a quoted string literal that spills over to the next line?
-						macroExpansionText = temp[endParenthesis+1:].strip()
-						PRINT ("The macro",macroName,"expands into: <",macroExpansionText,">" )
-						tokenizeLinesOutputResult = tokenizeLines(macroExpansionText)
-						if tokenizeLinesOutputResult == False:
-							PRINT ("Exiting - tokenizeLines(macroExpansionText) = False for macroExpansionText =",macroExpansionText )
-							return False
-						else:
-							tokenizeLinesOutput = tokenizeLinesOutputResult[0]
-							
-						if variadicMacro and variadicMacroArgSpecialName and '__VA_ARGS__' in tokenizeLinesOutput:
-							errorMessage = "When we use a special symbol (%s) instead of the '...' for a variadic macro, the macro expansion text (%s) can no longer have '__VA_ARGS__' in it"%(variadicMacroArgSpecialName, list2plaintext(tokenizeLinesOutput))
-							errorRoutine(errorMessage)
-							return False
-							
-						macroExpansionTextAST = parseArithmeticExpression(tokenizeLinesOutput)
-						if macroExpansionTextAST == False:
-							PRINT ("ERROR after calling parseArithmeticExpression(tokenizeLinesOutput) for tokenizeLinesOutput =",tokenizeLinesOutput )
-							return False
-							sys.exit()
-						else:
-							PRINT ("============================\nmacroExpansionTextAST = \n", macroExpansionTextAST )
-
-						# For variadic macros, when the macro expansion has special terms like __VA_OPT__(things) and ##__VA_ARGS__, 
-						# special things happen when the __VA_ARGS__ part turns out to be null.
-						#
-						# For __VA_OPT__(things), the things part become omitted from the macro expansion when the __VA_ARGS__ part turns out to be null.
-						# for ##__VA_ARGS__, the preceding comma is omitted if __VA_ARGS__ turns out to be null.
-						#
-						# So, for variadic macros with __VA_OPT__(things) and ##__VA_ARGS__ and when __VA_ARGS__ is indeed null, there is an alternative macro expansion.
-						
-						temp = tokenizeLinesOutput
-						
-						token__VA_ARGS__ = variadicMacroArgSpecialName if variadicMacroArgSpecialName else '__VA_ARGS__'
-						
-						PRINT("Before handling ## __VA_ARGS__, tokenizeLinesOutput for macro expansion text =",temp)
-						while True:
-							findIndex = findIndexOfSequenceInList([',','##',token__VA_ARGS__],temp) 
-							if findIndex >= 0:
-								del temp[findIndex:findIndex+3]
-							else:
-								break
-						PRINT("After handling ## __VA_ARGS__, tokenizeLinesOutput for macro expansion text =",temp)
-								
-						while True:
-							findIndex = findIndexOfSequenceInList(['__VA_OPT__','('],temp) 
-							if findIndex >= 0:
-								d = matchingBraceDistance(temp[findIndex+1:])
-								if d < 0:
-									errorMessage = "ERROR in preProcess - no matching ) for __VA_OPT__"
-									errorRoutine(errorMessage)
-									return False
-								del temp[findIndex:findIndex+1+d+1]
-							else:
-								break
-								
-						if '__VA_OPT__' in temp:
-							errorMessage = "ERROR in preProcess - illegal __VA_OPT__"
-							errorRoutine(errorMessage)
-							return False
-						
-						PRINT("After handling __VA_OPT__(), tokenizeLinesOutput for macro expansion text =",temp)
-
-						while True:	# There still might be some __VA_ARGS__ without any preceding ## or __VA_OPT__
-							findIndex = findIndexOfSequenceInList([token__VA_ARGS__],temp) 
-							if findIndex >= 0:
-								del temp[findIndex]
-							else:
-								break
-						PRINT("After blanking out all other  __VA_ARGS__, tokenizeLinesOutput for macro expansion text =",temp)
-						
-						null__VA_ARGS__tokenizeLinesOutput = temp
-
-						null__VA_ARGS__macroExpansionTextAST = parseArithmeticExpression(null__VA_ARGS__tokenizeLinesOutput)
-						if null__VA_ARGS__macroExpansionTextAST == False:
-							OUTPUT ("ERROR after calling parseArithmeticExpression() for null__VA_ARGS__tokenizeLinesOutput =", null__VA_ARGS__tokenizeLinesOutput)
-							return False
-							sys.exit()
-						else:
-							PRINT ("============================\nnull__VA_ARGS__macroExpansionTextAST = \n", null__VA_ARGS__macroExpansionTextAST )
-							
-
-				# macroDefinitions[] is a list of [macroName, macroArguments, macroExpansionText, macroProperties]
-
-				# The fourth term, macroProperties{} has variable number of entries depending on what kind of macro it is.
-
-				# Updated for all macros
-				macroProperties["macroExpansionTextTokenized"] = macroExpansionTextTokenized
-				
-				# Special cases when the macro takes arguments
-				if macroArguments != "":
-					macroProperties["argumentList"] = argumentList
-					macroProperties["macroExpansionTextAST"] = macroExpansionTextAST
-					macroProperties["variadicMacro"] = variadicMacro
-				
-					# Special cases when the macro takes variable arguments
-					if variadicMacro:
-						macroProperties["variadicMacroExplicitArgumentCount"] = variadicMacroExplicitArgumentCount
-						macroProperties["variadicMacroArgSpecialName"] = variadicMacroArgSpecialName
-						macroProperties["null__VA_ARGS__macroExpansionTextAST"] = null__VA_ARGS__macroExpansionTextAST
-				
-				# First find out if it already exists on macroDefinitions or not. That is an ordered array of [macroName, macroArguments, macroExpansionText, macroProperties]
-				
-				if macroName in currentMacroNames:
-					macroIndex = currentMacroNames.index(macroName)
-					# Sanity check once again
-					if len(currentMacroNames) != len(macroDefinitions) or not isinstance(macroDefinitions[macroIndex],list) or macroDefinitions[macroIndex][0] != currentMacroNames[macroIndex]:
-						OUTPUT("Coding error - currentMacroNames and macroDefinitions out of sync - exiting")
-						OUTPUT("\ncurrentMacroNames =",STR(currentMacroNames),"\n", "macroDefinitions =",STR(macroDefinitions))
-						sys.exit()
-					PRINT("Re-definition of existing macro", macroName, "at macroIndex =",macroIndex,", of currentMacroNames. Exiting entry =",macroDefinitions[macroIndex])
-					PRINT("updating existing entry.")
-					macroDefinitions[macroIndex] = [macroName, macroArguments, macroExpansionText, macroProperties]
-				else:
-					PRINT("New definition of existing macro", macroName, " - adding it at the end of the array.")
-					macroDefinitions.append([macroName, macroArguments, macroExpansionText, macroProperties])
-					currentMacroNames.append(macroName)
 				
 				# Finally, remove the #define statement from lines. Once added to the macro database, its job is done.
 				# Preprocessing is not part of actual C anyway.
@@ -8276,8 +9339,9 @@ def preProcess():
 				lines[i] = ""
 						
 			elif macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == 'error':
-				warningMessage = "This tool currently ignores all "+preProcessorSymbol+"error statements: <"+lines[i]+">"
-				warningRoutine(warningMessage)
+				if PRINT_UNDEF_WARNING:	# Currently, we are using this global variable for ALL these kind of warnings
+					warningMessage = "This tool currently ignores all "+preProcessorSymbol+"error statements: <"+lines[i]+">"
+					warningRoutine(warningMessage)
 			elif macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>=2 and macroTokenList[1] == 'line':
 				warningMessage = "This tool currently ignores all "+preProcessorSymbol+"line statements: <"+lines[i]+">"
 				warningRoutine(warningMessage)
@@ -8549,7 +9613,13 @@ def preProcess():
 				if runtimeStatement:
 					for targetLineNumber in ordinaryPreprocessingOrRuntimeStatementLineNumbers:
 						if targetLineNumber in runtimeStatementLineNumbers:
-							EXIT("Bad coding in preProcess(): line #"+STR(targetLineNumber)+" already exists in runtimeStatementLineNumbers = "+STR(runtimeStatementLineNumbers))
+							OUTPUT("lines[targetLineNumber=",targetLineNumber,"] =",lines[targetLineNumber])
+							OUTPUT("Bad coding in preProcess(): line #"+STR(targetLineNumber)+" already exists in runtimeStatementLineNumbers = "+STR(runtimeStatementLineNumbers))
+							OUTPUT("srcFileDetails =\n")
+							for row in srcFileDetails:
+								OUTPUT(row)
+							findLineInOriginalSource(targetLineNumber)
+							sys.exit()
 						else:
 							runtimeStatementLineNumbers.append(targetLineNumber)
 				runtimeStatementLineNumbers.sort()
@@ -8619,6 +9689,7 @@ def preProcess():
 
 
 	return True
+
 
 ######################################################################################################################
 # This function is supplied with a list of tokens and a list of lines, supposedly matching the tokenlist.
@@ -8875,7 +9946,7 @@ def parseEnum(tokenList, i):
 								return False
 							elif enumElementLength == 1:	# Be careful not to use enumElement[0], since we do not know if the enumElement is a single-element list, or a string
 								enumFields[item]= lastEnumValue+1
-								lastEnumValue += 1
+								lastEnumValue = enumFields[item]
 								PRINT ("No explicit assignment for",item )
 							elif enumElement[1] != "=":
 								errorMessage = "ERROR parseEnum() - illegal enum element <%s> - should have been =  .... Exiting"%enumElement[1]
@@ -8885,7 +9956,7 @@ def parseEnum(tokenList, i):
 								PRINT ("Simple assignment for",enumElement," - no expression to evaluate for enum field", item )
 								if checkIfIntegral(enumElement[2]):	# Will it work? "1" is not an integer, 1 is
 									enumFields[enumElement[0]]= enumElement[2]
-									lastEnumValue += 1
+									lastEnumValue = enumElement[2]
 								elif checkIfString(enumElement[2]):	# Will it work? "1" is not an integer, 1 is
 									evaluateArithmeticExpressionResult = evaluateArithmeticExpression(enumElement[2])
 									if evaluateArithmeticExpressionResult[0]!=True:
@@ -8902,8 +9973,8 @@ def parseEnum(tokenList, i):
 											errorMessage = "ERROR parseEnum() after calling evaluateArithmeticExpression() - the output ("+str(output)+") is not an integer"
 											errorRoutine(errorMessage)
 											return False
-										enumFields[enumElement[0]]= output
-										lastEnumValue += 1
+#										enumFields[enumElement[0]]= output
+#										lastEnumValue += 1
 								else:
 									errorMessage = "ERROR parseEnum() - illegal enum element assignment <%s> = <%s> (not an integer) - should have been =  .... Exiting"%(enumElement[0],enumElement[2])
 									errorRoutine(errorMessage)
@@ -12943,6 +14014,8 @@ def splitName(namedVariable, variableIdOrParentStructName=""):
 def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializationValueSupplied = None, commonPrefix=""):
 #	PRINT=OUTPUT
 	PRINT("\n","==="*50,"\n","Inside verifyInitialization(unraveledSupplied, rowNum=",rowNum,", silent =","True" if silent else "False",", initializationValueSupplied = ",initializationValueSupplied,", commonPrefix = <"+commonPrefix+">", ")\n","==="*50)
+	global gVerificationWarningCount
+	
 	if not unraveledSupplied:
 		return [True, False]
 	elif rowNum >= len(unraveledSupplied):
@@ -13261,7 +14334,8 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 				
 				if result[0]!= True or result[1]!= True:
 					warningMessage = "ERROR in verifyInitialization() - the named initialization statement <"+list2plaintext(item,"")+"> did not succeed"
-					if not silent:
+					gVerificationWarningCount += 1
+					if not silent and gVerificationWarningCount < VERIFICATION_WARNING_COUNT_MAX:
 						warningRoutine(warningMessage)
 					PRINT(warningMessage)
 					return [result[0], False]
@@ -13386,7 +14460,8 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 			
 			if result[0]!= True or result[1]!= True:
 				warningMessage = "Warning in verifyInitialization() - the explicit-indexed array initialization statement <"+list2plaintext(item,"")+"> did not succeed"
-				if not silent:
+				gVerificationWarningCount += 1
+				if not silent and gVerificationWarningCount < VERIFICATION_WARNING_COUNT_MAX:
 					warningRoutine(warningMessage)
 				OUTPUT(warningMessage)
 				return [result[0], False]
@@ -13432,7 +14507,8 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 				
 				if result[0]!= True or result[1]!= True:
 					warningMessage = "ERROR in verifyInitialization() - the positional array/struct initialization statement <"+list2plaintext(item,"")+"> did not succeed"
-					if not silent:
+					gVerificationWarningCount += 1
+					if not silent and gVerificationWarningCount < VERIFICATION_WARNING_COUNT_MAX:
 						warningRoutine(warningMessage)
 					PRINT(warningMessage)
 					return [result[0], False]
@@ -13481,7 +14557,8 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 				elif getRuntimeValueResult[1] == False:
 					PRINT ("Failure while calculating initialization value after calling getRuntimeValue(",combinedInitializationTest,")")
 					warningMessage = "Warning in verifyInitialization() while calculating initialization value after calling getRuntimeValue( <%s> ) - the comparison result is False"%(list2plaintext(combinedInitializationTest))
-					if not silent:
+					gVerificationWarningCount += 1
+					if not silent and gVerificationWarningCount < VERIFICATION_WARNING_COUNT_MAX:
 						warningRoutine(warningMessage)
 					PRINT(warningMessage)
 					PRINT("Returning [True, False]")
@@ -13762,7 +14839,8 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				return False
 			elif verifyInitializationResult[1] == False:
 				warningMessage = "Warning in addVariableToUnraveled(): For "+variableDatatype+" array variable "+variableName+", initialization check failed after calling verifyInitialization()"
-				if not silent:
+				
+				if not silent and gVerificationWarningCount < VERIFICATION_WARNING_COUNT_MAX:
 					warningRoutine(warningMessage)
 				OUTPUT(warningRoutine)
 			elif verifyInitializationResult[1] == True:
@@ -13806,7 +14884,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				return False
 			elif verifyInitializationResult[1] == False:
 				warningMessage = "Warning in addVariableToUnraveled(): For dynamic struct "+variableDatatype+" variable "+variableName+", initialization check failed after calling verifyInitialization()"
-				if not silent:
+				if not silent and gVerificationWarningCount < VERIFICATION_WARNING_COUNT_MAX:
 					warningRoutine(warningMessage)
 				OUTPUT(warningMessage)
 			elif verifyInitializationResult[1] == True:
@@ -14097,7 +15175,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 					return False
 				elif verifyInitializationResult[1] == False:
 					warningMessage = "Warning in addVariableToUnraveled(): For "+variableDatatype+" non-array variable "+variableName+", initialization check failed after calling verifyInitialization()"
-					if not silent:
+					if not silent and gVerificationWarningCount < VERIFICATION_WARNING_COUNT_MAX:
 						warningRoutine(warningMessage)
 					PRINT(warningMessage)
 				elif verifyInitializationResult[1] == True:
@@ -14548,7 +15626,23 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 			if i==0 or tokenList[i-1] != preProcessorSymbol:
 				OUTPUT("Possible error handling #pragma")
 				
-			if tokenList[i+1] == "pack":
+			if tokenList[i+1] != "pack":
+				resultPair = firstAndLastTokenIndicesOnSameLineForTokenNumber(i, tokenListInformation)
+				if resultPair == False:
+					errorMessage = "ERROR in parseCodeSnippet() after trying to find the first and last tokens for tokenList["+STR(i)+"] = "+tokenList[i]
+					errorRoutine(errorMessage)
+					return False
+				else:
+					pragmaDirectiveEndTokenIndex = resultPair[1]
+					# Sanity check - the first token in that line must be the preprocessor symbol #
+					if tokenList[resultPair[0]] != preProcessorSymbol:
+						EXIT("ERROR in parseCodeSnippet() - BAD coding - Something wrong!!")
+
+					OUTPUT("Ignoring #pragma directive", STR(tokenList[i:pragmaDirectiveEndTokenIndex+1]))
+					i = pragmaDirectiveEndTokenIndex + 1	# Move the pointer
+					continue
+				
+			else:
 				if tokenList[i+2] == "()":	# If we are tokenizing () as "()" instead of "(" followed by ")", then handle that case directly
 					pragmaPackCurrentValue = pragmaPackDefaultValue		#pragma pack()     /* restore compiler's default alignment setting */
 					i = i + 3
@@ -16167,8 +17261,8 @@ def inputFileIsHexText():
 ################################################################################################
 # This routine takes in a variableId and its value, and it returns its enum literal value.
 ################################################################################################
-def returnEnumLiteralForValue(variableId, value):
-	PRINT=OUTPUT
+def returnEnumLiteralForValue(variableId, inputValue):
+#	PRINT=OUTPUT
 	if variableId >= len(variableDeclarations):
 		errorMessage = "Error in returnEnumLiteralForValue(): Supplied variableId="+STR(variableId)+" is out of bounds"
 		errorRoutine(errorMessage)
@@ -16180,8 +17274,15 @@ def returnEnumLiteralForValue(variableId, value):
 		errorRoutine(errorMessage)
 		return [False, None]
 		
-	MUST_PRINT("Printing enum literals for variableId",variableId)
+	PRINT("Printing enum literals for variableId",variableId)
 	
+	if checkIfIntegral(inputValue):
+		value = STR(inputValue)
+	elif checkIfString(inputValue):
+		value = inputValue
+	else:
+		EXIT("Bad coding in returnEnumLiteralForValue() - inputValue of", STR(inputValue),"neither integral nor string")
+		
 	negativeValue = True if value[0]=="-" else False
 	charsComsumed = 1 if negativeValue else 0
 	if DISPLAY_INTEGRAL_VALUES_IN_HEX:
@@ -16194,7 +17295,7 @@ def returnEnumLiteralForValue(variableId, value):
 	else:
 		valueList = [value[charsComsumed:]]
 		
-	MUST_PRINT("Calling getRuntimeValue(valueList) for valueList=",STR(valueList))
+	PRINT("Calling getRuntimeValue(valueList) for valueList=",STR(valueList))
 	getRuntimeValueResult = getRuntimeValue(valueList)
 	if getRuntimeValueResult[0]==False:
 		errorMessage = "Error evaluating <"+STR(valueList)+">"
@@ -16204,7 +17305,7 @@ def returnEnumLiteralForValue(variableId, value):
 		valueActual = getRuntimeValueResult[1]
 		if negativeValue:
 			valueActual = valueActual * (-1)
-		MUST_PRINT("valueActual =",valueActual)
+		PRINT("valueActual =",valueActual)
 		valueToDisplay = STR(valueActual)
 		if enumType in getDictKeyList(enums):
 			matchingEnumLiteralList = []	# Multiple literals might match the same value
@@ -16214,9 +17315,9 @@ def returnEnumLiteralForValue(variableId, value):
 					matchingEnumLiteralList.append(enumTypeLiteral)
 			if len(matchingEnumLiteralList) > 0:
 				if len(matchingEnumLiteralList) == 1:
-					valueToDisplay = STR(valueToDisplay)+"("+STR(matchingEnumLiteralList[0])+")"
+					valueToDisplay = STR(valueToDisplay)+" ("+STR(matchingEnumLiteralList[0])+")"
 				else:
-					valueToDisplay = STR(valueToDisplay)+"("+'/'.join(matchingEnumLiteralList)+")"
+					valueToDisplay = STR(valueToDisplay)+" ("+'/'.join(matchingEnumLiteralList)+")"
 		else:
 			errorMessage = "Error in prettyPrintUnraveled: Unknown enumType <"+STR(enumType)+">"
 			errorRoutine(errorMessage)
@@ -16296,11 +17397,12 @@ def prettyPrintUnraveled(displayAncestry=False):
 			else:
 				addrStart = hex(unraveled[N][3])
 				addrEnd = hex(unraveled[N][4]-1)
+				
 			if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][8][-1]][4]["enumType"]!=None:
 				variableId = unraveled[N][8][-1]
 				
 				valueLE = unraveled[N][6]
-				MUST_PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
+				PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
 				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
 				if returnEnumLiteralForValueResult[0]==False:
 					errorMessage = "Error in prettyPrintUnraveled(): Cannot enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
@@ -16310,7 +17412,7 @@ def prettyPrintUnraveled(displayAncestry=False):
 					valueLE2Display = returnEnumLiteralForValueResult[1]
 
 				valueBE = unraveled[N][7]
-				MUST_PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
+				PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
 				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
 				if returnEnumLiteralForValueResult[0]==False:
 					errorMessage = "Error in prettyPrintUnraveled(): Cannot enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
@@ -16445,6 +17547,9 @@ def dumpDetailsForDebug(MUST=False):
 		PRINT ("blankArraysAndTerminationInfo =")
 		for key in getDictKeyList(blankArraysAndTerminationInfo):
 			PRINT ("blankArraysAndTerminationInfo[key=",key,"] = ",blankArraysAndTerminationInfo[key])
+	PRINT ("\nsrcFileDetails =")
+	for row in srcFileDetails:
+		PRINT (row)
 	PRINT ("variablesAtGlobalScopeSelected =",variablesAtGlobalScopeSelected)
 	PRINT ("variablesAtGlobalScopeSelected =",[variableDeclarations[item][0] for item in variablesAtGlobalScopeSelected])
 	PRINT ("variableSelectedIndices =",variableSelectedIndices)
@@ -18871,6 +19976,32 @@ class MainWindow:
 			valueBE = unraveled[unraveledRowNumber][7]
 			valueLEStr = str(valueLE)
 			valueBEStr = str(valueBE)
+			
+			if PRINT_ENUM_LITERALS and variableDeclarations[variableId][4]["enumType"]!=None:
+				
+				PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
+				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
+				if returnEnumLiteralForValueResult[0]==False:
+					errorMessage = "Error in displayAndColorDataWindows(): Cannot find enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
+					errorRoutine(errorMessage)
+					return False
+				else:
+					valueLEStr = returnEnumLiteralForValueResult[1]
+					#if the valueLEStr is too big to show, we truncate it
+					if len(valueLEStr) > PRINT_ENUM_LITERALS_MAX_SIZE_CHAR:
+						valueLEStr = valueLEStr[0:PRINT_ENUM_LITERALS_MAX_SIZE_CHAR] + "..."
+
+				PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
+				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
+				if returnEnumLiteralForValueResult[0]==False:
+					errorMessage = "Error in displayAndColorDataWindows(): Cannot find enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
+					errorRoutine(errorMessage)
+					return False
+				else:
+					valueBEStr = returnEnumLiteralForValueResult[1]
+					#if the valueBEStr is too big to show, we truncate it
+					if len(valueBEStr) > PRINT_ENUM_LITERALS_MAX_SIZE_CHAR: 
+						valueBEStr = valueBEStr[0:PRINT_ENUM_LITERALS_MAX_SIZE_CHAR] + "..."
 
 			if isArray:	# We need to add the proper array indices in case it is an array
 				variableDescription = unraveledFullyQualifiedVariableName +", where "+ variableDescription
@@ -19299,8 +20430,35 @@ class MainWindow:
 				else:
 					addrStart = hex(unraveled[N][3])
 					addrEnd = hex(unraveled[N][4]-1)
-#				treeViewRowValues = (levelIndent+unraveled[N][1],dataTypeText,hex(unraveled[N][3]),hex(unraveled[N][4]-1),unraveled[N][5],unraveled[N][6],unraveled[N][7])
-				treeViewRowValues = (levelIndent+unraveled[N][1],dataTypeText,addrStart,addrEnd,unraveled[N][5],unraveled[N][6],unraveled[N][7])
+
+					valueLE = unraveled[N][6]
+					valueBE = unraveled[N][7]
+					
+					valueLE2Display = valueLE
+					valueBE2Display = valueBE
+					
+					if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][8][-1]][4]["enumType"]!=None:
+						variableId = unraveled[N][8][-1]
+						
+						PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
+						returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
+						if returnEnumLiteralForValueResult[0]==False:
+							errorMessage = "Error in populateTreeView(): Cannot enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
+							errorRoutine(errorMessage)
+							return False
+						else:
+							valueLE2Display = returnEnumLiteralForValueResult[1]
+
+						PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
+						returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
+						if returnEnumLiteralForValueResult[0]==False:
+							errorMessage = "Error in populateTreeView(): Cannot enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
+							errorRoutine(errorMessage)
+							return False
+						else:
+							valueBE2Display = returnEnumLiteralForValueResult[1]
+
+				treeViewRowValues = (levelIndent+unraveled[N][1],dataTypeText,addrStart,addrEnd,unraveled[N][5],valueLE2Display,valueBE2Display)
 				id = self.treeView.insert(hierarchy[-1], "end", iid=None, values=treeViewRowValues)
 			except IndexError:
 				OUTPUT ("IndexError in populateTreeView(): List index out of range for N = ",N)
@@ -19443,8 +20601,9 @@ class MainWindow:
 	##################################################################################################################
 	
 	def mapStructureToData(self, event=None):
-		global variableSelectedIndices, lastActionWasInterpret, lastActionWasMap
+		global variableSelectedIndices, lastActionWasInterpret, lastActionWasMap, gVerificationWarningCount
 
+		gVerificationWarningCount = 0
 
 		PRINT("\n\n\n","==="*50,"\n","///"*50,"\n","==="*50,"\n","\t"*7,"Inside mapStructureToData()\n","==="*50,"\n","\\\\\\"*50,"\n","==="*50,"\n\n\n")
 		
@@ -19832,6 +20991,32 @@ class MainWindow:
 			valueBE = unraveled[unraveledRowNumber][7]
 			valueLEStr = str(valueLE)
 			valueBEStr = str(valueBE)
+
+			if PRINT_ENUM_LITERALS and variableDeclarations[variableId][4]["enumType"]!=None:
+				
+				PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
+				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
+				if returnEnumLiteralForValueResult[0]==False:
+					errorMessage = "Error in performInterpretedCodeColoring(): Cannot find enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
+					errorRoutine(errorMessage)
+					return False
+				else:
+					valueLEStr = returnEnumLiteralForValueResult[1]
+					#if the valueLEStr is too big to show, we truncate it
+					if len(valueLEStr) > PRINT_ENUM_LITERALS_MAX_SIZE_CHAR:
+						valueLEStr = valueLEStr[0:PRINT_ENUM_LITERALS_MAX_SIZE_CHAR] + "..."
+
+				PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
+				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
+				if returnEnumLiteralForValueResult[0]==False:
+					errorMessage = "Error in performInterpretedCodeColoring(): Cannot find enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
+					errorRoutine(errorMessage)
+					return False
+				else:
+					valueBEStr = returnEnumLiteralForValueResult[1]
+					#if the valueBEStr is too big to show, we truncate it
+					if len(valueBEStr) > PRINT_ENUM_LITERALS_MAX_SIZE_CHAR: 
+						valueBEStr = valueBEStr[0:PRINT_ENUM_LITERALS_MAX_SIZE_CHAR] + "..."
 
 
 
