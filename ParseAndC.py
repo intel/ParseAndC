@@ -940,7 +940,7 @@ ATTRIBUTE_STRING 	= "__attribute__"
 illegalVariableNames = list(preprocessingDirectives) + list(oneCharOperatorList) + list(twoCharOperatorList) + list(threeCharOperatorList) + cDataTypes + cKeywords + integralDataTypes
 
 lines = []
-enums = {}		# This is a dictionary that holds yet another dictionary inside {enumType,{enumFields,enumFieldValues}}
+enums = {}		# This is a dictionary that holds yet another dictionary inside {enumDataType,{enumLiteral,enumValue}}
 enumFieldValues = {}	# This is a dictionary of ALL enum fields and their values. We can do this because enum field names are globally unique. We keep this separate to cache the enum values
 typedefs = {}
 suDict = {}	# Dictionary that maps a struct or union name (which may not be unique thanks to #RUNTIME statements) to a unique suId (struct or union id number)
@@ -2727,11 +2727,11 @@ def printHelp():
 	OUTPUT("-c, --codefile            followed by the code file name")
 	OUTPUT("-d, --datafile            followed by the data file name")
 	OUTPUT("--dummyVarNamePrefix      All dummy variables will start with this prefix")
-	OUTPUT("-e, --enum  [Y/N]         Overrides whether to print the enum literal for data values.")
-	OUTPUT("-g, --global              followed by the name of the Global-level variables (or typedefs) that will be mapped")
-	OUTPUT("-gcc                      Attempts to emulate the GCC compilation environment")
+	OUTPUT("-e, --enum  [Y/N]         Overrides the default setting of whether to print the enum literal for data values.")
+	OUTPUT("-g, --global              followed by the name of the Global-level variables (or typedefs) that will be mapped during the batch mode")
 	OUTPUT("                          If providing multiple variable names, then it must be double-quoted (like \"var1 var2\")")
 	OUTPUT("                          If no variable names are provided, every variable at the global level in the code file will be automatically selected")
+	OUTPUT("-gcc                      Attempts to emulate the GCC compilation environment")
 	OUTPUT("-h, --help                Prints the options available")
 	OUTPUT("-i, --include             followed by a single string that contains the include file path(s), separated by semicolon")
 	OUTPUT("-o, --offset              followed by the offset value (from which offset in the data file the struct will start mapping from)")
@@ -2739,7 +2739,7 @@ def printHelp():
 	OUTPUT("-t, --typedef             followed by Yes/No to indicate if typedefs will be mapped as regular variables or not")
 	OUTPUT("-u                        Suppress warnings when the code tries to #undef symbols that are not-yet-defined ")
 	OUTPUT("-v, --verbose, --debug    to indicate if debug messages will be printed or not")
-	OUTPUT("-w [Y/N/maxcount]         To turn on/off the verification warning messages, and not to display such message after a certain max count has been reaches")
+	OUTPUT("-w [Y/N/maxcount]         To turn on/off the verification warning messages, and not to display such message after a certain max count has been reached")
 	OUTPUT("-x, --hex                 Prints the integral values in Hex (default is Decimal)")
 
 def parseCommandLineArguments():
@@ -6485,7 +6485,7 @@ def findTypeSpecifierEndIndex(inputList):
 				structOrUnionType = inputList[i]
 				if inputList[lastItemConsumedIndex] not in getDictKeyList(suDict):
 					PRINT ("ERROR: in findTypeSpecifierEndIndex() - struct", inputList[lastItemConsumedIndex+1]," has no previous declaration - hopefully it will be declared later" )
-					PRINT ("Adding the empty declaration of struct",structName," to the structuresAndUnions array")
+					PRINT ("Adding the empty declaration of struct",structName," to the structuresAndUnions array in findTypeSpecifierEndIndex()")
 					structuresAndUnions.append({"name":structName})
 					suDict[structName] = [len(structuresAndUnions)-1]
 #				else:
@@ -10020,7 +10020,7 @@ def parseEnum(tokenList, i):
 								return False
 							else:
 								enumFieldValues[field] = enumFields[field]
-						
+			
 			###################################################################################################
 			# Step 3. Now we handle the declarations
 			
@@ -10410,7 +10410,37 @@ def alignedOnOrAfter(bit, alignment):
 		else:
 			return (bit - (bit% alignment) + alignment)
 
-
+# This routine calculates how at least how means bits the data container must be wide to accommodate the enum literal values.
+def enumMinBitSize(enumDataType):
+	if enumDataType not in getDictKeyList(enums):
+		errorMessage = "ERROR in enumMinBitSize(): Illegal enumDataType ="+STR(enumDataType)
+		errorRoutine(errorMessage)
+		return False
+	
+	enumFields = enums[enumDataType]
+	
+	# Figure out how many bits is minimum required to represent the enum properly
+	maxPositiveValue = -1
+	maxNegativeVaue = 0
+	for enumLiteral in getDictKeyList(enumFields):
+		enumValue = enumFields[enumLiteral]
+		if enumValue > maxPositiveValue:
+			maxPositiveValue = enumValue
+		if enumValue < maxNegativeVaue:
+			maxNegativeVaue = enumValue
+	largestAbsoluteValueToHandle = max(2*maxPositiveValue,(-1)*maxNegativeVaue)
+	temp = 1
+	minBitSize = 1
+	while True:
+		if temp>=largestAbsoluteValueToHandle:
+			break
+		else:
+			minBitSize += 1
+			temp = temp * 2
+	MUST_PRINT("For enum type",enumDataType,", enumFields =",enumFields)
+	MUST_PRINT("\nmaxPositiveValue =",maxPositiveValue,", maxNegativeVaue =",maxNegativeVaue,", largestAbsoluteValueToHandle =",largestAbsoluteValueToHandle,", minBitSize =",minBitSize)
+	
+	return minBitSize
 
 ##############################################################################################################################################
 ##########################################################################################################################################################
@@ -10730,6 +10760,7 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 		# "name": structName, "type" : "struct/union", "size":size, "components":[[variable1 name, variable size, variable declaration statement, variable description],...]}
 		
 		#The reason we create a blank entry right away is that there might be a pointer to a struct itself inside its member list
+		PRINT("Adding", structName," to structuresAndUnions in parseStructureDefinition()")
 		structuresAndUnions.append( {"name":structName} )
 		structId = len(structuresAndUnions)-1
 		if not structNameAlreadyDeclared:
@@ -13094,6 +13125,74 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 							errorRoutine(errorMessage)
 							return False
 			structBitFieldContainers.append(datatype)
+
+			######################################################################################################################################################
+			# Handle the special case where you have an enumDataType, but you do not want it to automatically treat it as integer.
+			# 
+			#  enum DAY {Sun, Mon, Tue, Wed, Thu, Fri, Sat};
+			#
+			#  struct S {
+			#               char c1			:  	2;
+			#				enum DAY day	:	4;
+			#				char c2			:	1;
+			#			};
+			#
+			# Enums are by default int type (signed). So, even though we only need 4 bits of an signed char, the compiler will treat the datatype of the day variable
+			# as an int, and this will completely mess up the alignment and size of struct S. Ideally, it is very apparent that we want its datatype to be a CHAR, not INT.
+			#
+			# We solve this dilemma by looking at ALL the datatypes of the current bitfield-containing struct.
+			# - If it is another enum, ignore it.
+			# - If all non-enum datatypes are the same (say X), see if sizeof(X) is at least enumMinBitSize(enumDataType). If it is, choose X
+			#####################################################################################################################################################
+			'''
+			MUST_PRINT("datatype is ",datatype)
+			presumedDatatype = datatype
+			if structDetails["components"][N][4]["enumType"] and structDetails["components"][N][4]["enumType"] in getDictKeyList(enums): 	#and executionStage == "Interpret":
+				MUST_PRINT("Looking for other datatypes")
+				nn = 0
+				datatypeSet = []
+				while True:
+					if nn >= len(runtimeStatementsRelativeToComponentIndex):
+						break
+					elif checkIfIntegral(runtimeStatementsRelativeToComponentIndex[nn]):
+						NN = runtimeStatementsRelativeToComponentIndex[nn]
+						if structDetails["components"][NN][4]["enumType"]!=None:
+							pass
+						else:
+							datatypeSet.append(structDetails["components"][NN][4]["datatype"])
+					nn += 1
+				MUST_PRINT("For bitfield struct",structName,", for variableId,",variableId,", datatypeSet =",datatypeSet)
+				sameContainer = True
+				if datatypeSet:
+					for item in datatypeSet:
+						if item != datatypeSet[0]:
+							sameContainer = False
+					if sameContainer:
+						enumMinBitSizeResult = enumMinBitSize(structDetails["components"][N][4]["enumType"])
+						if enumMinBitSizeResult != False:
+							MUST_PRINT("Looking for a just enough sized container for enumMinBitSizeResult=",enumMinBitSizeResult)
+							if enumMinBitSizeResult <= primitiveDatatypeLength["char"]*BITS_IN_BYTE:
+								presumedDatatype = "char"
+							elif enumMinBitSizeResult <= primitiveDatatypeLength["short"]*BITS_IN_BYTE:
+								presumedDatatype = "short"
+							elif enumMinBitSizeResult <= primitiveDatatypeLength["int"]*BITS_IN_BYTE:
+								presumedDatatype = "int"
+							elif enumMinBitSizeResult <= primitiveDatatypeLength["long"]*BITS_IN_BYTE:
+								presumedDatatype = "long"
+							elif enumMinBitSizeResult <= primitiveDatatypeLength["long long"]*BITS_IN_BYTE:
+								presumedDatatype = "long long"
+							else:
+								EXIT("Unhandled coding case")
+							MUST_PRINT("Found presumedDatatype=",presumedDatatype,"as a just enough sized container for enumMinBitSizeResult=",enumMinBitSizeResult)
+							if datatypeSet[0] in ("char", "short", "int", "long", "long long") and primitiveDatatypeLength[datatypeSet[0]]*BITS_IN_BYTE >= enumMinBitSizeResult:
+								presumedDatatype = datatypeSet[0]
+								MUST_PRINT("We are overriding the container type for variableId",variableId,"as ",presumedDatatype)
+								MUST_PRINT("Also, we are changing the original value of structMemberSizeBytes =",structMemberSizeBytes)
+								structMemberSizeBytes = primitiveDatatypeLength[datatypeSet[0]]
+								MUST_PRINT("We are overriding the container type for variableId",variableId,"as ",presumedDatatype," and structMemberSizeBytes to",structMemberSizeBytes)
+							else:
+								MUST_PRINT("Even though the only other non-enum datatype is",datatypeSet[0],", we cannot override the container type for variableName",variableName,"since it requires",presumedDatatype,", which is bigger in size than",datatypeSet[0])
+			'''					
 
 			#######################################################################################################################################################
 			## Calculating where to start this bitfield from (bitOffsetWithinStruct). We will also update the structSizeBytes and trailingPadSizeBits accordingly
@@ -17421,7 +17520,7 @@ def prettyPrintUnraveled(displayAncestry=False):
 				else:
 					valueBE2Display = returnEnumLiteralForValueResult[1]
 
-				treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5], valueLE2Display, valueLE2Display]
+				treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5], valueLE2Display, valueBE2Display]
 			else:
 				treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5],STR(unraveled[N][6]),STR(unraveled[N][7])]
 			treeViewAllRowsValues.append(treeViewSingleRowValues)
@@ -17512,9 +17611,21 @@ def dumpDetailsForDebug(MUST=False):
 	PRINT ("\n"*3,"==="*50,"\nsuDict\n","=="*50 )
 	for key in getDictKeyList(suDict):
 		PRINT("suDict[",key,"] = ",suDict[key])
+	PRINT ("\n"*3,"==="*50,"\nstructuresAndUnions has", len(structuresAndUnions),"entries\n","=="*50 )
 	PRINT ("\n"*3,"==="*50,"\nstructuresAndUnions\n","=="*50 )
 	for item in structuresAndUnions:
-		PRINT ("\n",item, ":", item)
+		PRINT ("\n")
+		structAttributes = ""
+		for key in getDictKeyList(item):
+			if key != 'components':
+				structAttributes += key + " : "+STR(item[key])+", "
+		if 'components' in getDictKeyList(item):
+			components = item['components']
+			structAttributes += key + ", 'components' : \n"
+			for row in components:
+				structAttributes+="\n"+STR(row)
+		PRINT(structAttributes)
+		
 	PRINT ("=="*50,"\n"*3 )
 	PRINT ("\n"*3,"==="*50,"\nvariableDeclarations\n","=="*50 )
 	for item in variableDeclarations:
