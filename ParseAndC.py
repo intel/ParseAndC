@@ -829,6 +829,7 @@
 # 2022-09-09 - Before separating macro definition handling out of preProcess()
 # 2022-09-09 - After separating macro definition handling out of preProcess()
 # 2022-09-13 - Now displays enum literals while displaying the variable's value
+# 2022-09-14 - Fixed bugs regarding tree window values not populating for bitfields, and evaluateArithmeticExpression() failing for runtime variables when Hex
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -3995,6 +3996,7 @@ def evaluateArithmeticExpression(inputAST):
 	inputList = inputAST	# Just to remind that the inputList must be an AST
 	PRINT ("Inside evaluateArithmeticExpression(inputList =", inputList,") during", executionStage)
 	if checkIfNumber(inputList):
+		PRINT("Returning [True,",inputList,"] since it is a number")
 		return [True,inputList]
 	elif checkIfString(inputList):
 #		PRINT ("It's a string - returning as it is!" )
@@ -4013,7 +4015,9 @@ def evaluateArithmeticExpression(inputAST):
 					value2convert = inputList[:-1]
 				else:
 					value2convert = inputList[:]
-				return [True,int(value2convert,16)]
+				result = int(value2convert,16)
+				PRINT("Input is Hex number, returning ",[True,result])
+				return [True,result]
 			else:
 				errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate HEX undefined constant"%(STR(inputList))
 				errorRoutine(errorMessage)
@@ -4057,7 +4061,9 @@ def evaluateArithmeticExpression(inputAST):
 					value2convert = inputList[:-1]
 				else:
 					value2convert = inputList[:]
-				return [True,int(value2convert)]
+				result = int(value2convert)
+				PRINT("Input is decimal integer, returning",[True,result])
+				return [True,result]
 				
 		elif inputList in getDictKeyList(enumFieldValues):
 			return [True, int(enumFieldValues[inputList])]
@@ -4136,6 +4142,15 @@ def evaluateArithmeticExpression(inputAST):
 							OUTPUT("Coding bug in evaluateArithmeticExpression() - blank value despite finding it in unraveled")
 							return [False, None]
 						else:
+							if DISPLAY_INTEGRAL_VALUES_IN_HEX:
+								if valueInUnraveled.startswith("0x"):
+									PRINT("for variable "+unraveledVariableName+", the value stored in unraveled is <"+valueInUnraveled+">")
+									valueInUnraveled = int(valueInUnraveled,16)
+									PRINT("Which is then transformed into decimal value of",valueInUnraveled)
+								else:
+									errorMessage = "Error in evaluateArithmeticExpression evaluating valueInUnraveled = <"+STR(valueInUnraveled)+"> - for variable "+unraveledVariableName+", the value stored in unraveled ("+valueInUnraveled+") is not a Hex string"
+									errorRoutine(errorMessage)
+									return [False, None]
 							return [True, valueInUnraveled]
 					else:
 						errorMessage = "Error in evaluateArithmeticExpression(): In the input arithmatic expression " + STR(inputList) + " , did not find the variable name: <%s> in unraveled during %s"%(STR(runtimeVariableName), executionStage)
@@ -18425,7 +18440,7 @@ def populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize():
 		dataLocationOffsetForCurrentSetOfVariables = firstUnmappedOffset
 
 		PRINT("For selected variableId =",STR(variableId),", variable name =",variableName,"calling addVariableToUnraveled(0,",variableId,'"", dataLocationOffsetForCurrentSetOfVariables =',dataLocationOffsetForCurrentSetOfVariables,", unraveled)")
-		PRINT("\nBefore invoking addVariableToUnraveled(0,",variableId,'"", dataLocationOffsetForCurrentSetOfVariables =',dataLocationOffsetForCurrentSetOfVariables,", unraveled), unraveled =")
+		PRINT("\nBefore invoking addVariableToUnraveled(0,",variableId,',"", dataLocationOffsetForCurrentSetOfVariables =',dataLocationOffsetForCurrentSetOfVariables,", unraveled), unraveled =")
 		printUnraveled(unraveled)
 		PRINT("Passing speculativeArrayDimensions =",speculativeArrayDimensions)
 		# Add this to unraveled
@@ -20542,32 +20557,33 @@ class MainWindow:
 					addrStart = hex(unraveled[N][3])
 					addrEnd = hex(unraveled[N][4]-1)
 
-					valueLE = unraveled[N][6]
-					valueBE = unraveled[N][7]
+				# Possibly, convert the values into enum literals.
+				valueLE = unraveled[N][6]
+				valueBE = unraveled[N][7]
+				
+				valueLE2Display = valueLE
+				valueBE2Display = valueBE
+				
+				if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][8][-1]][4]["enumType"]!=None:
+					variableId = unraveled[N][8][-1]
 					
-					valueLE2Display = valueLE
-					valueBE2Display = valueBE
-					
-					if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][8][-1]][4]["enumType"]!=None:
-						variableId = unraveled[N][8][-1]
-						
-						PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
-						returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
-						if returnEnumLiteralForValueResult[0]==False:
-							errorMessage = "Error in populateTreeView(): Cannot enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
-							errorRoutine(errorMessage)
-							return False
-						else:
-							valueLE2Display = returnEnumLiteralForValueResult[1]
+					PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
+					returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
+					if returnEnumLiteralForValueResult[0]==False:
+						errorMessage = "Error in populateTreeView(): Cannot enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
+						errorRoutine(errorMessage)
+						return False
+					else:
+						valueLE2Display = returnEnumLiteralForValueResult[1]
 
-						PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
-						returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
-						if returnEnumLiteralForValueResult[0]==False:
-							errorMessage = "Error in populateTreeView(): Cannot enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
-							errorRoutine(errorMessage)
-							return False
-						else:
-							valueBE2Display = returnEnumLiteralForValueResult[1]
+					PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
+					returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
+					if returnEnumLiteralForValueResult[0]==False:
+						errorMessage = "Error in populateTreeView(): Cannot enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
+						errorRoutine(errorMessage)
+						return False
+					else:
+						valueBE2Display = returnEnumLiteralForValueResult[1]
 
 				treeViewRowValues = (levelIndent+unraveled[N][1],dataTypeText,addrStart,addrEnd,unraveled[N][5],valueLE2Display,valueBE2Display)
 				id = self.treeView.insert(hierarchy[-1], "end", iid=None, values=treeViewRowValues)
