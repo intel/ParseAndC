@@ -831,6 +831,7 @@
 # 2022-09-13 - Now displays enum literals while displaying the variable's value
 # 2022-09-14 - Fixed bugs regarding tree window values not populating for bitfields, and evaluateArithmeticExpression() failing for runtime variables when Hex
 # 2022-09-15 - Added the ability to "compress" enums data type to char or short when used within a bitfield
+# 2022-09-15 - Now display the type of enum datatype as the actual enum datatype rather than just int
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -17485,7 +17486,7 @@ def returnEnumLiteralForValue(variableId, inputValue):
 				else:
 					valueToDisplay = STR(valueToDisplay)+" ("+'/'.join(matchingEnumLiteralList)+")"
 		else:
-			errorMessage = "Error in prettyPrintUnraveled: Unknown enumType <"+STR(enumType)+">"
+			errorMessage = "Error in returnEnumLiteralForValue: Unknown enumType <"+STR(enumType)+">"
 			errorRoutine(errorMessage)
 			return False
 	return [True, valueToDisplay]
@@ -17532,11 +17533,19 @@ def prettyPrintUnraveled(displayAncestry=False):
 		PRINT ("\nN =",N, "unraveled[",N,"][2] =",unraveled[N][2],"\n\n")
 		PRINT ("BYE")
 		levelIndent = "    " * unraveled[N][0]
-		dataTypeText = unraveled[N][2] if not isinstance(unraveled[N][2],dict) else unraveled[N][2]["datatype"] if unraveled[N][2]["signedOrUnsigned"] != "unsigned" or unraveled[N][2]["datatype"] == "pointer" else unraveled[N][2]["signedOrUnsigned"] + " " + unraveled[N][2]["datatype"]
+
+		if not isinstance(unraveled[N][2],dict):
+			dataTypeText = unraveled[N][2]
+		elif unraveled[N][2]["datatype"].startswith("function "):	# Hardcode it for functions
+			dataTypeText = "function"
+		elif variableDeclarations[unraveled[N][8][-1]][4]["enumType"]:
+			dataTypeText = variableDeclarations[unraveled[N][8][-1]][4]["enumType"]
+		else:
+			dataTypeText = unraveled[N][2]["datatype"] if unraveled[N][2]["signedOrUnsigned"] != "unsigned" or unraveled[N][2]["datatype"] == "pointer" else unraveled[N][2]["signedOrUnsigned"] + " " + unraveled[N][2]["datatype"]
+			
 		if N<len(unraveled)-1 and unraveled[N][0]==unraveled[N+1][0]-1 and isinstance(unraveled[N][2],dict) and unraveled[N][2]["isArray"]:	# The current node is a parent - an array 
 			dataTypeText += " array"
-		if isinstance(unraveled[N][2],dict) and unraveled[N][2]["datatype"].startswith("function "):	# Hardcode it for functions
-			dataTypeText = "function"
+		
 		if isinstance(unraveled[N][2],dict) and ("isBitField" in getDictKeyList(unraveled[N][2])) and unraveled[N][2]["isBitField"]:
 			isBitField = unraveled[N][2]["isBitField"]
 			bitFieldWidth = unraveled[N][2]["bitFieldWidth"]
@@ -20582,7 +20591,9 @@ class MainWindow:
 				errorRoutine(errorMessage)
 				return False
 			levelIndent = "    " * unraveled[N][0]
-			dataTypeText = unraveled[N][2] if not isinstance(unraveled[N][2],dict) else unraveled[N][2]["datatype"] if unraveled[N][2]["signedOrUnsigned"] != "unsigned" or unraveled[N][2]["datatype"] == "pointer" else unraveled[N][2]["signedOrUnsigned"] + " " + unraveled[N][2]["datatype"]
+			enumType = variableDeclarations[unraveled[N][8][-1]][4]["enumType"]
+#			dataTypeText = unraveled[N][2] if not isinstance(unraveled[N][2],dict) else unraveled[N][2]["datatype"] if unraveled[N][2]["signedOrUnsigned"] != "unsigned" or unraveled[N][2]["datatype"] == "pointer" else unraveled[N][2]["signedOrUnsigned"] + " " + unraveled[N][2]["datatype"]
+			dataTypeText = unraveled[N][2] if not isinstance(unraveled[N][2],dict) else enumType if enumType else unraveled[N][2]["datatype"] if unraveled[N][2]["signedOrUnsigned"] != "unsigned" or unraveled[N][2]["datatype"] == "pointer" else unraveled[N][2]["signedOrUnsigned"] + " " + unraveled[N][2]["datatype"]
 			if N<len(unraveled)-1 and unraveled[N][0]==unraveled[N+1][0]-1 and isinstance(unraveled[N][2],dict) and unraveled[N][2]["isArray"]:	# The current node is a parent - an array 
 				dataTypeText += " array"
 			if isinstance(unraveled[N][2],dict) and unraveled[N][2]["datatype"].startswith("function "):	# Hardcode it for functions
