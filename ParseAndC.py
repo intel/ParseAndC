@@ -1028,7 +1028,6 @@ bitFieldOffsetCalculationMethod = "old"
 lastActionWasInterpret = False
 lastActionWasMap = False
 
-
 storageClassSpecifier = [ 'auto','register','static','extern','typedef']
 typeQualifier = ['const','volatile']
 
@@ -4095,6 +4094,7 @@ def evaluateArithmeticExpression(inputAST):
 							foundInUnraveled = True
 							# By default we are taking the LE value. Can change it to BE by setting the DEFAULT_ENDIANNESS parametter to BIG_ENDIAN
 							valueInUnraveled = unraveled[i][6+DEFAULT_ENDIANNESS]	
+							unraveledVariableId = unraveled[i][8][-1]
 							break
 						i -= 1
 					if foundInUnraveled:
@@ -4111,6 +4111,7 @@ def evaluateArithmeticExpression(inputAST):
 								foundInUnraveled = True
 								# By default we are taking the LE value. Can change it to BE by setting the DEFAULT_ENDIANNESS parametter to BIG_ENDIAN
 								valueInUnraveled = unraveled[i][6+DEFAULT_ENDIANNESS]	
+								unraveledVariableId = unraveled[i][8][-1]
 								break
 							i -= 1
 					if foundInUnraveled:
@@ -4127,6 +4128,7 @@ def evaluateArithmeticExpression(inputAST):
 								foundInUnraveled = True
 								# By default we are taking the LE value. Can change it to BE by setting the DEFAULT_ENDIANNESS parametter to BIG_ENDIAN
 								valueInUnraveled = unraveled[i][6+DEFAULT_ENDIANNESS]	
+								unraveledVariableId = unraveled[i][8][-1]
 								break
 							i -= 1
 					if foundInUnraveled:
@@ -4142,8 +4144,9 @@ def evaluateArithmeticExpression(inputAST):
 							OUTPUT("Coding bug in evaluateArithmeticExpression() - blank value despite finding it in unraveled")
 							return [False, None]
 						else:
-							if DISPLAY_INTEGRAL_VALUES_IN_HEX:
-								if valueInUnraveled.startswith("0x"):
+							if DISPLAY_INTEGRAL_VALUES_IN_HEX and variableDeclarations[unraveledVariableId][4]["datatype"] in ("char","short","int","long","long long"):
+								PRINT("For unraveled variable",runtimeVariableName,"(variable id",unraveledVariableId,"), variableDeclarations[unraveledVariableId][4][\"datatype\"] =",variableDeclarations[unraveledVariableId][4]["datatype"])
+								if valueInUnraveled.startswith("0x") or valueInUnraveled.startswith("-0x"):
 									PRINT("for variable "+unraveledVariableName+", the value stored in unraveled is <"+valueInUnraveled+">")
 									valueInUnraveled = int(valueInUnraveled,16)
 									PRINT("Which is then transformed into decimal value of",valueInUnraveled)
