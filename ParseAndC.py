@@ -830,6 +830,7 @@
 # 2022-09-09 - After separating macro definition handling out of preProcess()
 # 2022-09-13 - Now displays enum literals while displaying the variable's value
 # 2022-09-14 - Fixed bugs regarding tree window values not populating for bitfields, and evaluateArithmeticExpression() failing for runtime variables when Hex
+# 2022-09-15 - Added the ability to "compress" enums data type to char or short when used within a bitfield
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -10455,8 +10456,8 @@ def enumMinBitSize(enumDataType):
 		else:
 			minBitSize += 1
 			temp = temp * 2
-	MUST_PRINT("For enum type",enumDataType,", enumFields =",enumFields)
-	MUST_PRINT("\nmaxPositiveValue =",maxPositiveValue,", maxNegativeVaue =",maxNegativeVaue,", largestAbsoluteValueToHandle =",largestAbsoluteValueToHandle,", minBitSize =",minBitSize)
+	PRINT("For enum type",enumDataType,", enumFields =",enumFields)
+	PRINT("\nmaxPositiveValue =",maxPositiveValue,", maxNegativeVaue =",maxNegativeVaue,", largestAbsoluteValueToHandle =",largestAbsoluteValueToHandle,", minBitSize =",minBitSize)
 	
 	return minBitSize
 
@@ -11245,6 +11246,74 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 
 
 	structuresAndUnions[suDict[structName][-1]]["runtimeStatementsRelativeToComponentIndex"] = runtimeStatementsRelativeToComponentIndex
+
+	
+	######################################################################################################################################################
+	# Handle the special case where you have an enumDataType for a bitfield, but you do not want it to automatically treat it as integer.
+	# 
+	#  enum DAY {Sun, Mon, Tue, Wed, Thu, Fri, Sat};
+	#
+	#  struct S {
+	#               char c1			:  	2;
+	#				enum DAY day	:	4;
+	#				char c2			:	1;
+	#			};
+	#
+	# Enums are by default int type (signed). So, even though we only need 4 bits of an signed char, the compiler will treat the datatype of the day variable
+	# as an int, and this will completely mess up the alignment and size of struct S. Ideally, it is very apparent that we want its datatype to be a CHAR, not INT.
+	#
+	# We solve this dilemma by looking at ALL the datatypes of the current bitfield-containing struct.
+	# - If it is another enum, ignore it.
+	# - If all non-enum datatypes are the same (say X), see if sizeof(X) is at least enumMinBitSize(enumDataType). If it is, choose X
+	#####################################################################################################################################################
+	
+	suggestedDatatypeForEnumInBitfield = None
+	if "components" in getDictKeyList(structuresAndUnions[suDict[structName][-1]]):
+		datatypeSet = []	# Stores the used datatypes for non-enum bitfield variabls
+		for component in structuresAndUnions[suDict[structName][-1]]["components"]:
+			if component[4]['isBitField'] and component[4]['enumType'] == None:
+				datatypeSet.append(component[4]["datatype"])
+		PRINT("For struct",structName,", datatypeSet =",datatypeSet)
+		sameContainer = True
+		if datatypeSet:
+			for item in datatypeSet:
+				if item != datatypeSet[0]:
+					sameContainer = False
+			if sameContainer:
+				suggestedDatatypeForEnumInBitfield = datatypeSet[0]
+				PRINT("For struct",structName,"with bitfields, we have the same container", datatypeSet[0], "for non-enum fields")
+				PRINT("Now checking if every enum can actually be accommodated in that")
+
+				allEnumsAreSmaller = True
+				for component in structuresAndUnions[suDict[structName][-1]]["components"]:
+					if component[4]['isBitField'] and component[4]['enumType'] != None:
+						PRINT("Checking how many bits it must have")
+						enumMinBitSizeResult = enumMinBitSize(component[4]["enumType"])
+						if enumMinBitSizeResult != False:
+							PRINT("Looking for a just enough sized container for enumMinBitSizeResult=",enumMinBitSizeResult)
+							if enumMinBitSizeResult <= primitiveDatatypeLength["char"]*BITS_IN_BYTE:
+								presumedDatatype = "char"
+							elif enumMinBitSizeResult <= primitiveDatatypeLength["short"]*BITS_IN_BYTE:
+								presumedDatatype = "short"
+							elif enumMinBitSizeResult <= primitiveDatatypeLength["int"]*BITS_IN_BYTE:
+								presumedDatatype = "int"
+							elif enumMinBitSizeResult <= primitiveDatatypeLength["long"]*BITS_IN_BYTE:
+								presumedDatatype = "long"
+							elif enumMinBitSizeResult <= primitiveDatatypeLength["long long"]*BITS_IN_BYTE:
+								presumedDatatype = "long long"
+							else:
+								EXIT("Unhandled coding case")
+							PRINT("Found presumedDatatype=",presumedDatatype,"as a just enough sized container for enumMinBitSizeResult=",enumMinBitSizeResult)
+							if datatypeSet[0] in ("char", "short", "int", "long", "long long") and primitiveDatatypeLength[datatypeSet[0]]*BITS_IN_BYTE >= enumMinBitSizeResult:
+								PRINT("We can override the container type for enumType",component[4]["enumType"])
+							else:
+								allEnumsAreSmaller = False
+				if allEnumsAreSmaller:
+					suggestedDatatypeForEnumInBitfield = datatypeSet[0]
+			else:
+				PRINT("The bitfield struct",structName,"contains different containers for bitfields:",datatypeSet)
+		structuresAndUnions[suDict[structName][-1]]["suggestedDatatypeForEnumInBitfield"] = suggestedDatatypeForEnumInBitfield
+	
 	
 	PRINT("\n\nstructuresAndUnions[suDict[structName][-1]] =\n",structuresAndUnions[suDict[structName][-1]])
 	return structName
@@ -12947,7 +13016,7 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 		# 1. get the "natural" alignment. We need to loop because of typedefs
 		while (True):
 			sanityCheckCount += 1
-			PRINT("sanityCheckCount =",sanityCheckCount,", datatype =",datatype)
+			PRINT("For variableId",variableId,", sanityCheckCount =",sanityCheckCount,", datatype =",datatype)
 			if sanityCheckCount > 100:
 				errorMessage = "ERROR in calculateStructureLength() - endlessly looping trying to find the alignment for this member"
 				errorRoutine(errorMessage)
@@ -12958,10 +13027,39 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 			elif datatype.startswith("function"): # A function pointer has a size. A function does not need any storage. Pure C does not allow structs to have functions in them.
 				memberAlignmentBytes = 1		# Possible bug?
 				break
+			elif structDetails["components"][N][4]["enumType"]: 
+				if structDetails["components"][N][4]["enumType"] not in getDictKeyList(enums):
+					errorMessage = "ERROR in calculateStructureLength() - unknown enumType <%s> - exiting"%STR(structDetails["enumType"])
+					errorRoutine(errorMessage)
+					return False
+					
+				PRINT("\nWe hit enum")
+				if "attributes" in getDictKeyList(enums[structDetails["components"][N][4]["enumType"]]) and ALIGNED_STRING in getDictKeyList(enums[structDetails["components"][N][4]["enumType"]]["attributes"]):
+					EXIT("Very rare case: For struct", structName, "member variableId",variableId,", we have attributes for enum datatype",structDetails["components"][N][4]["enumType"])
+					memberAlignmentBytes = enums[structDetails["components"][N][4]["enumType"]]["attributes"][ALIGNED_STRING]
+					break
+				else:
+					PRINT("\nNow are are checking the memberAlignmentBytes for variableId =",variableId)
+					# In C, enum sizes are not specified of at least an INT
+					memberAlignmentBytes = primitiveDatatypeLength["int"]
+					
+					# There is a very special case where a enum
+					if isBitField:
+						if structuresAndUnions[suDict[structName][-1]]["suggestedDatatypeForEnumInBitfield"]:
+							PRINT("The original container type for variableId",variableId,"is",presumedDatatype," and its memberAlignmentBytes is",memberAlignmentBytes)
+							memberAlignmentBytes = primitiveDatatypeLength[structDetails["suggestedDatatypeForEnumInBitfield"]]
+							PRINT("We are overriding the container type for variableId",variableId,"as ",presumedDatatype," and memberAlignmentBytes to",memberAlignmentBytes)
+						else:
+							PRINT("We cannot override the container type for variableId",variableId)
+					
+#					PRINT ("The size of Enum <",datatype,"> is assumed to be same as an Integer,",size )
+					break
 			elif datatype in getDictKeyList(primitiveDatatypeLength):
+				PRINT("\nWe hit regular ")
 				memberAlignmentBytes = primitiveDatatypeLength[datatype]
 				break
 			elif datatype in getDictKeyList(typedefs):
+				PRINT("\nWe hit typedef")
 				# It typedefs into a structure/union
 				if isinstance(typedefs[datatype],list) and len(typedefs[datatype])==2 and (typedefs[datatype][0] == "enum" or typedefs[datatype][0] == "struct" or typedefs[datatype][0] == "union"):
 					datatype = typedefs[datatype][1]
@@ -12976,15 +13074,6 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 					else:
 						memberAlignmentBytes = typedefs[datatype][1]
 						break
-			elif datatype in getDictKeyList(enums):
-				if "attributes" in getDictKeyList(enums[datatype]) and ALIGNED_STRING in getDictKeyList(enums[datatype]["attributes"]):
-					memberAlignmentBytes = enums[datatype]["attributes"][ALIGNED_STRING]
-					break
-				else:
-					# In C, enum sizes are not specified of at least an INT
-					memberAlignmentBytes = primitiveDatatypeLength["int"]
-					PRINT ("The size of Enum <",datatype,"> is assumed to be same as an Integer,",size )
-					break
 			elif datatype in getDictKeyList(suDict):
 				structOrUnionName = datatype
 				if "attributes" not in getDictKeyList(structuresAndUnions[suDict[datatype][-1]]):
@@ -13162,55 +13251,15 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 			# - If it is another enum, ignore it.
 			# - If all non-enum datatypes are the same (say X), see if sizeof(X) is at least enumMinBitSize(enumDataType). If it is, choose X
 			#####################################################################################################################################################
-			'''
-			MUST_PRINT("datatype is ",datatype)
+			PRINT("Bitfield datatype is ",datatype)
 			presumedDatatype = datatype
-			if structDetails["components"][N][4]["enumType"] and structDetails["components"][N][4]["enumType"] in getDictKeyList(enums): 	#and executionStage == "Interpret":
-				MUST_PRINT("Looking for other datatypes")
-				nn = 0
-				datatypeSet = []
-				while True:
-					if nn >= len(runtimeStatementsRelativeToComponentIndex):
-						break
-					elif checkIfIntegral(runtimeStatementsRelativeToComponentIndex[nn]):
-						NN = runtimeStatementsRelativeToComponentIndex[nn]
-						if structDetails["components"][NN][4]["enumType"]!=None:
-							pass
-						else:
-							datatypeSet.append(structDetails["components"][NN][4]["datatype"])
-					nn += 1
-				MUST_PRINT("For bitfield struct",structName,", for variableId,",variableId,", datatypeSet =",datatypeSet)
-				sameContainer = True
-				if datatypeSet:
-					for item in datatypeSet:
-						if item != datatypeSet[0]:
-							sameContainer = False
-					if sameContainer:
-						enumMinBitSizeResult = enumMinBitSize(structDetails["components"][N][4]["enumType"])
-						if enumMinBitSizeResult != False:
-							MUST_PRINT("Looking for a just enough sized container for enumMinBitSizeResult=",enumMinBitSizeResult)
-							if enumMinBitSizeResult <= primitiveDatatypeLength["char"]*BITS_IN_BYTE:
-								presumedDatatype = "char"
-							elif enumMinBitSizeResult <= primitiveDatatypeLength["short"]*BITS_IN_BYTE:
-								presumedDatatype = "short"
-							elif enumMinBitSizeResult <= primitiveDatatypeLength["int"]*BITS_IN_BYTE:
-								presumedDatatype = "int"
-							elif enumMinBitSizeResult <= primitiveDatatypeLength["long"]*BITS_IN_BYTE:
-								presumedDatatype = "long"
-							elif enumMinBitSizeResult <= primitiveDatatypeLength["long long"]*BITS_IN_BYTE:
-								presumedDatatype = "long long"
-							else:
-								EXIT("Unhandled coding case")
-							MUST_PRINT("Found presumedDatatype=",presumedDatatype,"as a just enough sized container for enumMinBitSizeResult=",enumMinBitSizeResult)
-							if datatypeSet[0] in ("char", "short", "int", "long", "long long") and primitiveDatatypeLength[datatypeSet[0]]*BITS_IN_BYTE >= enumMinBitSizeResult:
-								presumedDatatype = datatypeSet[0]
-								MUST_PRINT("We are overriding the container type for variableId",variableId,"as ",presumedDatatype)
-								MUST_PRINT("Also, we are changing the original value of structMemberSizeBytes =",structMemberSizeBytes)
-								structMemberSizeBytes = primitiveDatatypeLength[datatypeSet[0]]
-								MUST_PRINT("We are overriding the container type for variableId",variableId,"as ",presumedDatatype," and structMemberSizeBytes to",structMemberSizeBytes)
-							else:
-								MUST_PRINT("Even though the only other non-enum datatype is",datatypeSet[0],", we cannot override the container type for variableName",variableName,"since it requires",presumedDatatype,", which is bigger in size than",datatypeSet[0])
-			'''					
+			if structDetails["components"][N][4]["enumType"]: 
+				if structDetails["suggestedDatatypeForEnumInBitfield"]:
+					PRINT("The original container type for variableId",variableId,"is",presumedDatatype," and its structMemberSizeBytes is",structMemberSizeBytes)
+					structMemberSizeBytes = primitiveDatatypeLength[structDetails["suggestedDatatypeForEnumInBitfield"]]
+					PRINT("We are overriding the container type for variableId",variableId,"as ",presumedDatatype," and structMemberSizeBytes to",structMemberSizeBytes)
+				else:
+					PRINT("We cannot override the container type for variableId",variableId)
 
 			#######################################################################################################################################################
 			## Calculating where to start this bitfield from (bitOffsetWithinStruct). We will also update the structSizeBytes and trailingPadSizeBits accordingly
@@ -17639,7 +17688,7 @@ def dumpDetailsForDebug(MUST=False):
 				structAttributes += key + " : "+STR(item[key])+", "
 		if 'components' in getDictKeyList(item):
 			components = item['components']
-			structAttributes += key + ", 'components' : \n"
+			structAttributes += ", components : \n"
 			for row in components:
 				structAttributes+="\n"+STR(row)
 		PRINT(structAttributes)
