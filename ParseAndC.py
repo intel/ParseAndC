@@ -13047,9 +13047,9 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 					# There is a very special case where a enum
 					if isBitField:
 						if structuresAndUnions[suDict[structName][-1]]["suggestedDatatypeForEnumInBitfield"]:
-							PRINT("The original container type for variableId",variableId,"is",presumedDatatype," and its memberAlignmentBytes is",memberAlignmentBytes)
+							PRINT("The original container type for variableId",variableId,"is",datatype," and its memberAlignmentBytes is",memberAlignmentBytes)
 							memberAlignmentBytes = primitiveDatatypeLength[structDetails["suggestedDatatypeForEnumInBitfield"]]
-							PRINT("We are overriding the container type for variableId",variableId,"as ",presumedDatatype," and memberAlignmentBytes to",memberAlignmentBytes)
+							PRINT("We are overriding the container type for variableId",variableId,"as ",datatype," and memberAlignmentBytes to",memberAlignmentBytes)
 						else:
 							PRINT("We cannot override the container type for variableId",variableId)
 					
