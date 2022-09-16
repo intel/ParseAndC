@@ -833,6 +833,7 @@
 # 2022-09-15 - Added the ability to "compress" enums data type to char or short when used within a bitfield
 # 2022-09-15 - Now display the type of enum datatype as the actual enum datatype rather than just int
 # 2020-09-16 - Fixed the parseEnum bug (setting numFakeEntries=2 for regular enum declarations)
+# 2020-09-16 - Fixed the parseVariableDeclarations bug of the rare case when the typedef name is same as the enum type (like typedef enum DAY (Sun, Mon, Tue} DAY;
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -6635,9 +6636,23 @@ def parseVariableDeclaration(inputList):
 	regularTypesIntypeSpecifierList 	= commonItems(typeSpecifierList, regularTypes)
 	
 	if derivedTypesIntypeSpecifierList:
-		errorMessage = "ERROR in parseVariableDeclaration() for inputList = <%s> - we should never see any derived type (%s) in this routine, because all derived typed should have been re-converted into their original typedef form before "%(STR(inputList),STR(derivedTypesIntypeSpecifierList))
-		errorRoutine(errorMessage)
-		return False
+		# We have a rare case to handle: when the derived type is also the same name as enumType. For example, the following code is valid in C:
+		#
+		#	typedef enum DAY { Sun, Mon, Tue} DAY;
+		#	enum DAY day1;		// Here DAY is the enum defintion
+		#	DAY day2;			// Here DAY is a derived type
+
+		illegalDerivedType = False
+		for derivedType in derivedTypesIntypeSpecifierList:
+			if derivedType not in enumTypesIntypeSpecifierList:
+				MUST_PRINT("\nderivedTypesIntypeSpecifierList =",derivedTypesIntypeSpecifierList)
+				MUST_PRINT("\nenumTypesIntypeSpecifierList =",enumTypesIntypeSpecifierList)
+				illegalDerivedType = True
+				
+		if illegalDerivedType:
+			errorMessage = "ERROR in parseVariableDeclaration() for inputList = <%s> - we should never see any derived type (%s) in this routine, because all derived typed should have been re-converted into their original typedef form before "%(STR(inputList),STR(derivedTypesIntypeSpecifierList))
+			errorRoutine(errorMessage)
+			return False
 
 	# Derived type - I coded this originally without realizing that this routine should never see any derived type. Still leaving it since no harm
 	if len(derivedTypesIntypeSpecifierList)>1:
@@ -6652,8 +6667,8 @@ def parseVariableDeclaration(inputList):
 			return False
 		else:
 			baseType = derivedTypesIntypeSpecifierList[0]
+#	'''
 
-	
 	elif len(structUnionTypesIntypeSpecifierList)>1:	# pre-defined struct / union
 		errorMessage = "ERROR in parseVariableDeclaration(): We have multiple struct/union types (" + STR(structUnionTypesIntypeSpecifierList) + ") for the same type declaration < " + STR(typeSpecifierList) + " >"
 		errorRoutine(errorMessage)
@@ -6673,7 +6688,8 @@ def parseVariableDeclaration(inputList):
 		return False
 	elif len(enumTypesIntypeSpecifierList)==1:
 		# For a derived type, we should not have any re-declaration
-		if regularTypesIntypeSpecifierList or structUnionTypesIntypeSpecifierList or derivedTypesIntypeSpecifierList:	# Checking for derivedTypesIntypeSpecifierList should be redundant
+#		if regularTypesIntypeSpecifierList or structUnionTypesIntypeSpecifierList or derivedTypesIntypeSpecifierList:	# Checking for derivedTypesIntypeSpecifierList should be redundant
+		if regularTypesIntypeSpecifierList or structUnionTypesIntypeSpecifierList:
 			errorMessage = "ERROR in parseVariableDeclaration(): We have re-declaration (" + STR(regularTypesIntypeSpecifierList) + STR(structUnionTypesIntypeSpecifierList) + STR(derivedTypesIntypeSpecifierList)+ ") of already-derived type (" + STR(structUnionTypesIntypeSpecifierList) + ") for the declaration < " + STR(typeSpecifierList) + " >"
 			errorRoutine(errorMessage)
 			return False
@@ -7406,7 +7422,13 @@ def parseVariableDeclaration(inputList):
 				size = 0	# A function pointer has a size. A function does not need any storage. Pure C does not allow structs to have functions in them.
 			elif datatype in getDictKeyList(primitiveDatatypeLength):
 				size = primitiveDatatypeLength[datatype]
+			elif datatype in getDictKeyList(enums):
+				# In C, enum sizes are not specified of at least an INT
+				size=primitiveDatatypeLength["int"]
+				PRINT ("The size of Enum <",datatype,"> is assumed to be same as an Integer,",size )
+				datatype = "int"
 			elif datatype in getDictKeyList(typedefs):
+				EXIT("ERROR in parseVariableDeclaration() - how can we have a derived type here?")
 				# It typedefs into a structure/union
 				if isinstance(typedefs[datatype],list) and len(typedefs[datatype])==2 and (typedefs[datatype][0] == "enum" or typedefs[datatype][0] == "struct" or typedefs[datatype][0] == "union"):
 					structOrUnionName = typedefs[datatype][1]
@@ -7431,10 +7453,6 @@ def parseVariableDeclaration(inputList):
 						sys.exit()
 					else:
 						size = typedefs[datatype][1]
-			elif datatype in getDictKeyList(enums):
-				# In C, enum sizes are not specified of at least an INT
-				size=primitiveDatatypeLength["int"]
-				PRINT ("The size of Enum <",datatype,"> is assumed to be same as an Integer,",size )
 				
 			elif datatype in getDictKeyList(suDict):
 				PRINT ("Checking for size of datatype", datatype )
@@ -15218,6 +15236,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				size = variableSize
 		else:
 			errorMessage = "ERROR in addVariableToUnraveled(): "+variableName+" has unknown variableDatatype "+variableDatatype
+			dumpDetailsForDebug()
 			errorRoutine(errorMessage)
 			sys.exit()
 
