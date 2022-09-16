@@ -832,6 +832,7 @@
 # 2022-09-14 - Fixed bugs regarding tree window values not populating for bitfields, and evaluateArithmeticExpression() failing for runtime variables when Hex
 # 2022-09-15 - Added the ability to "compress" enums data type to char or short when used within a bitfield
 # 2022-09-15 - Now display the type of enum datatype as the actual enum datatype rather than just int
+# 2020-09-16 - Fixed the parseEnum bug (setting numFakeEntries=2 for regular enum declarations)
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -10063,7 +10064,7 @@ def parseEnum(tokenList, i):
 			else:	# No defintion, just declarations
 				memberDeclarationStatement = tokenList[enumStatementStartIndex:nextSemicolonIndex+1]
 				declarationStartIndex = enumStatementStartIndex + 2
-				numFakeEntries = 0
+				numFakeEntries = 2
 				
 				
 			PRINT ("Going to parse memberDeclarationStatement =",memberDeclarationStatement )
@@ -10076,10 +10077,16 @@ def parseEnum(tokenList, i):
 				PRINT ("enum variables declaration",parsed5tupleList, "parsed" )
 				for item in parsed5tupleList:
 					PRINT ("enum ",enumDataType,"has the following declarations after it" )
-					PRINT ("Main enum variable name is ",item[0],"of size",item[1],"and it is located at relative index of ",item[3],"inside the variable declaration statement",item[2] )
+					PRINT ("Main enum variable name (item[0])= ",item[0],"of size (item[1])=",item[1],"and it is located at relative index (item[3]) of ",item[3],"inside the variable declaration statement (item[2])",item[2] )
+					PRINT ("enumStatementStartIndex =",enumStatementStartIndex,", tokenList[enumStatementStartIndex]=",tokenList[enumStatementStartIndex],", declarationStartIndex =",declarationStartIndex,", tokenList[declarationStartIndex]=",tokenList[declarationStartIndex],", numFakeEntries =",numFakeEntries)
 					# Each member of the list follows exactly the same format as the parsed5tupleList, with one key addition - the 6th item.
 					# This 6th member now represents the absolute index (within the tokenList) of the variable name.
-					if tokenList[declarationStartIndex+item[3]-numFakeEntries]!=item[0]:
+					if declarationStartIndex+item[3]-numFakeEntries >= len(tokenList):
+						OUTPUT("item=",item)
+						OUTPUT("tokenList =",tokenList)
+						OUTPUT("Bad coding in parseEnum -",declarationStartIndex+item[3]-numFakeEntries,"is >= size of tokenList=",len(tokenList),"- exiting")
+						sys.exit()
+					elif tokenList[declarationStartIndex+item[3]-numFakeEntries]!=item[0]:
 						PRINT ("ERROR in parseEnum() enum - for declarationStartIndex =",declarationStartIndex,"tokenList[declarationStartIndex+item[3]-numFakeEntries] = tokenList[",declarationStartIndex,"+",item[3],"-",numFakeEntries,"]",tokenList[declarationStartIndex+item[3]-numFakeEntries],"!=item[0]=",item[0] )
 						errorMessage = "ERROR in parseEnum() enum - for declarationStartIndex ="+STR(declarationStartIndex)+" tokenList[declarationStartIndex+item[3]-numFakeEntries] = tokenList["+STR(declarationStartIndex)+"+"+STR(item[3])+"-"+STR(numFakeEntries)+"]"+STR(tokenList[declarationStartIndex+item[3]-numFakeEntries])+"!=item[0]="+STR(item[0]) 
 						errorRoutine(errorMessage)
