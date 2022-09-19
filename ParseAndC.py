@@ -10975,24 +10975,24 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 						PRINT("Only structure definition, no declaration")
 						usingDummyVariable = True
 						del memberDeclarationStatement[-1]	# remove the semicolon
-						if structName.startswith(anonymousStructPrefix):
-							PRINT("Dummy variable for Anonymous struct - using",dummyVariableNamePrefix,"for it")
+						if nestedStructName.startswith(anonymousStructPrefix):
+							PRINT("Dummy variable for Anonymous nested struct - using",dummyVariableNamePrefix,"for it")
 							dummyVariableCount += 1
 							dummyVariableName = dummyVariableNamePrefix + STR(dummyVariableCount)
 							PRINT("Naming the new struct variable as",dummyVariableName)
 						else:
-							PRINT("Dummy variable for",structName," struct - using",structName+'#',"for it")
+							PRINT("Dummy variable for nested",nestedStructName," struct - using",nestedStructName+'#',"for it")
 							dummyStructVarCount = 0
 							for v in range(len(variableDeclarations)):
-								if variableDeclarations[v][0].startswith(structName+'#'+'dummyVar'):
+								if variableDeclarations[v][0].startswith(nestedStructName+'#'+'dummyVar'):
 									dummyStructVarCount += 1
 							if dummyStructVarCount > 0:
-								errorMessage = "Error in parseStructureDefinition(): for struct "+structName+", somehow we have more than one dummy var"
+								errorMessage = "Error in parseStructureDefinition(): for nested struct "+nestedStructName+", somehow we have more than one dummy var"
 								errorRoutine(errorMessage)
 								return False
 							else:
-								PRINT("No previous declaration of variable names starting with",structName+'#',"in variableDeclarations")
-								dummyVariableName = structName+'#'+'dummyVar'+STR(dummyStructVarCount)
+								PRINT("No previous declaration of variable names starting with",nestedStructName+'#',"in variableDeclarations")
+								dummyVariableName = nestedStructName+'#'+'dummyVar'+STR(dummyStructVarCount)
 								PRINT("Naming the new struct variable as",dummyVariableName)
 						memberDeclarationStatement.append(dummyVariableName)
 						memberDeclarationStatement.append(';')	# Put back the semicolon
@@ -16052,7 +16052,9 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 							# The result is actually the structure name (comes handy for anonymous structures)
 							level = 0
 							
+							PRINT("\n\nFrom parseCodeSnippet(), calling parseStructureDefinition() for curlyBraceStartIndex=",curlyBraceStartIndex)
 							parseStructureDefinitionResult = parseStructureDefinition(tokenListInformation, curlyBraceStartIndex,"--Global--", level)
+							PRINT("\n\nFrom parseCodeSnippet(), received the following result after calling parseStructureDefinition()",parseStructureDefinitionResult)
 							
 							if parseStructureDefinitionResult == None:
 								errorMessage = "Error coding parseStructureDefinition() - return value is None"
@@ -16102,7 +16104,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 								if memberDeclarationStatement[-1] != structName:	# Append the structure name for Anonymous structures
 									memberDeclarationStatement.append(structName)
 								usingDummyVariable = True
-								MUST_PRINT("Only structure definition, no declaration")
+								PRINT("Only structure definition, no declaration")
 								if structName.startswith(anonymousStructPrefix):
 									PRINT("Dummy variable for Anonymous struct - using",dummyVariableNamePrefix,"for it")
 									dummyVariableCount += 1
@@ -16113,6 +16115,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 									dummyStructVarCount = 0
 									for v in range(len(variableDeclarations)):
 										if variableDeclarations[v][0].startswith(structName+'#'+'dummyVar'):
+											MUST_PRINT("variableDeclarations[v=",v,"] =",variableDeclarations[v])
 											dummyStructVarCount += 1
 									if dummyStructVarCount > 0:
 										errorMessage = "Error in parseCodeSnippet(): for struct "+structName+", somehow we have more than one dummy var"
