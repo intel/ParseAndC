@@ -834,6 +834,8 @@
 # 2022-09-15 - Now display the type of enum datatype as the actual enum datatype rather than just int
 # 2020-09-16 - Fixed the parseEnum bug (setting numFakeEntries=2 for regular enum declarations)
 # 2020-09-16 - Fixed the parseVariableDeclarations bug of the rare case when the typedef name is same as the enum type (like typedef enum DAY (Sun, Mon, Tue} DAY;
+# 2020-09-19 - Before replacing the dummyVariableNamePrefix with structName#
+# 2020-09-19 - After replacing the dummyVariableNamePrefix with structName#dummyVar for non-anonymous structs
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -4804,10 +4806,10 @@ def checkIfSameUnraveledVariable (findThisString, inThisString, fullMatchRequire
 		return False
 	
 	t1 = re.split('[\.\[\]]+',findThisString)		# Basically, we treat the dot operator and the array([]) operator as the variable delimiters
-	t1 = [x for x in t1 if x != "" and anonymousStructPrefix not in x and dummyVariableNamePrefix not in x and dummyUnnamedBitfieldNamePrefix not in x]
+	t1 = [x for x in t1 if x != "" and anonymousStructPrefix not in x and dummyVariableNamePrefix not in x and dummyUnnamedBitfieldNamePrefix not in x and '#dummyVar' not in x]
 	PRINT("findThisString = <"+findThisString+"> has been tokenized into",t1)
 	t2 = re.split('[.\[\]]+',inThisString)
-	t2 = [x for x in t2 if x != "" and anonymousStructPrefix not in x and dummyVariableNamePrefix not in x and dummyUnnamedBitfieldNamePrefix not in x]
+	t2 = [x for x in t2 if x != "" and anonymousStructPrefix not in x and dummyVariableNamePrefix not in x and dummyUnnamedBitfieldNamePrefix not in x and '#dummyVar' not in x]
 	PRINT("inThisString = <"+inThisString+"> has been tokenized into",t2)
 	if (fullMatchRequiredNotJustSuffix and t1==t2) or (not fullMatchRequiredNotJustSuffix and t1==t2[-len(t1):]):
 		PRINT("findThisString = <"+findThisString+"> has been found in <"+inThisString+">")
@@ -10970,10 +10972,28 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 					i = nestedLastValidAttributeEndIndex + 1
 					# This is special case where we do not have the struct member declaration.
 					if tokenList[i] == ';':	# Only structure definition, no declaration
+						PRINT("Only structure definition, no declaration")
 						usingDummyVariable = True
-						del memberDeclarationStatement[-1]	# remove the semicolon 
-						dummyVariableCount += 1
-						dummyVariableName = dummyVariableNamePrefix + STR(dummyVariableCount)
+						del memberDeclarationStatement[-1]	# remove the semicolon
+						if structName.startswith(anonymousStructPrefix):
+							PRINT("Dummy variable for Anonymous struct - using",dummyVariableNamePrefix,"for it")
+							dummyVariableCount += 1
+							dummyVariableName = dummyVariableNamePrefix + STR(dummyVariableCount)
+							PRINT("Naming the new struct variable as",dummyVariableName)
+						else:
+							PRINT("Dummy variable for",structName," struct - using",structName+'#',"for it")
+							dummyStructVarCount = 0
+							for v in range(len(variableDeclarations)):
+								if variableDeclarations[v][0].startswith(structName+'#'+'dummyVar'):
+									dummyStructVarCount += 1
+							if dummyStructVarCount > 0:
+								errorMessage = "Error in parseStructureDefinition(): for struct "+structName+", somehow we have more than one dummy var"
+								errorRoutine(errorMessage)
+								return False
+							else:
+								PRINT("No previous declaration of variable names starting with",structName+'#',"in variableDeclarations")
+								dummyVariableName = structName+'#'+'dummyVar'+STR(dummyStructVarCount)
+								PRINT("Naming the new struct variable as",dummyVariableName)
 						memberDeclarationStatement.append(dummyVariableName)
 						memberDeclarationStatement.append(';')	# Put back the semicolon
 					else:
@@ -16082,8 +16102,26 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 								if memberDeclarationStatement[-1] != structName:	# Append the structure name for Anonymous structures
 									memberDeclarationStatement.append(structName)
 								usingDummyVariable = True
-								dummyVariableCount += 1
-								dummyVariableName = dummyVariableNamePrefix + STR(dummyVariableCount)
+								MUST_PRINT("Only structure definition, no declaration")
+								if structName.startswith(anonymousStructPrefix):
+									PRINT("Dummy variable for Anonymous struct - using",dummyVariableNamePrefix,"for it")
+									dummyVariableCount += 1
+									dummyVariableName = dummyVariableNamePrefix + STR(dummyVariableCount)
+									PRINT("Naming the new struct variable as",dummyVariableName)
+								else:
+									PRINT("Dummy variable for",structName," struct - using",structName+'#',"for it")
+									dummyStructVarCount = 0
+									for v in range(len(variableDeclarations)):
+										if variableDeclarations[v][0].startswith(structName+'#'+'dummyVar'):
+											dummyStructVarCount += 1
+									if dummyStructVarCount > 0:
+										errorMessage = "Error in parseCodeSnippet(): for struct "+structName+", somehow we have more than one dummy var"
+										errorRoutine(errorMessage)
+										return False
+									else:
+										PRINT("No previous declaration of variable names starting with",structName+'#',"in variableDeclarations")
+										dummyVariableName = structName+'#'+'dummyVar'+STR(dummyStructVarCount)
+										PRINT("Naming the new struct variable as",dummyVariableName)
 								memberDeclarationStatement.append(dummyVariableName)
 								memberDeclarationStatement.append(';')	# Put back the semicolon
 #								i = curlyBraceEndIndex+2
