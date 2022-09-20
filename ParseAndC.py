@@ -837,6 +837,7 @@
 # 2020-09-19 - Before replacing the dummyVariableNamePrefix with structName#
 # 2020-09-19 - After replacing the dummyVariableNamePrefix with structName#dummyVar for non-anonymous structs
 # 2020-09-22 - Added the feature to anchor the tree view to the item corresponding to the double-clicked data in the Data windows
+# 2020-09-22 - Added the feature to override sign for enum btfields if the surrounding fields have identical signs
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -10476,7 +10477,7 @@ def enumMinBitSize(enumDataType):
 			maxPositiveValue = enumValue
 		if enumValue < maxNegativeVaue:
 			maxNegativeVaue = enumValue
-	largestAbsoluteValueToHandle = max(2*maxPositiveValue,(-1)*maxNegativeVaue)
+	largestAbsoluteValueToHandle = max(maxPositiveValue,(-1)*maxNegativeVaue)
 	temp = 1
 	minBitSize = 1
 	while True:
@@ -11315,20 +11316,29 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 	#####################################################################################################################################################
 	
 	suggestedDatatypeForEnumInBitfield = None
+	suggestedSignedOrUnsignedForEnumInBitfield = None
+	structHasEnumBitFields = False
 	if "components" in getDictKeyList(structuresAndUnions[suDict[structName][-1]]):
 		datatypeSet = []	# Stores the used datatypes for non-enum bitfield variabls
+		signSet = []	# Stores the used sign for non-enum bitfield variabls
 		for component in structuresAndUnions[suDict[structName][-1]]["components"]:
-			if component[4]['isBitField'] and component[4]['enumType'] == None:
-				datatypeSet.append(component[4]["datatype"])
+			if component[4]['isBitField']: 
+				if component[4]['enumType'] == None:
+					datatypeSet.append(component[4]["datatype"])
+					signSet.append(component[4]["signedOrUnsigned"])
+				else:
+					structHasEnumBitFields = True
 		PRINT("For struct",structName,", datatypeSet =",datatypeSet)
 		sameContainer = True
-		if datatypeSet:
+		if structHasEnumBitFields and datatypeSet:
 			for item in datatypeSet:
 				if item != datatypeSet[0]:
 					sameContainer = False
+			for item in signSet:
+				if item != signSet[0]:
+					sameContainer = False
 			if sameContainer:
-				suggestedDatatypeForEnumInBitfield = datatypeSet[0]
-				PRINT("For struct",structName,"with bitfields, we have the same container", datatypeSet[0], "for non-enum fields")
+				PRINT("For struct",structName,"with enum bitfields, we have the same container",signSet[0], datatypeSet[0], "for non-enum fields")
 				PRINT("Now checking if every enum can actually be accommodated in that")
 
 				allEnumsAreSmaller = True
@@ -11336,6 +11346,9 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 					if component[4]['isBitField'] and component[4]['enumType'] != None:
 						PRINT("Checking how many bits it must have")
 						enumMinBitSizeResult = enumMinBitSize(component[4]["enumType"])
+						# If all the target bitfields are signed, then we need to add one more bit for storing the sign.
+						if signSet[0] == "signed":
+							enumMinBitSizeResult += 1
 						if enumMinBitSizeResult != False:
 							PRINT("Looking for a just enough sized container for enumMinBitSizeResult=",enumMinBitSizeResult)
 							if enumMinBitSizeResult <= primitiveDatatypeLength["char"]*BITS_IN_BYTE:
@@ -11354,12 +11367,21 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 							if datatypeSet[0] in ("char", "short", "int", "long", "long long") and primitiveDatatypeLength[datatypeSet[0]]*BITS_IN_BYTE >= enumMinBitSizeResult:
 								PRINT("We can override the container type for enumType",component[4]["enumType"])
 							else:
+								warningMessage = "For struct "+structName+" member variable "+component[0]+", which is a enum bitfield needing "+STR(enumMinBitSizeResult)+" bits, reducing it to "+signSet[0]+" "+datatypeSet[0]+" will cause did loss."
+								warningRoutine(warningMessage)
 								allEnumsAreSmaller = False
 				if allEnumsAreSmaller:
-					suggestedDatatypeForEnumInBitfield = datatypeSet[0]
+					PRINT("Can reduce size")
+				else:
+					PRINT("Should not reduce size; would be doing that nonetheless")
+					
+				suggestedDatatypeForEnumInBitfield 			= datatypeSet[0]
+				suggestedSignedOrUnsignedForEnumInBitfield 	= signSet[0]
 			else:
 				PRINT("The bitfield struct",structName,"contains different containers for bitfields:",datatypeSet)
-		structuresAndUnions[suDict[structName][-1]]["suggestedDatatypeForEnumInBitfield"] = suggestedDatatypeForEnumInBitfield
+				
+		structuresAndUnions[suDict[structName][-1]]["suggestedDatatypeForEnumInBitfield"] 		  = suggestedDatatypeForEnumInBitfield
+		structuresAndUnions[suDict[structName][-1]]["suggestedSignedOrUnsignedForEnumInBitfield"] = suggestedSignedOrUnsignedForEnumInBitfield
 	
 	
 	PRINT("\n\nstructuresAndUnions[suDict[structName][-1]] =\n",structuresAndUnions[suDict[structName][-1]])
@@ -15310,6 +15332,12 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 		if variableDescription["isBitField"]:
 	
 			datatype = variableDescription["datatype"]
+
+			# Override the datatype for enum bitfields
+			if variableDescription["enumType"] in getDictKeyList(enums):
+				if structuresAndUnions[variableDescription["structId"]]["suggestedDatatypeForEnumInBitfield"] != None:
+					datatype = structuresAndUnions[variableDescription["structId"]]["suggestedDatatypeForEnumInBitfield"]
+			
 			# It is guaranteed that a bitfield width cannot be larger than its container type, hence we can trust numBytesToRead
 			numBytesToRead = primitiveDatatypeLength[datatype]
 			# The problem is that, there is no guarantee that this bitfield would not cross the alignment boundary (it might have been packed)
@@ -15361,6 +15389,15 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 		PRINT("\n\nNow adding value for",prefixedVariableName,"\n")
 		if len(valueBytes) == numBytesToRead:	# Full data is there
 			signedOrUnsigned = unraveledSupplied[-1][2]["signedOrUnsigned"]
+			# Override the signedOrUnsigned value for enum types being
+			if variableDescription["isBitField"] and variableDescription["enumType"] != None and variableDescription["enumType"] in getDictKeyList(enums):
+				PRINT("Checking the",variableDescription["enumType"],"variable",variableName,"if its size and sign need to be overwritten")
+				if structuresAndUnions[variableDescription["structId"]]["suggestedSignedOrUnsignedForEnumInBitfield"] != None:
+					signedOrUnsigned = structuresAndUnions[variableDescription["structId"]]["suggestedSignedOrUnsignedForEnumInBitfield"]
+					PRINT("Overriding the sign to",signedOrUnsigned,"for bitfield variable",variableName)
+				else:
+					PRINT("Not overriding the",signedOrUnsigned,"for bitfield variable",variableName)
+				
 			PRINT ("Calling internalValueLittleEndian()/internalValueBigEndian() for variable ",unraveledSupplied[-1][0],"datatype =",datatype, "bitFieldWidth =",bitFieldWidth,"bitIndexStart =",bitIndexStart)
 			valueLE = calculateInternalValue(valueBytes, LITTLE_ENDIAN, datatype, signedOrUnsigned,bitFieldWidth,bitIndexStart)
 			valueBE = calculateInternalValue(valueBytes, BIG_ENDIAN, datatype, signedOrUnsigned,bitFieldWidth,bitIndexStart)
