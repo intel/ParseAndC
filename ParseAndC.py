@@ -836,6 +836,7 @@
 # 2020-09-16 - Fixed the parseVariableDeclarations bug of the rare case when the typedef name is same as the enum type (like typedef enum DAY (Sun, Mon, Tue} DAY;
 # 2020-09-19 - Before replacing the dummyVariableNamePrefix with structName#
 # 2020-09-19 - After replacing the dummyVariableNamePrefix with structName#dummyVar for non-anonymous structs
+# 2020-09-22 - Added the feature to anchor the tree view to the item corresponding to the double-clicked data in the Data windows
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -19097,6 +19098,9 @@ class MainWindow:
 		# As a result, the highlighting in the Interpreted Code window will remain.
 		# This is NOT just a problem with Page Up or Page Down
 		self.interpretedCodeVariablesHighlightedStartEndCoordinates = []
+		
+		# This contains <unraveledrowNum, corresponding iid of treeView>
+		self.unraveledrowNumItemId = []
 
 	def validateRoutineDataOffsetEntry(self, P):
 		PRINT ("Inside validateRoutineDataOffsetEntry() Passed parameter(P) =",P,"type(P) =",type(P))
@@ -19535,6 +19539,20 @@ class MainWindow:
 			OUTPUT("ERROR - tried to set the offsetSpinbox to",currentWindowBaseNewValue,"but after the pasting, the value is",self.fileOffsetSpinbox.get())
 		return
 
+	# This routine populates the self.unraveledrowNumItemId list, where each row is <unraveled row #, corresponding iid>
+	def populateItemIdForUnraveledRowNum(self, iidParent=None, rowNumParent=None):
+		PRINT("For iid=",iidParent,", row = ",rowNumParent)
+		if iidParent == None:
+			rowNumParent = -1
+		else:
+			self.unraveledrowNumItemId.append([rowNumParent,iidParent])
+		childrenList = self.treeView.get_children(iidParent)
+		rowNumMax = rowNumParent
+		for i in range(len(childrenList)):
+			rowNumMax = self.populateItemIdForUnraveledRowNum(childrenList[i], rowNumMax+1)
+		return rowNumMax
+		
+
 	# Find the line anchor that shows maximum number of variables corresponding to a data item in Hex or Ascii window
 	def findLineAnchorForDoubleClickHexOrAscii(self, eventOrigin, HexOrAscii):
 		if HexOrAscii == "Hex":
@@ -19625,6 +19643,26 @@ class MainWindow:
 			
 		PRINT("Going to anchor line #",lineToAnchor)
 		self.interpretedCodeText.see(STR(lineToAnchor+1)+".0")		# Here the screen line # starts from 1, not 0
+		
+		# Now anchor it for the treeView. First find out which variable in the unraveled correspond to the clicked byte the closest.
+		# We go by this logic - the smalled-sized variable wins.
+		lastVarSize = 1000000000000000000000000000000000000000000
+		unraveledRowNum = -1000000000000000
+		for N in range(len(unraveled)):
+			row = unraveled[N]
+			if row[3] <= fileOffsetOfDoubleClickedLocation <= row[4]:
+				newVarSize = row[4]-row[3]
+				if newVarSize < lastVarSize:
+					lastVarSize = newVarSize
+					unraveledRowNum = N
+
+		# self.unraveledrowNumItemId is a simple list of <unraveled row #, treeView iid>
+		if unraveledRowNum >= 0:
+			PRINT("Now we are going to anchor the treeView to the unraveled row #",unraveledRowNum)
+			for row in self.unraveledrowNumItemId:
+				if row[0]==unraveledRowNum:
+					self.treeView.see(row[1])
+					break
 
 	# When someone double-clicks on a colored data item, scroll the Interpreted code window to the place that maximizes the variables that correspond to that data
 	def doubleClickAscii(self, eventOrigin):
@@ -19646,6 +19684,7 @@ class MainWindow:
 			return
 		
 		self.findLineAnchorForDoubleClickHexOrAscii(eventOrigin, "Hex")
+		
 		
 	def doubleClickInterpreted(self, eventOrigin):
 		# If no variables have been mapped to some data, no use of this routine
@@ -20000,6 +20039,7 @@ class MainWindow:
 		# (This problem does not exist if we click on the Spinbox or Data Offset box and explicitly enter the data offset there. Because then the cursor will
 		# NOT be hovering on the data (because it will hover over the spinbox or data offset), so no variable in the Interpreted Code window will get highlighted anyway.
 		self.interpretedCodeVariablesHighlightedStartEndCoordinates = []
+		self.unraveledrowNumItemId = []
 		
 		PRINT("Inside displayAndColorDataWindows(), deleted Address/Hex/Ascii windows")
 		
@@ -20257,7 +20297,8 @@ class MainWindow:
 					if len(valueBEStr) > PRINT_ENUM_LITERALS_MAX_SIZE_CHAR: 
 						valueBEStr = valueBEStr[0:PRINT_ENUM_LITERALS_MAX_SIZE_CHAR] + "..."
 
-			if isArray:	# We need to add the proper array indices in case it is an array
+#			if isArray:	# We need to add the proper array indices in case it is an array
+			if '[' in unraveledFullyQualifiedVariableName or '.' in unraveledFullyQualifiedVariableName:	# Display full hierary
 				variableDescription = unraveledFullyQualifiedVariableName +", where "+ variableDescription
 
 			# Apply the background coloring to the Interpreted Code, Hex, and ASCII windows based on the cursor movement in the Hex window
@@ -20605,6 +20646,9 @@ class MainWindow:
 #		selected_item = self.treeView.selection()[0] ## get selected item
 #		self.treeView.delete(selected_item)
 		
+		# Delete the cache of <unraveledrowNum,ItemId>
+		self.unraveledrowNumItemId = []
+		
 		PRINT ("Currently self.treeView.get_children() = ",self.treeView.get_children(), "len(self.treeView.get_children()) = ",len(self.treeView.get_children()))
 		if len(self.treeView.get_children()) > 0:
 			PRINT ("Deleting self.treeView.get_children()")
@@ -20715,13 +20759,22 @@ class MainWindow:
 					else:
 						valueBE2Display = returnEnumLiteralForValueResult[1]
 
+				PRINT("In populateTreeView(), unraveled[",N,"][1]=",unraveled[N][1])
 				treeViewRowValues = (levelIndent+unraveled[N][1],dataTypeText,addrStart,addrEnd,unraveled[N][5],valueLE2Display,valueBE2Display)
 				id = self.treeView.insert(hierarchy[-1], "end", iid=None, values=treeViewRowValues)
+				PRINT("In populateTreeView(), N,=",N,", treeView id =",id,", unraveled[N][1]=",unraveled[N][1])
 			except IndexError:
 				OUTPUT ("IndexError in populateTreeView(): List index out of range for N = ",N)
 				OUTPUT (unraveled[N])
 				sys.exit()
 			PRINT ("After adding, self.treeView.get_children() =",self.treeView.get_children())
+		
+		# Populate the cache of < unravel row #, iid >
+		rowMax = self.populateItemIdForUnraveledRowNum()
+		PRINT("Populated the self.unraveledrowNumItemId, max row # =", rowMax)
+		PRINT("\nUnraveled row#, iid","\n===================================")
+		for row in self.unraveledrowNumItemId:
+			PRINT(row[0],",",row[1])
 		
 	
 	##############################################################################################
@@ -21835,6 +21888,7 @@ class MainWindow:
 		self.COLORS = []
 		self.currentCoordinates = ""
 		self.interpretedCodeVariablesHighlightedStartEndCoordinates = []
+		self.unraveledrowNumItemId = []
 
 	def clearDemo(self, event=None):
 		self.clearEverything()
