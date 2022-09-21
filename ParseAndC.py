@@ -838,6 +838,7 @@
 # 2020-09-19 - After replacing the dummyVariableNamePrefix with structName#dummyVar for non-anonymous structs
 # 2020-09-22 - Added the feature to anchor the tree view to the item corresponding to the double-clicked data in the Data windows
 # 2020-09-22 - Added the feature to override sign for enum btfields if the surrounding fields have identical signs
+# 2020-09-22 - Added the feature to anchor the tree view to the item corresponding to the double-clicked variable in the Interpreted Code window
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -19826,12 +19827,26 @@ class MainWindow:
 				
 						if currentWindowBaseNewValue == currentWindowBaseOldValue:
 							PRINT("No need to re-display")
-							return
 						else:
 							PRINT("Going to re-display")
 							PRINT("After redisplay, currentWindowBaseNewValue =",HEX(currentWindowBaseNewValue))
 							self.displayDataWindowFromOffset(currentWindowBaseNewValue)
-							return True
+						
+						# Anchor the treeView to the first instance of the current variable
+						unraveledRowNum = None
+						for N in range(len(unraveled)):
+							if unraveled[N][8][-1]==doubleClickLocationVariableIndex:
+								unraveledRowNum = N
+								break
+						if unraveledRowNum != None:
+							# self.unraveledrowNumItemId is a simple list of <unraveled row #, treeView iid>
+							PRINT("Now we are going to anchor the treeView to the unraveled row #",unraveledRowNum)
+							for row in self.unraveledrowNumItemId:
+								if row[0]==unraveledRowNum:
+									self.treeView.see(row[1])
+									break
+							
+						return True
 		
 
 	# Anytime self.fileOffset changes, this gets called directly.
