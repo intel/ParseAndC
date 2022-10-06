@@ -21595,7 +21595,7 @@ class MainWindow:
 		warningMessage = "Now you see, that data mapping is happening from the offset of 0x100. Press OK to continue."
 		warningRoutine(warningMessage)
 		
-		warningMessage = "In the bottom window you can see a single row with a plus sign. It represents a tree-view of all the struct and member variables. Press OK to continue."
+		warningMessage = "In the bottom window you can see a single row with a plus sign. It represents a tree-view of all the struct and member variables. Press OK to see what will happen if you click on the plus sign."
 		warningRoutine(warningMessage)
 		# self.unraveledrowNumItemId is a simple list of <unraveled row #, treeView iid>
 		unraveledRowNum = 5
@@ -21607,13 +21607,28 @@ class MainWindow:
 		warningMessage = "If you click on the plus sign, it will expand like this. Press OK to continue."
 		warningRoutine(warningMessage)
 
+		warningMessage = "Also remember, you can choose to display your values in either decimal or Hex by clicking on the Dec/Hex button on top right. Press OK to see what will happen if you had clicked there."
+		warningRoutine(warningMessage)
+		self.toggleHexDec()
+		# self.unraveledrowNumItemId is a simple list of <unraveled row #, treeView iid>
+		unraveledRowNum = 5
+		PRINT("Now we are going to anchor the treeView to the unraveled row #",unraveledRowNum)
+		for row in self.unraveledrowNumItemId:
+			if row[0]==unraveledRowNum:
+				self.treeView.see(row[1])
+				break
+		warningMessage = "Now all values are displayed in Hex. Press OK to continue."
+		warningRoutine(warningMessage)
+		self.toggleHexDec()	# revert back
+		
+
 		self.clearDemo()
 		warningMessage = "Now, we show which all different ways you can depict the input format. Press OK to continue."
 		warningRoutine(warningMessage)
 		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "As you can see, it is not necessary that all the variables must be under some structure. They can also be out in the open, by themselves. Also, there could be multiple structures.\nPress OK to continue."
+		warningMessage = "As you can see, it is not necessary that all the variables must be under some structure. They can also be out in the open, by themselves. Also, there could be multiple structures, or include files.\n\nPress OK to continue."
 		warningRoutine(warningMessage)
 		self.interpret()
 		self.mapStructureToData()
