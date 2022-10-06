@@ -832,13 +832,14 @@
 # 2022-09-14 - Fixed bugs regarding tree window values not populating for bitfields, and evaluateArithmeticExpression() failing for runtime variables when Hex
 # 2022-09-15 - Added the ability to "compress" enums data type to char or short when used within a bitfield
 # 2022-09-15 - Now display the type of enum datatype as the actual enum datatype rather than just int
-# 2020-09-16 - Fixed the parseEnum bug (setting numFakeEntries=2 for regular enum declarations)
-# 2020-09-16 - Fixed the parseVariableDeclarations bug of the rare case when the typedef name is same as the enum type (like typedef enum DAY (Sun, Mon, Tue} DAY;
-# 2020-09-19 - Before replacing the dummyVariableNamePrefix with structName#
-# 2020-09-19 - After replacing the dummyVariableNamePrefix with structName#dummyVar for non-anonymous structs
-# 2020-09-22 - Added the feature to anchor the tree view to the item corresponding to the double-clicked data in the Data windows
-# 2020-09-22 - Added the feature to override sign for enum btfields if the surrounding fields have identical signs
-# 2020-09-22 - Added the feature to anchor the tree view to the item corresponding to the double-clicked variable in the Interpreted Code window
+# 2022-09-16 - Fixed the parseEnum bug (setting numFakeEntries=2 for regular enum declarations)
+# 2022-09-16 - Fixed the parseVariableDeclarations bug of the rare case when the typedef name is same as the enum type (like typedef enum DAY (Sun, Mon, Tue} DAY;
+# 2022-09-19 - Before replacing the dummyVariableNamePrefix with structName#
+# 2022-09-19 - After replacing the dummyVariableNamePrefix with structName#dummyVar for non-anonymous structs
+# 2022-09-22 - Added the feature to anchor the tree view to the item corresponding to the double-clicked data in the Data windows
+# 2022-09-22 - Added the feature to override sign for enum btfields if the surrounding fields have identical signs
+# 2022-09-22 - Added the feature to anchor the tree view to the item corresponding to the double-clicked variable in the Interpreted Code window
+# 2022-10-06 - Updated demo for iSecCon2022.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -1767,6 +1768,63 @@ builtinMacros = {
 demoCodeIndex = 0
 demoCode = [
 
+['struct S{\n',
+'          int var_int;\n',
+'          short var_short;\n',
+'          char var_char[2];\n',
+'        };\n'],
+
+#
+#	Not just one struct
+#
+
+['int i;\n',
+'float f;\n',
+'\n',
+'struct S1{\n',
+'          int var_int;\n',
+'          short var_short;\n',
+'          char var_char[2];\n',
+'        };\n',
+'\n',
+'long l;\n',
+'\n',
+'struct S2{\n',
+'          int INT;\n',
+'          short SHORT;\n',
+'        } S2_var;\n'],
+
+#
+#	Mapping typedef or not
+#
+
+['typedef struct S{\n',
+'          int var_int;\n',
+'          short var_short;\n',
+'          char var_char[2];\n',
+'        } Struct_S;\n',
+'                   \n',
+'Struct_S  Svar1, Svar2;\n'],
+
+#
+#	enum
+#
+['typedef enum weekdays { Sun, Mon, Tue, Wed, Thu, Fri, Sat } WEEKDAYS;\n',
+'\n',
+'WEEKDAYS day;\n'],
+
+#
+#	enum in bitfield
+#
+['typedef enum weekdays { Sun, Mon, Tue, Wed, Thu, Fri, Sat } WEEKDAYS;\n',
+'\n',
+'\n',
+'struct Enum_in_bitfield {\n',
+'       unsigned int field1:8;\n',
+'       WEEKDAYS     day:8;\n',
+'       unsigned int field3:10;\n',
+'       unsigned int field4:6;\n',
+'} Svar;\n'],
 #
 #
 #	1.0 features (demoIndex = 0)
@@ -2206,8 +2264,11 @@ CStrings =	   "0x467269656E64732C00526F6D616E732C00636F756E7472796D656E2C006C656
 				+"0D0A466F720042727574757300697300616E00686F6E6F757261626C65006D61"+"6E3B0D0A536F00617265007468657900616C6C2C00616C6C00686F6E6F757261"		\
 				+"626C65006D656EE280930D0A436F6D65004900746F00737065616B00696E0043"+"6165736172E28099730066756E6572616C2E0D0A486500776173006D79006672"
 
-demoData = [generalData, generalData, generalData, generalData , generalData, ELF_header,  generalData, CStrings, CStrings, generalData, generalData, networkHdrs]
+demoData = [generalData, generalData, generalData, generalData, generalData, generalData, generalData, generalData, generalData , generalData, ELF_header,  generalData, CStrings, CStrings, generalData, generalData, networkHdrs]
 
+if len(demoData) != len(demoCode):
+	sys.stdout.write("len(demoData) != len(demoCode) - exiting!")
+	sys.exit()
 
 
 # Put all your include filepaths separated by semicolon here; for example, in the windows it might look like this
@@ -19363,6 +19424,7 @@ class MainWindow:
 		self.viewDataAsciiText.tag_configure("graybg", background="lightgray")
 		self.viewDataAsciiText.tag_configure("yellowbg", background=HIGHLIGHT_COLOR)
 		
+		self.interpretedCodeText.tag_configure("bluebg", background="blue")
 		self.interpretedCodeText.tag_configure("yellowbg", background=HIGHLIGHT_COLOR)
 
 	def createToolLayout(self):
@@ -21067,6 +21129,10 @@ class MainWindow:
 		self.displayAndColorDataWindows()
 		self.displayBottomTreeWindow()
 		
+		# does not seem to select anything :-(		MANNA_MANNA
+#		self.interpretedCodeText.tag_add(tk.SEL, "2.1", "2.3")		
+#		self.interpretedCodeText.focus_set()
+		
 	#################################################################################################################################################
 	#                                                                                                                        						#
 	#	Calculate the coloredVarsIdOffsetSize and totalBytesToReadFromDataFile based on the variablesAtGlobalScopeSelected and dataLocationOffset   #
@@ -21528,10 +21594,113 @@ class MainWindow:
 		self.mapStructureToData()
 		warningMessage = "Now you see, that data mapping is happening from the offset of 0x100. Press OK to continue."
 		warningRoutine(warningMessage)
-#		warningMessage = "We selected ALL the gloabal-level variables for mapping. But, during regular run (not in Demo) you could also select any Interpreted code segment using your mouse and click on the Map button, and all the top-level global variables within that selection will get mapped. Press OK to continue."
-#		warningRoutine(warningMessage)
-#		self.interpretedCodeText.see("1000.0")
-#		self.interpretedCodeText.see("65.0")
+		
+		warningMessage = "In the bottom window you can see a single row with a plus sign. It represents a tree-view of all the struct and member variables. Press OK to continue."
+		warningRoutine(warningMessage)
+		# self.unraveledrowNumItemId is a simple list of <unraveled row #, treeView iid>
+		unraveledRowNum = 5
+		PRINT("Now we are going to anchor the treeView to the unraveled row #",unraveledRowNum)
+		for row in self.unraveledrowNumItemId:
+			if row[0]==unraveledRowNum:
+				self.treeView.see(row[1])
+				break
+		warningMessage = "If you click on the plus sign, it will expand like this. Press OK to continue."
+		warningRoutine(warningMessage)
+
+		self.clearDemo()
+		warningMessage = "Now, we show which all different ways you can depict the input format. Press OK to continue."
+		warningRoutine(warningMessage)
+		demoIndex += 1
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		warningMessage = "As you can see, it is not necessary that all the variables must be under some structure. They can also be out in the open, by themselves. Also, there could be multiple structures.\nPress OK to continue."
+		warningRoutine(warningMessage)
+		self.interpret()
+		self.mapStructureToData()
+		warningMessage = "So, both the gloabally-declared variables and the structure got mapped. Press OK to continue."
+		warningRoutine(warningMessage)
+
+		self.clearDemo()
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		self.interpret()
+		warningMessage = "Now, it is not necessary that you must choose all of the input format to map. You can even map a selected portion of the interpreted code, using your cursor. Press OK to continue."
+		warningRoutine(warningMessage)
+		# This selects the region from line 2 to line 5, but the moment the warning message comes on top, the blue color of selection is not shown somehow
+		selectionStartLineChar = "2.4"
+		selectionEndLineChar = "5.22"
+		
+		self.interpretedCodeText.tag_add(tk.SEL, selectionStartLineChar, selectionEndLineChar)		
+		self.interpretedCodeText.focus_set()
+		# So, we artificially put a blue color
+		self.interpretedCodeText.tag_add("bluebg", selectionStartLineChar, selectionEndLineChar)	
+		
+		warningMessage = "When you press OK, you will see that we have only selected the float variable f and only a portion of struct S1. However, whenever we select ANY portion of a struct, the whole of the struct gets selected. Press OK to continue."
+		warningRoutine(warningMessage)
+		self.mapStructureToData()
+		warningMessage = "Observe that only the selected variable f and the whole struct S1 got mapped - variable i/l or struct S2 didn't.Press OK to continue."
+		warningRoutine(warningMessage)
+		self.interpretedCodeText.tag_remove("bluebg", selectionStartLineChar, selectionEndLineChar)	
+
+		self.clearDemo()
+		warningMessage = "Now, we mention the special case of typedef. Press OK to continue."
+		warningRoutine(warningMessage)
+		demoIndex += 1
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		warningMessage = "There is a typedef here. When we use that, the original typedef also gets mapped\nPress OK to continue."
+		warningRoutine(warningMessage)
+		self.interpret()
+		self.mapStructureToData()
+		warningMessage = "However, when we click on the \"Mapping typedefs too\" button below, the original typedef does not get mapped\nPress OK to continue."
+		warningRoutine(warningMessage)
+		self.toggleMapTypedefsToo()
+		warningMessage = "Now the original typedef does not get mapped\nPress OK to continue."
+		warningRoutine(warningMessage)
+
+		self.clearDemo()
+		demoIndex += 1
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		warningMessage = "Now, we show how the tool deals the enums. By default enums in C are signed integers. Press OK to continue."
+		warningRoutine(warningMessage)
+		self.interpret()
+		self.dataOffsetEntry.insert(tk.END,"0x60")
+		self.dataOffset.set(96)
+		self.mapStructureToData()
+		warningMessage = "Now, you see that when the tool finds a value corresponding to an enum literal, it displays the enum literal instead of the value.\n\nPress OK to continue."
+		warningRoutine(warningMessage)
+		
+		self.clearDemo()
+		demoIndex += 1
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		warningMessage = "Now, you can put the enum even inside a bitfield. By default enums in C are signed integers, but in this tool you are allowed to assume the sign and container type (char / short / int / long) if all other bitfield variables have the same signed/unsigned container type, but while displaying the enum literal whenever possible. Press OK to continue."
+		warningRoutine(warningMessage)
+		self.interpret()
+		self.dataOffsetEntry.insert(tk.END,"0x10")
+		self.dataOffset.set(16)
+		self.mapStructureToData()
+		# self.unraveledrowNumItemId is a simple list of <unraveled row #, treeView iid>
+		unraveledRowNum = 2
+		PRINT("Now we are going to anchor the treeView to the unraveled row #",unraveledRowNum)
+		for row in self.unraveledrowNumItemId:
+			if row[0]==unraveledRowNum:
+				self.treeView.see(row[1])
+				break
+		warningMessage = "Now, you see that when the tool finds a value corresponding to an enum literal, it displays the enum literal instead of the value.\n\nPress OK to continue."
+		warningRoutine(warningMessage)
+		
+
+		self.clearDemo()
+		demoIndex += 1
+		self.openCodeFile(demoIndex)
+		self.openDataFile(demoIndex)
+		warningMessage = "Finally, we put it all together in a code file. Press OK to continue."
+		warningRoutine(warningMessage)
+		self.interpret()
+		self.mapStructureToData()
+
 		warningMessage = "At the end of the demo (not now), once all these warning windows go away, you will be able to take your cursor above various colored items "	\
 						+"in the interpreted code window and the data window and see how the Description, Address and Values are shown below. \n\nYou will also be "	\
 						+"able to play with the Expand/Collapse buttons to see the internals of the mapped variables.\n\nPress OK to continue."
@@ -21592,7 +21761,7 @@ class MainWindow:
 						+"\n\nWith ParseAndC 2.0, we introduce the concept of \"Dynamic\" structures. They look very much like C structures, with some hidden extra powers." 	\
 						+"\n\nNow let's look at some branching capability, where the same strucure may contain different set of member variables at runtime."
 		warningRoutine(warningMessage)
-		demoIndex = 1
+		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		warningMessage = "Please pay close attention to the #commands. In C, a conditional preprocessor command may only contain fields who values are known statically, "	\
@@ -21618,7 +21787,7 @@ class MainWindow:
 		self.clearDemo()
 		
 		# Both statically and dynamically coexiting
-		demoIndex = 2
+		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		warningMessage = "We have loaded a new Dynamic structure that contains BOTH Regular preprocessing commands and Runtime statements. "		\
@@ -21646,7 +21815,7 @@ class MainWindow:
 		warningMessage = "Feature # 2: Variable-length array\n\nIn C structures, all array dimensions must be constant - it cannot be coming from another runtime variable. "	\
 						+"\n\nAgain, we are talking about C structures, not general C programs."
 		warningRoutine(warningMessage)
-		demoIndex = 3
+		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		warningMessage = "The array dimension of packet_data is one plus \"packet_length\", which is the previous struct member. \n\nWe cannot do this in C structure."		\
@@ -21667,7 +21836,7 @@ class MainWindow:
 		
 		warningMessage = "Feature # 3: Variable-width Bitfield\n\nIn C structures, all bitfield widths must be constant - it cannot be coming from another runtime variable."
 		warningRoutine(warningMessage)
-		demoIndex = 4
+		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		warningMessage = "Here the bitfield width (num_flags) for the struct member variable bit_flags - it comes from the "	\
@@ -21687,7 +21856,7 @@ class MainWindow:
 						+"\n\nHowever, when we declare a C struct for parsing (reading) some data, initialization makes no sense (as there is no writing involved)."	\
 						+"\n\nPress OK to continue."
 		warningRoutine(warningMessage)
-		demoIndex = 5
+		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		self.interpret()
@@ -21716,7 +21885,7 @@ class MainWindow:
 						+"of any imperative programing language like C. (we will discuss the termination condition for infinite loops later)"
 		warningRoutine(warningMessage)
 		
-		demoIndex = 6
+		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		warningMessage = "Suppose a datastream is simply many packets coming one after another, where each packet header contains a single \"packet_length\" field "		\
@@ -21747,7 +21916,7 @@ class MainWindow:
 						+"a C string field in the incoming datastream, but we do not know its length beforehand, then we cannot capture it via a regular C structure. "	\
 						+"\n\n(Sure, we can write a C program to figure that out easily, but here we are talking about capturing it via the structure definition alone.)"
 		warningRoutine(warningMessage)
-		demoIndex = 7
+		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		warningMessage = "Interestingly, we observe that the way C strings are constructed (a stream of non-null characters followed by the null character) makes it a "		\
@@ -21765,7 +21934,7 @@ class MainWindow:
 		
 		self.clearDemo()
 
-		demoIndex = 8
+		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		self.interpret()
@@ -21783,7 +21952,7 @@ class MainWindow:
 						+"But, what if we do not know where the data is? \n\nAmazingly, the new features (Dimensionless arrays with termination conditions via  "	\
 						+"initialization) can help us there. \n\nLet's take an example to illustrate this."
 		warningRoutine(warningMessage)
-		demoIndex = 9
+		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		warningMessage = "On the code window, we see the struct Initialization_tester, which describes the data format for the packet that we are looking for. "	\
@@ -21808,7 +21977,7 @@ class MainWindow:
 		warningRoutine(warningMessage)
 		
 		self.clearDemo()
-		demoIndex = 10
+		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		warningMessage = "That is precisely what we achieve here. Take a look at the Code window, where we have added a new line at the top. "							\
@@ -21829,7 +21998,7 @@ class MainWindow:
 		warningRoutine(warningMessage)
 		
 		# Real-life example for network packet header parsing using Dynamic structure:
-		demoIndex = 11
+		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		warningMessage = "What we have on the right are real Ethernet II frame headers followed by IPv4 header, and then TCP/UDP/ICMP headers after that."		\
@@ -21914,7 +22083,6 @@ class MainWindow:
 		hexCharArray = []
 		totalBytesToReadFromDataFile = 0
 		
-
 		# Then delete the code and data windows
 		self.dataOffsetEntry.delete(0, tk.END)
 		self.fileOffsetEntry.delete(0, tk.END)
@@ -21923,9 +22091,9 @@ class MainWindow:
 		self.addressColumnText.delete("1.0", "end")
 		self.viewDataHexText.delete("1.0", "end")
 		self.viewDataAsciiText.delete("1.0", "end")
-		if fileDisplayOffset != 0:
+		if fileDisplayOffset != 0 or self.fileOffset.get() != 0:
 			self.fileOffset.set(0)
-		if dataLocationOffset != 0:
+		if dataLocationOffset != 0 or self.dataOffset.get() != 0:
 			self.dataOffset.set(0)
 
 		self.originalCodeText.delete("1.0", "end")
