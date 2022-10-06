@@ -21559,6 +21559,7 @@ class MainWindow:
 	##########################################################################################################################
 	def runDemo(self, event=None):
 		global IN_DEMO
+		self.clearDemo()
 		IN_DEMO = True
 		# 1.0 features
 		warningMessage = "First we are going to demonstrate the ParseAndC 1.0 features. \n\n(This is for users who may not be familiar with this tool beforehand)."		\
@@ -21628,18 +21629,22 @@ class MainWindow:
 		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "As you can see, it is not necessary that all the variables must be under some structure. They can also be out in the open, by themselves. Also, there could be multiple structures, or include files.\n\nPress OK to continue."
+		warningMessage = "As you can see, it is not necessary that all the variables must be under some structure. They can also be out in the open, by themselves. "	\
+						+"Also, there could be multiple structures, or include files.\n\nPress OK to continue."
 		warningRoutine(warningMessage)
 		self.interpret()
 		self.mapStructureToData()
-		warningMessage = "So, both the gloabally-declared variables and the structure got mapped. Press OK to continue."
+		warningMessage = "So, both the gloabally-declared variables and the structures got mapped. \n\nAlso note that while both structs (S1 and S2) "	\
+						+"are defined here, only S2 has a struct variable S2_var declared right after its definition (S1 didn't). \n\n"	\
+						+" In such cases, the tool will create a dummy variable S1#dummyVar0 for you.\n\nPress OK to continue."
 		warningRoutine(warningMessage)
 
 		self.clearDemo()
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
 		self.interpret()
-		warningMessage = "Now, it is not necessary that you must choose all of the input format to map. You can even map a selected portion of the interpreted code, using your cursor. Press OK to continue."
+		warningMessage = "Now, it is not necessary that you must choose all of the input format to map. You can even map a selected portion of the interpreted code, "	\
+						+"using your cursor. Press OK to continue."
 		warningRoutine(warningMessage)
 		# This selects the region from line 2 to line 5, but the moment the warning message comes on top, the blue color of selection is not shown somehow
 		selectionStartLineChar = "2.4"
@@ -21650,10 +21655,11 @@ class MainWindow:
 		# So, we artificially put a blue color
 		self.interpretedCodeText.tag_add("bluebg", selectionStartLineChar, selectionEndLineChar)	
 		
-		warningMessage = "When you press OK, you will see that we have only selected the float variable f and only a portion of struct S1. However, whenever we select ANY portion of a struct, the whole of the struct gets selected. Press OK to continue."
+		warningMessage = "When you press OK, you will see that we have only selected the float variable f and only a portion of struct S1. "	\
+						+"However, whenever we select ANY portion of a struct, the whole of the struct gets selected. Press OK to continue."
 		warningRoutine(warningMessage)
 		self.mapStructureToData()
-		warningMessage = "Observe that only the selected variable f and the whole struct S1 got mapped - variable i/l or struct S2 didn't.Press OK to continue."
+		warningMessage = "Observe that only the selected variable f and the whole struct S1 got mapped - variable i, variable l and struct S2 didn't. Press OK to continue."
 		warningRoutine(warningMessage)
 		self.interpretedCodeText.tag_remove("bluebg", selectionStartLineChar, selectionEndLineChar)	
 
@@ -21663,14 +21669,14 @@ class MainWindow:
 		demoIndex += 1
 		self.openCodeFile(demoIndex)
 		self.openDataFile(demoIndex)
-		warningMessage = "There is a typedef here. When we use that, the original typedef also gets mapped\nPress OK to continue."
+		warningMessage = "There is a typedef here. When we use that, the original typedef also gets mapped.\n\nPress OK to continue."
 		warningRoutine(warningMessage)
 		self.interpret()
 		self.mapStructureToData()
-		warningMessage = "However, when we click on the \"Mapping typedefs too\" button below, the original typedef does not get mapped\nPress OK to continue."
+		warningMessage = "However, when we click on the \"Mapping typedefs too\" button below, the original typedef does not get mapped any more.\n\nPress OK to continue."
 		warningRoutine(warningMessage)
 		self.toggleMapTypedefsToo()
-		warningMessage = "Now the original typedef does not get mapped\nPress OK to continue."
+		warningMessage = "Now the original typedef does not get mapped.\n\nPress OK to continue."
 		warningRoutine(warningMessage)
 
 		self.clearDemo()
