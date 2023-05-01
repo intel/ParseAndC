@@ -842,6 +842,7 @@
 # 2022-10-06 - Updated demo for iSecCon2022.
 # 2023-03-24 - Revamped Demo. Before merging demoCode and demoData into a single structure.
 # 2023-04-27 - Rewrote the demo.
+# 2023-04-30 - Improved the demo.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -1830,13 +1831,26 @@ non-contiguous code
 demoFeatureCodeData = [
 
 ############################################################################################	0
-["How to specify the input format", 	
+["Introduction to this tool", 	
 [
 # Single struct
 [['struct S{\n',
 '          int var_int;\n',
 '          short var_short;\n',
 '          char var_char[2];\n',
+'        } structVar;\n'],
+generalData]
+]
+],
+
+############################################################################################	0
+["How to specify the input format", 	
+[
+# Single struct
+[['struct S{\n',
+'          int var_int;\n',
+'          short var_short;\n',
+'          char var_char;\n',
 '        };\n'],
 generalData],
 #	Multiple structs
@@ -17932,7 +17946,7 @@ def inputFileIsHexText():
 	PRINT ( len(hexCharArray),"-size hexCharArray =", hexCharArray)
 	PRINT ( len(binaryArray),"-size binaryArray =", binaryArray)
 	
-	MUST_PRINT("Setting inputIsHexChar to True")
+	PRINT("Setting inputIsHexChar to True")
 
 	inputIsHexChar = True
 	dataFileSizeInBytes = len(binaryArray)
@@ -22106,37 +22120,94 @@ class MainWindow:
 			return
 
 		if self.demoIndex == -1:
+			warningMessage = "To use the demo, you need to do TWO things. " 	\
+							+"\n\n1. CHOOSE a feature using the \"<<\" or \">>\" buttons."	\
+							+"\n\n2. CLICK on the middle button in between the \"<<\" and \">>\" buttons to actually start the demo for that feature."	
+			warningRoutine(warningMessage)
 			warningMessage = "The way this Demo is organized, first you choose a feature you want to Demo. You can go through the feature list by using the Forward (>>) or Backward (<<) " 	\
-							 + "button. \n\nOnce you choose a feature you want to demo, just click on it.\n\nHowever, once the Demo of that feature starts, you have to wait "	\
-							 + "to let it finish. You can jump to another feature only after the current feature's Demo is completed."	\
-							 +"\n\nIf you have not used this tool before, it is advised to go through ALL demo features sequencetially."
+							 + "button. \n\nOnce you choose a feature you want to demo, just click on it (the middle button between the \"<<\" and \">>\". "	\
+							 +"\n\nHowever, once the Demo of that feature starts, you have to wait to let it finish (during that time, all you are allowed to do is to "	\
+							 +"press OK on the various popup messages. Only after the current feature's Demo is completed, you get the control back and then can jump to "	\
+							 +"another feature, forward or backward."	\
+							 + "\n\nIf you have not used this tool before, it is advised to go through ALL demo features sequencetially."
+			warningRoutine(warningMessage)
+			warningMessage = "This is the end of \"How to use the Demo\". \n\nUse the Forward (>>) button to start navigating across various features. " 	
 			warningRoutine(warningMessage)
 			
 		elif self.demoIndex == 0:
-			# Single struct
-			warningMessage = "The biggest problem with writing a C parser is that even when you use the correct input data format (a C structure), there is no guarantee that "	\
+			warningMessage = "Here we explain the motivation for this tool (why this tool exists in the first place), followed by a ultra-simplistic demo of what the tool does."	
+			warningRoutine(warningMessage)
+			warningMessage = "MOTIVATION: \n\n"	\
+							+ "The biggest problem with writing a C parser is that even when you use the correct input data format (a C structure), there is no guarantee that "	\
 							+"the parser's output will be correct. This is because while C allows to read a whole structure in one go, it does not have any function that can "	\
 							+"print all the contents of a structure individually - one must manually write individual printf() statements for each struct member "				\
 							+"(and do it recursively if the struct member is a struct itself)."																					\
 							+"\n\nThis process is error-prone. What we want is a way where just by giving a correct input structure, we are somehow guaranteed to be able to "	\
-							+"see all the individual struct member values correctly.\n\nThis is not a trivial problem, and it is exactly what we solved in 1.0 version."
+							+"see all the individual struct member values correctly.\n\nThis is not a trivial problem, and it is exactly what we solve here."
 			warningRoutine(warningMessage)
-			warningMessage = "Let's see that in action. First we are going to use an arbitrary datastream to be parsed (contained within this program). \n\nPress OK to continue."
+			warningMessage = "In order to do the parsing, we need the following things (only the CODE and DATA are mandatory): \n"	\
+							+"\n\nCODE (input format): usually given by one or more C struct(s)"	\
+							+"\n\nDATA (datastream): onto which we will map this input format."	\
+							+"\n\nOFFSET: From which byte of DATE the mapping will start. "	
 			warningRoutine(warningMessage)
-#			demoIndex = 0
+			warningMessage = "Let's see that in action. We use an arbitrary datastream to be parsed (contained within this program), and a very simple struct. "	\
+							+"\n\nWhen you press OK, we will load the datastream in the two Data windows on the right (one in the Hex format, the other in ASCII)."
+			warningRoutine(warningMessage)
+			self.clearDemo()
 			self.openDataFile([self.demoIndex,0])
-			warningMessage = "You can see that the datastream has been loaded on the Data windows on the right. "		\
-							+"\n\nNext we are going to use some code as the input format of the datastream to be parsed. \n\nPress OK to continue."
+			warningMessage = "You can see that the datastream has been loaded on the two Data windows on the right. "		\
+							+"\n\nNext we are going to use some C struct code as the input format of the datastream to be parsed."	\
+							+"\n\nWhen you press OK, we will load the Code in the left window on the right."
 			warningRoutine(warningMessage)
 			self.openCodeFile([self.demoIndex,0])
-			warningMessage = "Now that you can see the code on the left and the data on the right, we are going to interpret the code. \n\nPress OK to continue."
+			warningMessage = "Now that you can see the code on the left and the data on the right, we are going to \"interpret\" (or compile) the code. "	\
+							+"\n\nThis helps the compiler to understand exactly which fields are there in the input format, what are their widths, their offsets etc. "	\
+							+"\n\nThis is usually achieved by the user clicking on the \"Interpret\" button on the top middle, but here we will just show "	\
+							+"what would happen when you press that button. Press OK to Interpret the code."
 			warningRoutine(warningMessage)
 			self.interpret()
-			warningMessage = "Now you can see the interpreted code in the middle window, we are going to map the interpreted code to the data. Press OK to continue."
+			warningMessage = "Now you can see the \"Interpreted code\" window in the middle, with the Code window on its left, and the two Data windows on its right. "	\
+							+"\n\nNow the tool knows exactly which fields are there in the input format, what are their widths, their offsets etc. "	\
+							+"\n\nFinally, we are going to \"map\" the interpreted code (the compiled version of the input format) to the data, and print their parsed values. "	\
+							+"\n\nThis is usually achieved by the user clicking on the \"Map\" button on the top middle, but here we will just show "	\
+							+"what would happen when you press that button. Press OK to Map the Interpretd code onto the data."
 			warningRoutine(warningMessage)
 			self.mapStructureToData()
-			warningMessage = "We map the data format from the offset of 0 by default. Of course, we can change that (will show later how). \n"			\
-							+"We can also use multiple structures instead of just one."
+			self.showUnraveledRowNumInTreeView(2)
+			warningMessage = "Once we parsed the data based on the input format (basically, mapping the struct onto the data), we can see the values of "	\
+							+"the fields listed at the bottom window. We mapped the input format from a data offset of zero (default), but that can be changed." 	\
+							+"\n\nThis is an extremely simplistic view of what the tool does, but we will explain all the features in detail later."
+			warningRoutine(warningMessage)
+			
+			self.endFeatureDemoMessage()
+			
+		elif self.demoIndex == 1:
+			# Single struct
+			warningMessage = "In this demo, we show different ways we can enter the Input format (the \"Code\") and the datastream (the \"Data\")."	\
+							+"\n\nRemember, this is a READ-ONLY tool. Nothing you do here will EVER change your code or data. "	\
+							+"\n\nIt was deliberately designed that way to give the user the peace of mind."
+			warningRoutine(warningMessage)
+							
+			warningMessage = "There are 3 ways you can enter the \"Code\" (the Input Format). \n"	\
+							+"\n1. By clicking on the \"Open Code file\" button on top left and choosing a code file, which will load it into the \"Original code\" window." \
+							+"\n2. By straightaway typing the code in the \"Original code\" window."	\
+							+"\n3. By combining the previous two methods."
+			warningRoutine(warningMessage)
+			warningMessage = "For data though, there is only ONE way to enter it - by clicking on the \"Open data file\" button and choosing a data file. "	\
+							+"\n\nFor minimizing the memory used, it usually does NOT load the whole file into memory, and rather reads just enough data "	\
+							+"to display in the Data windows."
+			warningRoutine(warningMessage)
+			warningMessage = "Now, what does the Code (the input format) may look like?"	\
+							+"\n\nThe simplest input format would an ordinary C struct, like the one in the next step."
+			warningRoutine(warningMessage)
+							
+			self.openDataFile([self.demoIndex,0])
+			self.openCodeFile([self.demoIndex,0])
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(2)
+			warningMessage = "Here the input format was a SINGLE C struct. \n"			\
+							+"\nOf course, we can also use multiple structures instead of just one, as we will see in the next screen."
 			warningRoutine(warningMessage)
 
 			# Multiple structs
@@ -22196,7 +22267,7 @@ class MainWindow:
 
 			self.endFeatureDemoMessage()
 			
-		elif self.demoIndex == 1:	#"How to specify the data offset"
+		elif self.demoIndex == 2:	#"How to specify the data offset"
 			self.clearDemo()
 			warningMessage = "We map the data format from the offset of 0 by default. Of course, we can change that. \n\nLet's see what happens when we map it from one-fourth "	\
 							+"of a Kilobyte. You can specify this in any format, as pure 256, or 0x100, or even 1KB/4, which is very much human readable. Press OK to continue."
@@ -22247,7 +22318,7 @@ class MainWindow:
 
 
 
-		elif self.demoIndex == 2:	#"How to use the cursor on Code and Data"
+		elif self.demoIndex == 3:	#"How to use the cursor on Code and Data"
 			self.clearDemo()
 			warningMessage = "Here, we talk about how to use the cursor on the Interpreted Code window and the Data windows (both Hex and ASCIII)"
 			warningRoutine(warningMessage)
@@ -22300,7 +22371,7 @@ class MainWindow:
 			self.endFeatureDemoMessage()
 
 
-		elif self.demoIndex == 3:	# "Parsed data output location #1: Tree window"
+		elif self.demoIndex == 4:	# "Parsed data output location #1: Tree window"
 			self.clearDemo()
 			warningMessage = "In the previous demo feature, you could see every variable's details (offset, length, value etc.) simply by placing the cursor above "	\
 							+"the variable name in the Interpreted Code window (or the corresponding bytes in the Data windows)."	\
@@ -22336,7 +22407,7 @@ class MainWindow:
 			
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 4:	#	"Parsed data output location #2: CSV file"
+		elif self.demoIndex == 5:	#	"Parsed data output location #2: CSV file"
 			self.clearDemo()
 			warningMessage = "In the previous demo feature, you could see every variable's details (offset, length, value etc.) simply by placing the cursor above "	\
 							+"the variable name in the Interpreted Code window (or the corresponding bytes in the Data windows)."	\
@@ -22369,7 +22440,7 @@ class MainWindow:
 			warningRoutine(warningMessage)
 
 			
-		elif self.demoIndex == 5:	#	"Parsed data output location #3: Console"
+		elif self.demoIndex == 6:	#	"Parsed data output location #3: Console"
 			self.clearDemo()
 			warningMessage = "In the previous demo feature, you could see every variable's details (offset, length, value etc.) in the snapshot.csv file."	\
 							+"\n\nHowever, sometimes you want to see the output directly printed on a text file or on the console (command line) itself. "	
@@ -22395,7 +22466,7 @@ class MainWindow:
 			warningRoutine(warningMessage)
 
 
-		elif self.demoIndex == 6:	#	"One Variable to Many Data: Arrays and Structs"
+		elif self.demoIndex == 7:	#	"One Variable to Many Data: Arrays and Structs"
 			self.clearDemo()
 			warningMessage = "Till now, we have deliberately chosen examples where a single piece of code (a simple declaration of a variable) mapped to a single piece of data item."	\
 							+"In such cases, highlighting the details of the variable (its value, start/end addresses, length etc.) was easy."	\
@@ -22464,7 +22535,7 @@ class MainWindow:
 			self.endFeatureDemoMessage()
 
 
-		elif self.demoIndex == 7:	#	"Union"
+		elif self.demoIndex == 8:	#	"Union"
 			self.clearDemo()
 			warningMessage = "In the previous demo feature, we handled the case where one single piece of code declaration might correspond to multiple data items"	\
 							+"(array or struct).\n\nHowever, the reverse situation also exists, where one piece of data corresponds to multiple variable declarations."		\
@@ -22494,7 +22565,7 @@ class MainWindow:
 			self.endFeatureDemoMessage()
 
 			
-		elif self.demoIndex == 8:	#	"Display values in Decimal or Hexadecimal"
+		elif self.demoIndex == 9:	#	"Display values in Decimal or Hexadecimal"
 			
 			self.clearDemo()
 			warningMessage = "In this demo, we show how we can show values in either decimal or hexadecimal, and how to toggle between the two by clicking on the Dec/Hex button on top right."
@@ -22519,7 +22590,7 @@ class MainWindow:
 			
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 9:	#	"Anonymous and Nested structure"
+		elif self.demoIndex == 10:	#	"Anonymous and Nested structure"
 			
 			self.clearDemo()
 			warningMessage = "In this demo, we show how this tool handles Anonymous and Nested structures."
@@ -22551,7 +22622,7 @@ class MainWindow:
 			
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 10:	#	"Bitfields"
+		elif self.demoIndex == 11:	#	"Bitfields"
 			
 			self.clearDemo()
 			warningMessage = "In this demo, we show how this tool handles bitfield."
@@ -22589,7 +22660,7 @@ class MainWindow:
 			self.endFeatureDemoMessage()
 			
 
-		elif self.demoIndex == 11:	#	"Compiler-generated Padding"
+		elif self.demoIndex == 12:	#	"Compiler-generated Padding"
 			
 			self.clearDemo()
 			warningMessage = "In this demo, we show how this tool handles the padding generated by the compiler."
@@ -22616,7 +22687,7 @@ class MainWindow:
 			
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 12:	#	"Packed and Aligned"
+		elif self.demoIndex == 13:	#	"Packed and Aligned"
 			
 			self.clearDemo()
 			warningMessage = "In this demo, we show how this tool handles the Packed and Aligned directives, which tell the compiler how to pack and align the various members."
@@ -22670,7 +22741,7 @@ class MainWindow:
 
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 13:	#	"#pragma pack()"
+		elif self.demoIndex == 14:	#	"#pragma pack()"
 			
 			self.clearDemo()
 			warningMessage = "In this demo, we show how this tool handles the #pragma pack directives, which tell the compiler how to override the pack and align directives."
@@ -22709,7 +22780,8 @@ class MainWindow:
 
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 14:			# Typedef
+		elif self.demoIndex == 15:			# Typedef
+		
 			self.clearDemo()
 			warningMessage = "In this demo, we show how this tool handles the typedef, which tell the compiler to create a new type."	\
 							+"\n\nYou can convert ANY declaration statement into a typedef statement simply by putting the keyword \"typedef\" at the beginning."	\
@@ -22765,7 +22837,8 @@ class MainWindow:
 
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 15:			# Builtin Typedef
+		elif self.demoIndex == 16:			# Builtin Typedef
+		
 			self.clearDemo()
 			warningMessage = "In this demo, we show how this tool handles some of the builtin typedefs."	\
 							+"\n\nIn production C code, we often find types like int8_t, int32_t etc. which are usually defined in the stdint.h file."	\
@@ -22794,7 +22867,8 @@ class MainWindow:
 
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 16:			# Enum
+		elif self.demoIndex == 17:			# Enum
+		
 			self.clearDemo()
 			warningMessage = "In this demo, we show how this tool handles Enums."	\
 							+"\n\nIn production C code, we often find many enums, which are usually integers."	\
@@ -22839,7 +22913,8 @@ class MainWindow:
 
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 17:			# Enum in bitfield
+		elif self.demoIndex == 18:			# Enum in bitfield
+		
 			self.clearDemo()
 			warningMessage = "In the previous demo, we saw how this tool handles Enums."	\
 							+"\n\nNow, in production C code, we often find many enums, which are also used inside a bitfield."	\
@@ -22869,7 +22944,8 @@ class MainWindow:
 
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 18:			# Macros
+		elif self.demoIndex == 19:			# Macros
+		
 			self.clearDemo()
 			warningMessage = "One of the most useful features of C is macros. Technically, they are preprocessor statements which the compiler do not see,"	\
 							+"but let's not get pedantic here. In this tool, when we use the term \"compiler\", we often use it the generic way - we "		\
@@ -22914,7 +22990,8 @@ class MainWindow:
 			
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 19:			# Variadic Macros
+		elif self.demoIndex == 20:			# Variadic Macros
+		
 			self.clearDemo()
 			warningMessage = "One of the most useful features of C is variadic macros, which takes a variable number of arguments."	\
 							+"\n\nLet's see it in action."
@@ -22934,7 +23011,7 @@ class MainWindow:
 
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 20:			# Builtin Macros
+		elif self.demoIndex == 21:			# Builtin Macros
 
 			self.clearDemo()
 			warningMessage = "In C, when we compile a program with included files, many a times we come across macros that are builtin within the compiler."	\
@@ -22961,7 +23038,7 @@ class MainWindow:
 			self.endFeatureDemoMessage()
 
 
-		elif self.demoIndex == 21:			# Static branching
+		elif self.demoIndex == 22:			# Static branching
 
 			self.clearDemo()
 			warningMessage = "C compilers (actually, preprocessors) allow preprocessor statements that allow branching capability, "	\
@@ -22984,7 +23061,8 @@ class MainWindow:
 
 
 	
-		elif self.demoIndex == 22:		# Dynamic branching
+		elif self.demoIndex == 23:		# Dynamic branching
+		
 			# 2.0 features
 			self.clearDemo()
 			
@@ -23064,7 +23142,8 @@ class MainWindow:
 
 			self.endFeatureDemoMessage()
 
-		elif self.demoIndex == 23:	# Both statically and dynamically coexiting
+		elif self.demoIndex == 24:	# Both statically and dynamically coexiting
+		
 			self.clearDemo()
 			
 			
@@ -23092,7 +23171,7 @@ class MainWindow:
 			self.endFeatureDemoMessage()
 
 
-		elif self.demoIndex == 24:			# Feature # 2: Variable length array 
+		elif self.demoIndex == 25:			# Feature # 2: Variable length array 
 			
 			self.clearDemo()
 			warningMessage = "New Feature: Variable-length array\n\nIn C structures, all array dimensions must be constant - it cannot be coming from another runtime variable. "	\
@@ -23116,7 +23195,8 @@ class MainWindow:
 
 			self.endFeatureDemoMessage()
 		
-		elif self.demoIndex == 25:			# Feature # 3: Variable length Bitfield 
+		elif self.demoIndex == 26:			# Feature # 3: Variable length Bitfield 
+		
 			self.clearDemo()
 			warningMessage = "New Feature: Variable-width Bitfield\n\nIn C structures, all bitfield widths must be constant - it cannot be coming from another runtime variable."
 			warningRoutine(warningMessage)
@@ -23135,7 +23215,7 @@ class MainWindow:
 			self.endFeatureDemoMessage()
 		
 
-		elif self.demoIndex == 26:			# Feature # 4: Verification via Initialization
+		elif self.demoIndex == 27:			# Feature # 4: Verification via Initialization
 
 			self.clearDemo()
 			warningMessage = "Feature # 4: Verification via Initialization.\n\nIn C, when we declare a variable, we can initialialize it to a value. "						\
@@ -23165,7 +23245,7 @@ class MainWindow:
 		
 			self.endFeatureDemoMessage()
 			
-		elif self.demoIndex == 27:			# Feature # 5: Looping and Dimension-less array:
+		elif self.demoIndex == 28:			# Feature # 5: Looping and Dimension-less array:
 			
 			self.clearDemo()
 			warningMessage = "Feature # 5: Looping and Dimension-less array. \n\nIn C structures, array dimensions must be provided at compile-time. The C99 does allow "		\
@@ -23190,7 +23270,8 @@ class MainWindow:
 			self.endFeatureDemoMessage()
 		
 
-		elif self.demoIndex == 28:		# Speculative execution and C strings
+		elif self.demoIndex == 29:		# Speculative execution and C strings
+		
 			self.clearDemo()
 			warningMessage = "We just saw that using dimensionless arrays can be used for looping endlessly. However, looping endlessly is only of limited use."		\
 							+"What we want is smart looping, where we stop after certain criteria is met. This is very similar to while(condition) { } loop in C."		\
@@ -23225,7 +23306,8 @@ class MainWindow:
 			warningRoutine(warningMessage)
 			self.endFeatureDemoMessage()
 		
-		elif self.demoIndex == 29:			# Using C string as a class
+		elif self.demoIndex == 30:			# Using C string as a class
+		
 			self.clearDemo()
 
 #			demoIndex += 1
@@ -23238,7 +23320,8 @@ class MainWindow:
 			warningRoutine(warningMessage)
 			self.endFeatureDemoMessage()
 		
-		elif self.demoIndex == 30:		# Feature # 7: Unknown Offset? No problem! Parse even without knowing which data offset to parse from:
+		elif self.demoIndex == 31:		# Feature # 7: Unknown Offset? No problem! Parse even without knowing which data offset to parse from:
+		
 			self.clearDemo()
 
 			# Variable-length arrays (speculative execution)
@@ -23288,7 +23371,7 @@ class MainWindow:
 			warningRoutine(warningMessage)
 			self.endFeatureDemoMessage()
 		
-		elif self.demoIndex == 31:
+		elif self.demoIndex == 32:
 			self.clearDemo()
 			warningMessage = "OK, enough with all these \"test\" data. Let's see this tool in action on some REAL data (network packet headers captured via Wireshark)."					
 			warningRoutine(warningMessage)
