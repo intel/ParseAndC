@@ -843,6 +843,7 @@
 # 2023-03-24 - Revamped Demo. Before merging demoCode and demoData into a single structure.
 # 2023-04-27 - Rewrote the demo.
 # 2023-04-30 - Improved the demo.
+# 2023-05-03 - Improved the demo. Added suggested color buttons.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -1843,7 +1844,7 @@ generalData]
 ]
 ],
 
-############################################################################################	0
+############################################################################################	1
 ["How to specify the input format", 	
 [
 # Single struct
@@ -1890,7 +1891,7 @@ generalData],
 generalData]
 ],
 ],
-############################################################################################	1
+############################################################################################	2
 ["How to specify the data offset", 	
 [
 # 
@@ -1902,7 +1903,7 @@ generalData]
 generalData],
 ],
 ],
-############################################################################################	2
+############################################################################################	3
 ["How to use the cursor on Code and Data", 	# Mention Dummy variable
 [
 # 
@@ -1914,7 +1915,7 @@ generalData],
 generalData]
 ]
 ],
-############################################################################################	3
+############################################################################################	4
 ["Parsed data output location #1: Tree window", 	
 [
 # 
@@ -1939,7 +1940,7 @@ generalData]
 
 ]
 ],
-############################################################################################	4
+############################################################################################	5
 ["Parsed data output location #2: CSV file", 	
 [
 # 
@@ -1964,7 +1965,7 @@ generalData]
 
 ]
 ],
-############################################################################################	5
+############################################################################################	6
 ["Parsed data output location #3: Console", 	
 [
 # 
@@ -1989,7 +1990,7 @@ generalData]
 
 ]
 ],
-############################################################################################ 	6
+############################################################################################ 	7
 ["One Variable to Many Data: Arrays and Structs", 
 [
 # 
@@ -2005,7 +2006,7 @@ generalData]
 generalData]
 ]
 ],
-############################################################################################	7
+############################################################################################	8
 ["One Data to Many Variables: Unions", 
 [
 # 
@@ -2017,7 +2018,7 @@ generalData]
 generalData]
 ]
 ],
-############################################################################################	8
+############################################################################################	9
 ["How to display value in Decimal or Hex", 
 [
 [['struct S{\n',
@@ -2028,7 +2029,7 @@ generalData]
 generalData]
 ]
 ],
-############################################################################################	9
+############################################################################################	10
 ["Anonymous and Nested structure", 
 [
 [['struct {\n',
@@ -2051,7 +2052,7 @@ generalData],
 generalData]
 ]
 ],
-############################################################################################	10
+############################################################################################	11
 ["Bitfield", 
 [
 [['struct S{\n',
@@ -2069,7 +2070,7 @@ generalData],
 generalData]
 ]
 ],
-############################################################################################	11
+############################################################################################	12
 ["Compiler-generated padding", 
 [
 # 
@@ -2087,7 +2088,7 @@ generalData]
 generalData]
 ]
 ],
-############################################################################################	12
+############################################################################################	13
 ["Compiler directives Packed and Aligned", 
 [
 # 
@@ -2116,7 +2117,7 @@ generalData],
 generalData]
 ]
 ],
-############################################################################################	13
+############################################################################################	14
 ["Compiler directive: #pragma pack()", 
 [
 # 
@@ -2143,7 +2144,7 @@ generalData]
 
 ]
 ],
-############################################################################################	14
+############################################################################################	15
 ["typedef",
 [
 [['typedef struct S{\n',
@@ -2162,7 +2163,7 @@ generalData],
 generalData]
 ]
 ],
-############################################################################################	15
+############################################################################################	16
 ["Builtin typedefs",
 [
 [['// Explicitly defining the int8_t type \n',
@@ -2178,7 +2179,7 @@ generalData],
 generalData]
 ]
 ],
-############################################################################################	16
+############################################################################################	17
 ["Enum",
 [
 [['typedef enum weekdays { Sun, Mon, Tue, Wed, Thu, Fri, Sat } WEEKDAYS;\n',
@@ -2193,7 +2194,7 @@ generalData]
 ]
 ],
 
-############################################################################################	17
+############################################################################################	18
 ["Enum in bitfield",
 [
 [['typedef enum weekdays { Sun, Mon, Tue, Wed, Thu, Fri, Sat } WEEKDAYS;\n',
@@ -2208,7 +2209,7 @@ generalData]
 generalData]
 ]
 ],
-############################################################################################	18
+############################################################################################	19
 ["Macros",
 [
 [['#define ARRAY_SIZE 4\n',
@@ -2239,7 +2240,7 @@ generalData],
 generalData]
 ]
 ],
-############################################################################################	19
+############################################################################################	20
 ["Variadic Macros",
 [
 [['# define MYLOG(FormatLiteral, ...)  fprintf (stderr, "%s(%u): " FormatLiteral "\\n", __FILE__, __LINE__, __VA_ARGS__)\n',
@@ -2252,7 +2253,7 @@ generalData]
 
 ]
 ],
-############################################################################################	20 
+############################################################################################	21 
 ["Builtin Macros",
 [
 [['typedef enum weekdays { Sun, Mon, Tue, Wed, Thu, Fri, Sat } WEEKDAYS;\n',
@@ -2261,7 +2262,7 @@ generalData]
 generalData]
 ]
 ],
-##############################################################################################	21
+##############################################################################################	22
 #
 #	Fearure # 1: Branching - Dynamic structures	
 #
@@ -2284,7 +2285,7 @@ generalData]
 ]
 ],
 
-##############################################################################################	22
+##############################################################################################	23
 
 ["Dynamic branching",
 [
@@ -2300,7 +2301,7 @@ generalData]
 ],
 generalData]]
 ],
-##############################################################################################	23
+##############################################################################################	24
 #
 #
 #	Branching - both statically and dynamically resolved conditions coexisting	
@@ -2328,7 +2329,7 @@ generalData]]
 ],
 generalData]]
 ],
-##############################################################################################	24
+##############################################################################################	25
 #
 #
 #	Feature # 2: Variable length array 
@@ -2344,7 +2345,7 @@ generalData]]
 ],
 generalData]]
 ],
-##############################################################################################	25
+##############################################################################################	26
 #
 #
 #	Feature # 3: Variable length Bitfield 
@@ -2359,7 +2360,7 @@ generalData]]
 ],
 generalData]]
 ],
-##############################################################################################	26
+##############################################################################################	27
 #
 #
 # Feature # 4:	Verification via Initialization :
@@ -2379,7 +2380,7 @@ generalData]]
 ],
 ELF_header]]
 ],
-##############################################################################################	27
+##############################################################################################	28
 #
 #
 # Feature # 5: Looping and Dimension-less array  :
@@ -2396,7 +2397,7 @@ ELF_header]]
 generalData]]
 ],
 
-##############################################################################################	28
+##############################################################################################	29
 #
 #
 # Feature # 6: Speculative execution and C strings:  :
@@ -2414,7 +2415,7 @@ generalData]]
 ],
 CStrings]]
 ], 
-##############################################################################################	29
+##############################################################################################	30
 
 ["Using C string as a class",
 [
@@ -2429,7 +2430,7 @@ CStrings]]
 ],
 CStrings]]
 ], 
-##############################################################################################	30
+##############################################################################################	31
 #
 #
 # Feature # 7: Unknown Offset? No problemo!! 	
@@ -2462,7 +2463,7 @@ CStrings]]
 generalData]
 ]
 ],
-##############################################################################################	31
+##############################################################################################	32
 ##
 ##
 ##
@@ -3132,6 +3133,13 @@ def warningRoutine(message):
 	PRINT (message)
 	if not BATCHMODE and MAINLOOP_STARTED:
 		messageBox.showwarning("Warning",message)
+	return
+
+def infoRoutine(message):
+	global window
+	PRINT (message)
+	if not BATCHMODE and MAINLOOP_STARTED:
+		messageBox.showinfo("Info",message)
 	return
 
 def printHelp():
@@ -19469,6 +19477,13 @@ def main():
 	if not BATCHMODE:
 		try:
 			app = tk.Tk()
+			
+			# invoke the button on the return key
+			app.bind_class("Button", "<Key-Return>", lambda event: event.widget.invoke())
+
+			# remove the default behavior of invoking the button with the space key
+			app.unbind_class("Button", "<Key-space>")			
+			
 		except tk.TclError:
 			OUTPUT("Error in instantiating GUI - resorting to batch mode")
 			BATCHMODE = True
@@ -19687,17 +19702,16 @@ class MainWindow:
 		if 0 < self.demoIndex <= len(demoFeatureCodeData)-1:
 			self.clearDemo()
 			self.demoIndex -= 1
-#			self.demoFeatureLabel.configure(text=demoFeatureCodeData[self.demoIndex][0])
-			self.demoThisFeatureButton.configure(text="Demo this feature: "+demoFeatureCodeData[self.demoIndex][0])
-#			self.runDemoIndex()
+			self.demoThisFeatureButton.configure(text="Demo this feature: "+demoFeatureCodeData[self.demoIndex][0], bg="green2")
+
 
 	def gotoNextDemoStep(self):
 		if -1 <= self.demoIndex < len(demoFeatureCodeData)-1:
 			self.clearDemo()
 			self.demoIndex += 1
-#			self.demoFeatureLabel.configure(text=demoFeatureCodeData[self.demoIndex][0])
-			self.demoThisFeatureButton.configure(text="Demo this feature: "+demoFeatureCodeData[self.demoIndex][0])
-#			self.runDemoIndex()
+			self.nextDemoStepButton.configure(bg="gray80")
+			self.demoThisFeatureButton.configure(text="Demo this feature: "+demoFeatureCodeData[self.demoIndex][0], bg="green2")
+			self.demoThisFeatureButton.focus_set()
 
 	def toggleRunOrClearDemo(self):
 		global IN_DEMO
@@ -19706,12 +19720,11 @@ class MainWindow:
 			IN_DEMO = True
 			self.toggleRunOrClearDemoButton.config(text="Clear Demo")
 			
-			self.prevDemoStepButton = ttk.Button(self.frame, text="<<", command=self.gotoPrevDemoStep)
-			self.demoThisFeatureButton = ttk.Button(self.frame, text="Demo this feature", width=55, command=self.runDemoIndex)
-			self.nextDemoStepButton = ttk.Button(self.frame, text=">>", command=self.gotoNextDemoStep)
-#			self.demoFeatureLabel = ttk.Label(self.frame, text="Hi")
+			# We are deliberately using Tk button (not ttk) since ttk buttons are kind of hard to change colors.
+			self.prevDemoStepButton = tk.Button(self.frame, text="    <<    ", command=self.gotoPrevDemoStep)
+			self.demoThisFeatureButton = tk.Button(self.frame, text="Demo this feature", width=55, command=self.runDemoIndex)
+			self.nextDemoStepButton = tk.Button(self.frame, text="    >>    ", command=self.gotoNextDemoStep)
 			
-#			col = col + colSpan		#8
 			col = 8
 			colSpan = 1
 			self.prevDemoStepButton.grid(row=5, column=col, columnspan=colSpan, sticky=tk.W) 
@@ -19721,9 +19734,6 @@ class MainWindow:
 			col = col + colSpan
 			colSpan = 1
 			self.nextDemoStepButton.grid(row=5, column=col, columnspan=colSpan, sticky=tk.W) 
-#			col = col + colSpan
-#			colSpan = 1
-#			self.demoFeatureLabel.grid(row=5, column=col, columnspan=colSpan, sticky=tk.W) 
 			
 			self.runDemo()
 			
@@ -19824,6 +19834,10 @@ class MainWindow:
 		self.toggleMapTypedefsTooButton = ttk.Button(frame, text=toggleMapTypedefsTooInitalText, underline=8,command=self.toggleMapTypedefsToo)
 		
 		self.originalBackgroundColor = self.CodeDataMeaningText.cget("background")
+
+#		self.style = ttk.Style()
+#		self.style.configure("WhiteBackground", background="white")
+#		self.style.configure("DefaultBackground", background=self.originalBackgroundColor)
 		
 #		self.messageLabel = ttk.(frame
 		
@@ -20876,12 +20890,12 @@ class MainWindow:
 					lengthValue=dataLengthValue, dataValueLEValue=valueLEStr, dataValueBEValue=valueBEStr, 
 					startStrHexValue=startStrHex, endStrHexValue=endStrHex, startStrAsciiValue=startStrAscii, endStrAsciiValue=endStrAscii, 
 					codeVarStart=strCodeWindowVariableStart, codeVarEnd=strCodeWindowVariableEnd: 
-					[self.CodeDataMeaningText.configure(text=textValue), 
-					 self.dataAddressStartText.configure(text=addrValueStart),
-					 self.dataAddressEndText.configure(text=addrValueEnd),			# This address is INCLUDED. Which means, the field ends here.
-					 self.dataLengthText.configure(text=lengthValue),
-					 self.dataValueLEText.configure(text=dataValueLEValue), 
-					 self.dataValueBEText.configure(text=dataValueBEValue), 
+					[self.CodeDataMeaningText.configure(text=textValue, background="yellow"), 
+					 self.dataAddressStartText.configure(text=addrValueStart, background="yellow"),
+					 self.dataAddressEndText.configure(text=addrValueEnd, background="yellow"),			# This address is INCLUDED. Which means, the field ends here.
+					 self.dataLengthText.configure(text=lengthValue, background="yellow"),
+					 self.dataValueLEText.configure(text=dataValueLEValue, background="yellow"), 
+					 self.dataValueBEText.configure(text=dataValueBEValue, background="yellow"), 
 					 self.viewDataHexText.tag_add("yellowbg", startStrHexValue, endStrHexValue),
 					 self.viewDataAsciiText.tag_add("yellowbg", startStrAsciiValue, endStrAsciiValue),
 					 self.interpretedCodeText.tag_add("yellowbg", codeVarStart, codeVarEnd)])
@@ -20889,12 +20903,12 @@ class MainWindow:
 				self.viewDataHexText.tag_bind (self.colorTagsData[j], "<Leave>", 
 					lambda event, textValue="", startStrHexValue=startStrHex, endStrHexValue=endStrHex, startStrAsciiValue=startStrAscii, endStrAsciiValue=endStrAscii, 
 					codeVarStart=strCodeWindowVariableStart, codeVarEnd=strCodeWindowVariableEnd : 
-					[self.CodeDataMeaningText.configure(text=textValue), 
-					 self.dataAddressStartText.configure(text=""), 
-					 self.dataAddressEndText.configure(text=""),
-					 self.dataLengthText.configure(text=""), 
-					 self.dataValueLEText.configure(text=""), 
-					 self.dataValueBEText.configure(text=""), 
+					[self.CodeDataMeaningText.configure(text=textValue, background=self.originalBackgroundColor), 
+					 self.dataAddressStartText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataAddressEndText.configure(text="", background=self.originalBackgroundColor),
+					 self.dataLengthText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataValueLEText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataValueBEText.configure(text="", background=self.originalBackgroundColor), 
 					 self.viewDataHexText.tag_remove("yellowbg", startStrHexValue, endStrHexValue),
 					 self.viewDataAsciiText.tag_remove("yellowbg", startStrAsciiValue, endStrAsciiValue),
 					 self.interpretedCodeText.tag_remove("yellowbg", codeVarStart, codeVarEnd)])
@@ -20908,12 +20922,12 @@ class MainWindow:
 					lengthValue=dataLengthValue, dataValueLEValue=valueLEStr, dataValueBEValue=valueBEStr, 
 					startStrHexValue=startStrHex, endStrHexValue=endStrHex, startStrAsciiValue=startStrAscii, endStrAsciiValue=endStrAscii, 
 					codeVarStart=strCodeWindowVariableStart, codeVarEnd=strCodeWindowVariableEnd : 
-					[self.CodeDataMeaningText.configure(text=textValue),
-					 self.dataAddressStartText.configure(text=addrValueStart),
-					 self.dataAddressEndText.configure(text=addrValueEnd),
-					 self.dataLengthText.configure(text=lengthValue),
-					 self.dataValueLEText.configure(text=dataValueLEValue), 
-					 self.dataValueBEText.configure(text=dataValueBEValue), 
+					[self.CodeDataMeaningText.configure(text=textValue, background="yellow"),
+					 self.dataAddressStartText.configure(text=addrValueStart, background="yellow"),
+					 self.dataAddressEndText.configure(text=addrValueEnd, background="yellow"),
+					 self.dataLengthText.configure(text=lengthValue, background="yellow"),
+					 self.dataValueLEText.configure(text=dataValueLEValue, background="yellow"), 
+					 self.dataValueBEText.configure(text=dataValueBEValue, background="yellow"), 
 					 self.viewDataHexText.tag_add("yellowbg", startStrHexValue, endStrHexValue),
 					 self.viewDataAsciiText.tag_add("yellowbg", startStrAsciiValue, endStrAsciiValue),
 					 self.interpretedCodeText.tag_add("yellowbg", codeVarStart, codeVarEnd),
@@ -20922,12 +20936,12 @@ class MainWindow:
 				self.viewDataAsciiText.tag_bind(self.colorTagsData[j], "<Leave>", 
 					lambda event, textValue="", startStrHexValue=startStrHex, endStrHexValue=endStrHex, startStrAsciiValue=startStrAscii, endStrAsciiValue=endStrAscii, 
 					codeVarStart=strCodeWindowVariableStart, codeVarEnd=strCodeWindowVariableEnd  : 
-					[self.CodeDataMeaningText.configure(text=textValue),
-					 self.dataAddressStartText.configure(text=""), 
-					 self.dataAddressEndText.configure(text=""), 
-					 self.dataLengthText.configure(text=""), 
-					 self.dataValueLEText.configure(text=""), 
-					 self.dataValueBEText.configure(text=""), 
+					[self.CodeDataMeaningText.configure(text=textValue, background=self.originalBackgroundColor),
+					 self.dataAddressStartText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataAddressEndText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataLengthText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataValueLEText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataValueBEText.configure(text="", background=self.originalBackgroundColor), 
 					 self.viewDataHexText.tag_remove("yellowbg", startStrHexValue, endStrHexValue),
 					 self.viewDataAsciiText.tag_remove("yellowbg", startStrAsciiValue, endStrAsciiValue),
 					 self.interpretedCodeText.tag_remove("yellowbg", codeVarStart, codeVarEnd)])
@@ -20941,12 +20955,12 @@ class MainWindow:
 					lengthValue=dataLengthValue, dataValueLEValue=valueLEStr, dataValueBEValue=valueBEStr, 
 					startStrHexValue=startStrHex, endStrHexValue=endStrHex, startStrAsciiValue=startStrAscii, endStrAsciiValue=endStrAscii, 
 					codeVarStart=strCodeWindowVariableStart, codeVarEnd=strCodeWindowVariableEnd: 
-					[self.CodeDataMeaningText.configure(text=textValue), 
-					 self.dataAddressStartText.configure(text=addrValueStart),
-					 self.dataAddressEndText.configure(text=addrValueEnd),			# This address is INCLUDED. Which means, the field ends here.
-					 self.dataLengthText.configure(text=lengthValue),
-					 self.dataValueLEText.configure(text=dataValueLEValue), 
-					 self.dataValueBEText.configure(text=dataValueBEValue), 
+					[self.CodeDataMeaningText.configure(text=textValue, background="yellow"), 
+					 self.dataAddressStartText.configure(text=addrValueStart, background="yellow"),
+					 self.dataAddressEndText.configure(text=addrValueEnd, background="yellow"),			# This address is INCLUDED. Which means, the field ends here.
+					 self.dataLengthText.configure(text=lengthValue, background="yellow"),
+					 self.dataValueLEText.configure(text=dataValueLEValue, background="yellow"), 
+					 self.dataValueBEText.configure(text=dataValueBEValue, background="yellow"), 
 #					 self.viewDataHexText.tag_add("yellowbg", startStrHexValue, endStrHexValue),			# Don't highlight the Hex   window if no data in unraveled
 #					 self.viewDataAsciiText.tag_add("yellowbg", startStrAsciiValue, endStrAsciiValue),		# Don't highlight the ASCII window if no data in unraveled
 					 self.interpretedCodeText.tag_add("yellowbg", codeVarStart, codeVarEnd)])
@@ -20954,12 +20968,12 @@ class MainWindow:
 				self.viewDataHexText.tag_bind (self.colorTagsData[j], "<Leave>", 
 					lambda event, textValue="", startStrHexValue=startStrHex, endStrHexValue=endStrHex, startStrAsciiValue=startStrAscii, endStrAsciiValue=endStrAscii, 
 					codeVarStart=strCodeWindowVariableStart, codeVarEnd=strCodeWindowVariableEnd : 
-					[self.CodeDataMeaningText.configure(text=textValue), 
-					 self.dataAddressStartText.configure(text=""), 
-					 self.dataAddressEndText.configure(text=""),
-					 self.dataLengthText.configure(text=""), 
-					 self.dataValueLEText.configure(text=""), 
-					 self.dataValueBEText.configure(text=""), 
+					[self.CodeDataMeaningText.configure(text=textValue, background=self.originalBackgroundColor), 
+					 self.dataAddressStartText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataAddressEndText.configure(text="", background=self.originalBackgroundColor),
+					 self.dataLengthText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataValueLEText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataValueBEText.configure(text="", background=self.originalBackgroundColor), 
 #					 self.viewDataHexText.tag_remove("yellowbg", startStrHexValue, endStrHexValue),			# Don't highlight the Hex   window if no data in unraveled
 #					 self.viewDataAsciiText.tag_remove("yellowbg", startStrAsciiValue, endStrAsciiValue),	# Don't highlight the ASCII window if no data in unraveled
 					 self.interpretedCodeText.tag_remove("yellowbg", codeVarStart, codeVarEnd)])
@@ -20973,12 +20987,12 @@ class MainWindow:
 					lengthValue=dataLengthValue, dataValueLEValue=valueLEStr, dataValueBEValue=valueBEStr, 
 					startStrHexValue=startStrHex, endStrHexValue=endStrHex, startStrAsciiValue=startStrAscii, endStrAsciiValue=endStrAscii, 
 					codeVarStart=strCodeWindowVariableStart, codeVarEnd=strCodeWindowVariableEnd : 
-					[self.CodeDataMeaningText.configure(text=textValue),
-					 self.dataAddressStartText.configure(text=addrValueStart),
-					 self.dataAddressEndText.configure(text=addrValueEnd),
-					 self.dataLengthText.configure(text=lengthValue),
-					 self.dataValueLEText.configure(text=dataValueLEValue), 
-					 self.dataValueBEText.configure(text=dataValueBEValue), 
+					[self.CodeDataMeaningText.configure(text=textValue, background="yellow"),
+					 self.dataAddressStartText.configure(text=addrValueStart, background="yellow"),
+					 self.dataAddressEndText.configure(text=addrValueEnd, background="yellow"),
+					 self.dataLengthText.configure(text=lengthValue, background="yellow"),
+					 self.dataValueLEText.configure(text=dataValueLEValue, background="yellow"), 
+					 self.dataValueBEText.configure(text=dataValueBEValue, background="yellow"), 
 #					 self.viewDataHexText.tag_add("yellowbg", startStrHexValue, endStrHexValue),			# Don't highlight the Hex   window if no data in unraveled
 #					 self.viewDataAsciiText.tag_add("yellowbg", startStrAsciiValue, endStrAsciiValue),		# Don't highlight the ASCII window if no data in unraveled
 					 self.interpretedCodeText.tag_add("yellowbg", codeVarStart, codeVarEnd)])
@@ -20986,12 +21000,12 @@ class MainWindow:
 				self.viewDataAsciiText.tag_bind(self.colorTagsData[j], "<Leave>", 
 					lambda event, textValue="", startStrHexValue=startStrHex, endStrHexValue=endStrHex, startStrAsciiValue=startStrAscii, endStrAsciiValue=endStrAscii, 
 					codeVarStart=strCodeWindowVariableStart, codeVarEnd=strCodeWindowVariableEnd  : 
-					[self.CodeDataMeaningText.configure(text=textValue),
-					 self.dataAddressStartText.configure(text=""), 
-					 self.dataAddressEndText.configure(text=""), 
-					 self.dataLengthText.configure(text=""), 
-					 self.dataValueLEText.configure(text=""), 
-					 self.dataValueBEText.configure(text=""), 
+					[self.CodeDataMeaningText.configure(text=textValue, background=self.originalBackgroundColor),
+					 self.dataAddressStartText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataAddressEndText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataLengthText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataValueLEText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataValueBEText.configure(text="", background=self.originalBackgroundColor), 
 #					 self.viewDataHexText.tag_remove("yellowbg", startStrHexValue, endStrHexValue),			# Don't highlight the Hex   window if no data in unraveled
 #					 self.viewDataAsciiText.tag_remove("yellowbg", startStrAsciiValue, endStrAsciiValue),	# Don't highlight the ASCII window if no data in unraveled
 					 self.interpretedCodeText.tag_remove("yellowbg", codeVarStart, codeVarEnd)])
@@ -21928,22 +21942,22 @@ class MainWindow:
 				self.interpretedCodeText.tag_bind(self.colorTagsFG[i], "<Enter>", 
 					lambda event, textValue=variableDescription, addrValueStart=actualDataAddrStart, addrValueEnd=actualDataAddrEnd, 
 					lengthValue=dataLengthValue, dataValueLEValue=valueLEStr, dataValueBEValue=valueBEStr, codeVarStartValue=codeVarStart, codeVarEndValue=codeVarEnd:
-					[self.CodeDataMeaningText.configure(text=textValue), 
-					 self.dataAddressStartText.configure(text=addrValueStart),
-					 self.dataAddressEndText.configure(text=addrValueEnd),
-					 self.dataLengthText.configure(text=lengthValue),
-					 self.dataValueLEText.configure(text=dataValueLEValue),
-					 self.dataValueBEText.configure(text=dataValueBEValue),
+					[self.CodeDataMeaningText.configure(text=textValue, background="yellow"), 
+					 self.dataAddressStartText.configure(text=addrValueStart, background="yellow"),
+					 self.dataAddressEndText.configure(text=addrValueEnd, background="yellow"),
+					 self.dataLengthText.configure(text=lengthValue, background="yellow"),
+					 self.dataValueLEText.configure(text=dataValueLEValue, background="yellow"),
+					 self.dataValueBEText.configure(text=dataValueBEValue, background="yellow"),
 					 self.interpretedCodeText.tag_add("yellowbg", codeVarStartValue, codeVarEndValue)])		# Newly added
 
 				self.interpretedCodeText.tag_bind(self.colorTagsFG[i], "<Leave>", 
 					lambda event, codeVarStartValue=codeVarStart, codeVarEndValue=codeVarEnd:
-					[self.CodeDataMeaningText.configure(text=""), 
-					 self.dataAddressStartText.configure(text=""), 
-					 self.dataAddressEndText.configure(text=""), 
-					 self.dataLengthText.configure(text=""), 
-					 self.dataValueLEText.configure(text=""),
-					 self.dataValueBEText.configure(text=""),
+					[self.CodeDataMeaningText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataAddressStartText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataAddressEndText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataLengthText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataValueLEText.configure(text="", background=self.originalBackgroundColor),
+					 self.dataValueBEText.configure(text="", background=self.originalBackgroundColor),
 					 self.interpretedCodeText.tag_remove("yellowbg", codeVarStartValue, codeVarEndValue)])		# Newly added
 
 			else: 	# The current display block indeed contains the data corresponding to the current variable.
@@ -21979,12 +21993,12 @@ class MainWindow:
 					lambda event, textValue=variableDescription, addrValueStart=actualDataAddrStart, addrValueEnd=actualDataAddrEnd, 
 					lengthValue=dataLengthValue, dataValueLEValue=valueLEStr, dataValueBEValue=valueBEStr, 
 					HexVarStart=startStrHex, HexVarEnd=endStrHex, AsciiVarStart=startStrAscii, AsciiVarEnd=endStrAscii, codeVarStartValue=codeVarStart, codeVarEndValue=codeVarEnd:
-					[self.CodeDataMeaningText.configure(text=textValue), 
-					 self.dataAddressStartText.configure(text=addrValueStart),
-					 self.dataAddressEndText.configure(text=addrValueEnd),
-					 self.dataLengthText.configure(text=lengthValue),
-					 self.dataValueLEText.configure(text=dataValueLEValue),
-					 self.dataValueBEText.configure(text=dataValueBEValue),
+					[self.CodeDataMeaningText.configure(text=textValue, background="yellow"), 
+					 self.dataAddressStartText.configure(text=addrValueStart, background="yellow"),
+					 self.dataAddressEndText.configure(text=addrValueEnd, background="yellow"),
+					 self.dataLengthText.configure(text=lengthValue, background="yellow"),
+					 self.dataValueLEText.configure(text=dataValueLEValue, background="yellow"),
+					 self.dataValueBEText.configure(text=dataValueBEValue, background="yellow"),
 					 self.interpretedCodeText.tag_add("yellowbg", codeVarStartValue, codeVarEndValue),		# Newly added
 					 self.viewDataHexText.tag_add("yellowbg", HexVarStart, HexVarEnd),
 					 self.viewDataAsciiText.tag_add("yellowbg", AsciiVarStart, AsciiVarEnd)])
@@ -21992,12 +22006,12 @@ class MainWindow:
 					 
 				self.interpretedCodeText.tag_bind(self.colorTagsFG[i], "<Leave>", 
 					lambda event, HexVarStart=startStrHex, HexVarEnd=endStrHex, AsciiVarStart=startStrAscii, AsciiVarEnd=endStrAscii, codeVarStartValue=codeVarStart, codeVarEndValue=codeVarEnd:
-					[self.CodeDataMeaningText.configure(text=""), 
-					 self.dataAddressStartText.configure(text=""), 
-					 self.dataAddressEndText.configure(text=""), 
-					 self.dataLengthText.configure(text=""), 
-					 self.dataValueLEText.configure(text=""),
-					 self.dataValueBEText.configure(text=""),
+					[self.CodeDataMeaningText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataAddressStartText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataAddressEndText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataLengthText.configure(text="", background=self.originalBackgroundColor), 
+					 self.dataValueLEText.configure(text="", background=self.originalBackgroundColor),
+					 self.dataValueBEText.configure(text="", background=self.originalBackgroundColor),
 					 self.interpretedCodeText.tag_remove("yellowbg", codeVarStartValue, codeVarEndValue),		# Newly added
 					 self.viewDataHexText.tag_remove("yellowbg", HexVarStart, HexVarEnd),
 					 self.viewDataAsciiText.tag_remove("yellowbg", AsciiVarStart, AsciiVarEnd)])
@@ -22077,15 +22091,19 @@ class MainWindow:
 		self.dataLengthText.configure(text="", background=self.originalBackgroundColor)
 
 	def endFeatureDemoMessage(self, event = None):
-			self.demoThisFeatureButton.configure(text="Re-Demo this feature: "+demoFeatureCodeData[self.demoIndex][0])
-			warningMessage = "This concludes the demo for \""+demoFeatureCodeData[self.demoIndex][0]+"\". After clicking OK, play with the cursor to see it for yourself. "	\
-							+"\n\nOnce you are done, choose one of the following options:\n"		\
-							+"\n1. To demo this feature again, click on the middle button "			\
-							+"\n   (in between the << and >> buttons)."	\
-							+"\n2. To demo the previous feature, click on the << button."	\
-							+"\n3. To demo the next feature, click on the >> button."	
-			warningRoutine(warningMessage)
-
+		self.demoThisFeatureButton.configure(text="Re-Demo this feature: "+demoFeatureCodeData[self.demoIndex][0])
+		warningMessage = "This concludes the demo for \""+demoFeatureCodeData[self.demoIndex][0]+"\". After clicking OK, play with the cursor to see it for yourself. "	\
+						+"\n\nOnce you are done, choose one of the following options:\n"		\
+						+"\n1. To demo this feature again, click on the middle button "			\
+						+"\n   (in between the << and >> buttons)."	\
+						+"\n2. To demo the previous feature, click on the << button."	\
+						+"\n3. To demo the next feature, click on the >> button."	
+		warningRoutine(warningMessage)
+		
+		
+		# Make the >> button green
+		self.nextDemoStepButton.configure(bg='green2')
+		self.nextDemoStepButton.focus_set()
 		
 	##########################################################################################################################
 	#                                                                                                                        #
@@ -22097,10 +22115,7 @@ class MainWindow:
 		self.clearDemo()
 		IN_DEMO = True
 		self.demoIndex = -1
-#		warningMessage = "First we are going to demonstrate the ParseAndC 1.0 features. \n\n(This is for users who may not be familiar with this tool beforehand)."		\
-#						+"\n\nThere will be a lot of pop-up messages, but I would really appreciate if you actually read the entirety of those messages before "		\
-#						+"pressing the OK to continue."
-#		warningRoutine(warningMessage)
+		
 		self.runDemoIndex()
 
 	##########################################################################################################################
@@ -22110,9 +22125,16 @@ class MainWindow:
 	##########################################################################################################################
 	def runDemoIndex(self, event=None):
 
+		# Make the middle button original color
+		self.demoThisFeatureButton.configure(bg="gray90")
+		
 		if self.demoIndex == -1:
+#			self.demoThisFeatureButton.configure(text="Intro: How to use this Demo", style="BGorig.TButton")
 			self.demoThisFeatureButton.configure(text="Intro: How to use this Demo")
-		elif 0 <= self.demoIndex < len(demoFeatureCodeData)-1:
+			
+			
+		elif 0 <= self.demoIndex <= len(demoFeatureCodeData)-1:
+#			self.demoThisFeatureButton.configure(text="Demo-ing feature: "+demoFeatureCodeData[self.demoIndex][0], style="BGorig.TButton")
 			self.demoThisFeatureButton.configure(text="Demo-ing feature: "+demoFeatureCodeData[self.demoIndex][0])
 		else:
 			errorMessage = "Illegal self.demoIndex value of "+STR(self.demoIndex)
@@ -22120,95 +22142,101 @@ class MainWindow:
 			return
 
 		if self.demoIndex == -1:
-			warningMessage = "To use the demo, you need to do TWO things. " 	\
+			infoMessage = "To use the demo, you need to do TWO things. " 	\
 							+"\n\n1. CHOOSE a feature using the \"<<\" or \">>\" buttons."	\
 							+"\n\n2. CLICK on the middle button in between the \"<<\" and \">>\" buttons to actually start the demo for that feature."	
-			warningRoutine(warningMessage)
-			warningMessage = "The way this Demo is organized, first you choose a feature you want to Demo. You can go through the feature list by using the Forward (>>) or Backward (<<) " 	\
+			infoRoutine(infoMessage)
+			infoMessage = "The way this Demo is organized, first you choose a feature you want to Demo. You can go through the feature list by using the Forward (>>) or Backward (<<) " 	\
 							 + "button. \n\nOnce you choose a feature you want to demo, just click on it (the middle button between the \"<<\" and \">>\". "	\
 							 +"\n\nHowever, once the Demo of that feature starts, you have to wait to let it finish (during that time, all you are allowed to do is to "	\
 							 +"press OK on the various popup messages. Only after the current feature's Demo is completed, you get the control back and then can jump to "	\
 							 +"another feature, forward or backward."	\
 							 + "\n\nIf you have not used this tool before, it is advised to go through ALL demo features sequencetially."
-			warningRoutine(warningMessage)
-			warningMessage = "This is the end of \"How to use the Demo\". \n\nUse the Forward (>>) button to start navigating across various features. " 	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
+			self.demoThisFeatureButton.configure(text="Re-Demo this feature: Intro: How to use this Demo")
+			infoMessage = "This is the end of \"How to use the Demo\". \n\nUse the Forward (>>) button to start navigating across various features. " 	
+			infoRoutine(infoMessage)
+			self.nextDemoStepButton.configure(bg='green2')
+			self.nextDemoStepButton.focus_set()
 			
 		elif self.demoIndex == 0:
-			warningMessage = "Here we explain the motivation for this tool (why this tool exists in the first place), followed by a ultra-simplistic demo of what the tool does."	
-			warningRoutine(warningMessage)
-			warningMessage = "MOTIVATION: \n\n"	\
+			self.clearDemo()
+			infoMessage = "Here we explain the motivation for this tool (why this tool exists in the first place), followed by a ultra-simplistic demo of what the tool does."	
+			infoRoutine(infoMessage)
+			infoMessage = "MOTIVATION: \n\n"	\
 							+ "The biggest problem with writing a C parser is that even when you use the correct input data format (a C structure), there is no guarantee that "	\
 							+"the parser's output will be correct. This is because while C allows to read a whole structure in one go, it does not have any function that can "	\
 							+"print all the contents of a structure individually - one must manually write individual printf() statements for each struct member "				\
 							+"(and do it recursively if the struct member is a struct itself)."																					\
 							+"\n\nThis process is error-prone. What we want is a way where just by giving a correct input structure, we are somehow guaranteed to be able to "	\
 							+"see all the individual struct member values correctly.\n\nThis is not a trivial problem, and it is exactly what we solve here."
-			warningRoutine(warningMessage)
-			warningMessage = "In order to do the parsing, we need the following things (only the CODE and DATA are mandatory): \n"	\
+			infoRoutine(infoMessage)
+			infoMessage = "In order to do the parsing, we need the following things (only the CODE and DATA are mandatory): \n"	\
 							+"\n\nCODE (input format): usually given by one or more C struct(s)"	\
 							+"\n\nDATA (datastream): onto which we will map this input format."	\
 							+"\n\nOFFSET: From which byte of DATE the mapping will start. "	
-			warningRoutine(warningMessage)
-			warningMessage = "Let's see that in action. We use an arbitrary datastream to be parsed (contained within this program), and a very simple struct. "	\
+			infoRoutine(infoMessage)
+			infoMessage = "Let's see that in action. We use an arbitrary datastream to be parsed (contained within this program), and a very simple struct. "	\
 							+"\n\nWhen you press OK, we will load the datastream in the two Data windows on the right (one in the Hex format, the other in ASCII)."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.clearDemo()
 			self.openDataFile([self.demoIndex,0])
-			warningMessage = "You can see that the datastream has been loaded on the two Data windows on the right. "		\
+			infoMessage = "You can see that the datastream has been loaded on the two Data windows on the right. "		\
 							+"\n\nNext we are going to use some C struct code as the input format of the datastream to be parsed."	\
 							+"\n\nWhen you press OK, we will load the Code in the left window on the right."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
-			warningMessage = "Now that you can see the code on the left and the data on the right, we are going to \"interpret\" (or compile) the code. "	\
+			infoMessage = "Now that you can see the code on the left and the data on the right, we are going to \"interpret\" (or compile) the code. "	\
 							+"\n\nThis helps the compiler to understand exactly which fields are there in the input format, what are their widths, their offsets etc. "	\
 							+"\n\nThis is usually achieved by the user clicking on the \"Interpret\" button on the top middle, but here we will just show "	\
 							+"what would happen when you press that button. Press OK to Interpret the code."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.interpret()
-			warningMessage = "Now you can see the \"Interpreted code\" window in the middle, with the Code window on its left, and the two Data windows on its right. "	\
+			infoMessage = "Now you can see the \"Interpreted code\" window in the middle, with the Code window on its left, and the two Data windows on its right. "	\
 							+"\n\nNow the tool knows exactly which fields are there in the input format, what are their widths, their offsets etc. "	\
 							+"\n\nFinally, we are going to \"map\" the interpreted code (the compiled version of the input format) to the data, and print their parsed values. "	\
 							+"\n\nThis is usually achieved by the user clicking on the \"Map\" button on the top middle, but here we will just show "	\
 							+"what would happen when you press that button. Press OK to Map the Interpretd code onto the data."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "Once we parsed the data based on the input format (basically, mapping the struct onto the data), we can see the values of "	\
+			self.showUnraveledRowNumInTreeView(5)
+			infoMessage = "Once we parsed the data based on the input format (basically, mapping the struct onto the data), we can see the values of "	\
 							+"the fields listed at the bottom window. We mapped the input format from a data offset of zero (default), but that can be changed." 	\
 							+"\n\nThis is an extremely simplistic view of what the tool does, but we will explain all the features in detail later."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
 			
 		elif self.demoIndex == 1:
+			self.clearDemo()
 			# Single struct
-			warningMessage = "In this demo, we show different ways we can enter the Input format (the \"Code\") and the datastream (the \"Data\")."	\
+			infoMessage = "In this demo, we show different ways we can enter the Input format (the \"Code\") and the datastream (the \"Data\")."	\
 							+"\n\nRemember, this is a READ-ONLY tool. Nothing you do here will EVER change your code or data. "	\
 							+"\n\nIt was deliberately designed that way to give the user the peace of mind."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 							
-			warningMessage = "There are 3 ways you can enter the \"Code\" (the Input Format). \n"	\
+			infoMessage = "There are 3 ways you can enter the \"Code\" (the Input Format). \n"	\
 							+"\n1. By clicking on the \"Open Code file\" button on top left and choosing a code file, which will load it into the \"Original code\" window." \
 							+"\n2. By straightaway typing the code in the \"Original code\" window."	\
 							+"\n3. By combining the previous two methods."
-			warningRoutine(warningMessage)
-			warningMessage = "For data though, there is only ONE way to enter it - by clicking on the \"Open data file\" button and choosing a data file. "	\
+			infoRoutine(infoMessage)
+			infoMessage = "For data though, there is only ONE way to enter it - by clicking on the \"Open data file\" button and choosing a data file. "	\
 							+"\n\nFor minimizing the memory used, it usually does NOT load the whole file into memory, and rather reads just enough data "	\
 							+"to display in the Data windows."
-			warningRoutine(warningMessage)
-			warningMessage = "Now, what does the Code (the input format) may look like?"	\
+			infoRoutine(infoMessage)
+			infoMessage = "Now, what does the Code (the input format) may look like?"	\
 							+"\n\nThe simplest input format would an ordinary C struct, like the one in the next step."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 							
 			self.openDataFile([self.demoIndex,0])
 			self.openCodeFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "Here the input format was a SINGLE C struct. \n"			\
+			infoMessage = "Here the input format was a SINGLE C struct. \n"			\
 							+"\nOf course, we can also use multiple structures instead of just one, as we will see in the next screen."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			# Multiple structs
 			self.clearDemo()
@@ -22216,8 +22244,8 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,1])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "As you can see, the input format is now specified by two contiguous structs, S1 and S2. \n\nHowever, you can also mention the variables outside any struct."
-			warningRoutine(warningMessage)
+			infoMessage = "As you can see, the input format is now specified by two contiguous structs, S1 and S2. \n\nHowever, you can also mention the variables outside any struct."
+			infoRoutine(infoMessage)
 			
 			# Non-struct variable
 			self.clearDemo()
@@ -22225,8 +22253,8 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,2])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "The input format is now specified by contiguous variables var_int, var_short and var_char[2]."
-			warningRoutine(warningMessage)
+			infoMessage = "The input format is now specified by contiguous variables var_int, var_short and var_char[2]."
+			infoRoutine(infoMessage)
 			
 			# All mixed
 			self.clearDemo()
@@ -22234,22 +22262,22 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,3])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "The input format is now specified by a mix of various structures and global-level variables."
-			warningRoutine(warningMessage)
+			infoMessage = "The input format is now specified by a mix of various structures and global-level variables."
+			infoRoutine(infoMessage)
 			
-			warningMessage = "For big structures that do not fit inside the visitble Interpreted Code window in the middle, you can either use the Page Up/ Page Down, or click on the scrollbar"
-			warningRoutine(warningMessage)
-			warningMessage = "Similarly, if the Datafile does not fit in the Data Window on the right, you can use the Page Up/Page Down just like any other regular Hex viewer. \n\n"	\
+			infoMessage = "For big structures that do not fit inside the visitble Interpreted Code window in the middle, you can either use the Page Up/ Page Down, or click on the scrollbar"
+			infoRoutine(infoMessage)
+			infoMessage = "Similarly, if the Datafile does not fit in the Data Window on the right, you can use the Page Up/Page Down just like any other regular Hex viewer. \n\n"	\
 							+"There is no scrollbar, but you can either either explicitly mention a File Offset, or choose one among the Spinbox"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,3])
 			self.openDataFile([self.demoIndex,3])
 			self.interpret()
-			warningMessage = "Also, it is not necessary that you must choose all of the input format to map. You can even map a selected portion of the interpreted code, "	\
+			infoMessage = "Also, it is not necessary that you must choose all of the input format to map. You can even map a selected portion of the interpreted code, "	\
 							+"using your cursor. Essentially, you are telling the compiler - compile this input data format, but map only this much."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			# This selects the region from line 2 to line 5, but the moment the warning message comes on top, the blue color of selection is not shown somehow
 			selectionStartLineChar = "2.4"
 			selectionEndLineChar = "5.22"
@@ -22257,41 +22285,41 @@ class MainWindow:
 			self.interpretedCodeText.focus_set()
 			# So, we artificially put a blue color
 			self.interpretedCodeText.tag_add("bluebg", selectionStartLineChar, selectionEndLineChar)	
-			warningMessage = "See that we have only selected the float variable f and only a portion of struct S1. "	\
+			infoMessage = "See that we have only selected the float variable f and only a portion of struct S1. "	\
 							+"However, whenever we select ANY portion of a struct, the whole of the struct gets selected."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.mapStructureToData()
-			warningMessage = "Observe that only the selected variable f and the whole struct S1 got mapped - variable i, variable l and struct S2 didn't. Press OK to continue."
-			warningRoutine(warningMessage)
+			infoMessage = "Observe that only the selected variable f and the whole struct S1 got mapped - variable i, variable l and struct S2 didn't. Press OK to continue."
+			infoRoutine(infoMessage)
 			self.interpretedCodeText.tag_remove("bluebg", selectionStartLineChar, selectionEndLineChar)	
 
 			self.endFeatureDemoMessage()
 			
 		elif self.demoIndex == 2:	#"How to specify the data offset"
 			self.clearDemo()
-			warningMessage = "We map the data format from the offset of 0 by default. Of course, we can change that. \n\nLet's see what happens when we map it from one-fourth "	\
+			infoMessage = "We map the data format from the offset of 0 by default. Of course, we can change that. \n\nLet's see what happens when we map it from one-fourth "	\
 							+"of a Kilobyte. You can specify this in any format, as pure 256, or 0x100, or even 1KB/4, which is very much human readable. Press OK to continue."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "Now let's map the data from a different offset, say 16. For that, we input \"16\" in ht e\"Data Offset\" box in the top middle"
-			warningRoutine(warningMessage)
+			infoMessage = "Now let's map the data from a different offset, say 16. For that, we input \"16\" in ht e\"Data Offset\" box in the top middle"
+			infoRoutine(infoMessage)
 			self.dataOffsetEntry.delete(0, tk.END)
 			self.dataOffsetEntry.insert(tk.END,"16")
 			self.dataOffset.set(16)
 			self.mapStructureToData()
-			warningMessage = "Now you see, that data mapping is happening from the offset of 16. However, we could have also used Hexadecimal values to mention. We now use \"0x1D\" as data offset"
-			warningRoutine(warningMessage)
+			infoMessage = "Now you see, that data mapping is happening from the offset of 16. However, we could have also used Hexadecimal values to mention. We now use \"0x1D\" as data offset"
+			infoRoutine(infoMessage)
 			self.dataOffsetEntry.delete(0, tk.END)
 			self.dataOffsetEntry.insert(tk.END,"0x1D")
 			self.dataOffset.set(29)
 			self.mapStructureToData()
-			warningMessage = "Now you see, that data mapping is happening from the offset of 0x1D (which is 29)."
-			warningRoutine(warningMessage)
-			warningMessage = "However, we could have also used human-readable notation like 1KB."
-			warningRoutine(warningMessage)
+			infoMessage = "Now you see, that data mapping is happening from the offset of 0x1D (which is 29)."
+			infoRoutine(infoMessage)
+			infoMessage = "However, we could have also used human-readable notation like 1KB."
+			infoRoutine(infoMessage)
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
@@ -22299,10 +22327,10 @@ class MainWindow:
 			self.dataOffset.set(1024)
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "Now you see, that data mapping is happening from the offset of 1KB (which is 0x400, or 1024)."
-			warningRoutine(warningMessage)
-			warningMessage = "However, we could have also used complex expressions like 1KB/4+0x10-8"
-			warningRoutine(warningMessage)
+			infoMessage = "Now you see, that data mapping is happening from the offset of 1KB (which is 0x400, or 1024)."
+			infoRoutine(infoMessage)
+			infoMessage = "However, we could have also used complex expressions like 1KB/4+0x10-8"
+			infoRoutine(infoMessage)
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
@@ -22310,8 +22338,8 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.dataOffset.set(1032)
-			warningMessage = "Now you see, that data mapping is happening from the offset of 1KB/4+0x10-8 (which is 0x408, or 1032). Basically, these Data Offset field is very versatile"
-			warningRoutine(warningMessage)
+			infoMessage = "Now you see, that data mapping is happening from the offset of 1KB/4+0x10-8 (which is 0x408, or 1032). Basically, these Data Offset field is very versatile"
+			infoRoutine(infoMessage)
 
 
 			self.endFeatureDemoMessage()
@@ -22320,15 +22348,15 @@ class MainWindow:
 
 		elif self.demoIndex == 3:	#"How to use the cursor on Code and Data"
 			self.clearDemo()
-			warningMessage = "Here, we talk about how to use the cursor on the Interpreted Code window and the Data windows (both Hex and ASCIII)"
-			warningRoutine(warningMessage)
+			infoMessage = "Here, we talk about how to use the cursor on the Interpreted Code window and the Data windows (both Hex and ASCIII)"
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "Once you have mapped the input format onto the data from a certain offset, you can see the color-coded stuff in both Interpred Code and Data Windows."	\
+			infoMessage = "Once you have mapped the input format onto the data from a certain offset, you can see the color-coded stuff in both Interpred Code and Data Windows."	\
 							+"\n\nWe paint the data and its corresponding variable(s) with the same color."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			original_background = self.CodeDataMeaningText.cget("background")
 			self.CodeDataMeaningText.configure(text="                                          ", background="yellow")
 			self.dataAddressStartText.configure(text="           ", background="yellow")
@@ -22336,13 +22364,13 @@ class MainWindow:
 			self.dataLengthText.configure(text="           ", background="yellow")
 			self.dataValueLEText.configure(text="           ", background="yellow")
 			self.dataValueBEText.configure(text="           ", background="yellow")
-			warningMessage = "At the same time, there are a number of fields just above the bottom long window: Description, Address (start), Address (end), Value (Little-Endian), Value (Big-Endian), Length." \
+			infoMessage = "At the same time, there are a number of fields just above the bottom long window: Description, Address (start), Address (end), Value (Little-Endian), Value (Big-Endian), Length." \
 							+"\n\n These fields are usually blank. However, when you take your cursor on top of any of these color-coded items (either in the Interpreted Code or Data window), some magic will start happening."
-			warningRoutine(warningMessage)
-			warningMessage = "If you take your cursor on top a color-coded item in the Interpreted Code, it will highlight the corresponding mapped data in Data window), and vice versa."	\
+			infoRoutine(infoMessage)
+			infoMessage = "If you take your cursor on top a color-coded item in the Interpreted Code, it will highlight the corresponding mapped data in Data window), and vice versa."	\
 							+"\n\nAt the same time, these fields will also get populated: Description, Address (start), Address (end), Value (Little-Endian), Value (Big-Endian), Length."	\
 							+"\n\nLet's see what happens when we take our cursor on the \"var_int\" in the Interpreted Code window."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.interpretedCodeText.tag_add("yellowbg", "2.14", "2.21")	
 			self.viewDataHexText.tag_add("yellowbg", "1.0", "1.12")	
 			self.viewDataAsciiText.tag_add("yellowbg", "1.0", "1.4")	
@@ -22354,9 +22382,9 @@ class MainWindow:
 			self.dataValueBEText.configure(text="-2555936")
 			
 			
-			warningMessage = "We are seeing what happens when we take our cursor on the \"var_int\" in the Interpreted Code window. "	\
+			infoMessage = "We are seeing what happens when we take our cursor on the \"var_int\" in the Interpreted Code window. "	\
 							+"\n\nPlace your cursor on various colored items and see what happens."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.interpretedCodeText.tag_remove("yellowbg", "2.14", "2.21")		
 			self.viewDataHexText.tag_remove("yellowbg", "1.0", "1.12")	
@@ -22373,25 +22401,25 @@ class MainWindow:
 
 		elif self.demoIndex == 4:	# "Parsed data output location #1: Tree window"
 			self.clearDemo()
-			warningMessage = "In the previous demo feature, you could see every variable's details (offset, length, value etc.) simply by placing the cursor above "	\
+			infoMessage = "In the previous demo feature, you could see every variable's details (offset, length, value etc.) simply by placing the cursor above "	\
 							+"the variable name in the Interpreted Code window (or the corresponding bytes in the Data windows)."	\
 							+"\n\nHowever, it can get quite tedious having to do this manually for each variable. Instead, we might prefer to simply a straightforward "	\
 							+"listing of details of ALL the variables one by one."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "This is exactly what we achieve using the bottom window, which henceforth we call the \"Tree window\"."	\
+			infoMessage = "This is exactly what we achieve using the bottom window, which henceforth we call the \"Tree window\"."	\
 							+"\n\nIn this window, there is exactly that listing. There, we have a full hierarchical path for every variable (like structVar.var_int, structVar.var_short etc.)"		\
 							+"\n\nBut wait, where are the details? All it shows it a single record for the structVar! Where are the details for its child variables (like var_int, var_short etc.)?"\
 							+"And exactly what does this \"+\" symbol mean on the leftmost column?"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "What happened is that in the Tree window, by default we only show the top-level variables. But if those variables have any children, then there will"	\
+			infoMessage = "What happened is that in the Tree window, by default we only show the top-level variables. But if those variables have any children, then there will"	\
 							+"be a \"+\" mark on the leftmost column, clicking on which will reveal the next-level child variables (and the \"+\" symbol will change to a \"-\")."	\
 							+"\n\nHere, we have shown how it will look like when one clicked on that \"+\" symbol."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
@@ -22399,21 +22427,21 @@ class MainWindow:
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
 			self.showUnraveledRowNumInTreeView(5)
-			warningMessage = "Let's take another example. Here, we are defining two structs (S1 and S2), and for S1, we are also declaring a struct S1 variable structVar."	\
+			infoMessage = "Let's take another example. Here, we are defining two structs (S1 and S2), and for S1, we are also declaring a struct S1 variable structVar."	\
 							+"\n\nHowever, even though we are NOT explicitly declaring a struct S2 variable for S2, this tool automatically does that with a dummy variable \"S2#dummyVar0\"."	\
 							+"\n\nThis way, we know exactly which struct we are talking about."	\
 							+"\n\nIn order to expand/collapse a struct, click on the buttons on the left, or double-click on a row, or use the left/right arrow keys."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 5:	#	"Parsed data output location #2: CSV file"
 			self.clearDemo()
-			warningMessage = "In the previous demo feature, you could see every variable's details (offset, length, value etc.) simply by placing the cursor above "	\
+			infoMessage = "In the previous demo feature, you could see every variable's details (offset, length, value etc.) simply by placing the cursor above "	\
 							+"the variable name in the Interpreted Code window (or the corresponding bytes in the Data windows)."	\
 							+"\n\nHowever, since it can get quite tedious having to do this manually for each variable. we put a straightforward "	\
 							+"listing of details of ALL the variables one by one in the Tree window at the bottom of this tool."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
@@ -22421,114 +22449,103 @@ class MainWindow:
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
 			self.showUnraveledRowNumInTreeView(5)
-			warningMessage = "However, one limitation of this Tree Window is that it can show only a few rows - you have to scroll and choose by expanding the parent records repeatedly."		\
+			infoMessage = "However, one limitation of this Tree Window is that it can show only a few rows - you have to scroll and choose by expanding the parent records repeatedly."		\
 							+ "\n\nHowever, instead of having to do this manually, all you want is a straightforward listing of details of ALL possible variables, preferably in a text or CSV file."	\
 							+ "\n\nThat is precisely what this tool does. Every time you map something, it creates the detailed listing of all such variables in a CSV file "	\
 							+ "named \"snapshot.csv\", which is created in the same folder you are running this tool from."		\
 							+"\n\nPlease check your current folder to see if you can see that file. Open it and see its content. If you are viewing it via MS Excel, "	\
 							+"you may need to expand the column widths. Once done, please close it."
-			warningRoutine(warningMessage)
-			warningMessage = "Its default name (snapshot.csv) can be changed by changing this line in the source code: "	\
+			infoRoutine(infoMessage)
+			infoMessage = "Its default name (snapshot.csv) can be changed by changing this line in the source code: "	\
 							+"\n\nSNAPSHOT_FILE_NAME = \"snapshot.csv\""
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
-			warningMessage = "This concludes the demo for \"Parsed data output location #2: CSV file\". After clicking OK, play with the cursor to see it for yourself. "	\
-							+"\n\nOnce you are done, choose one of the three options:\n"		\
-							+"\n1. To demo this feature again, click on the middle button (in between the << and >> buttons)."	\
-							+"\n2. To demo the previous feature, click on the << button."	\
-							+"\n3. To demo the next feature, click on the >> button."	
-			warningRoutine(warningMessage)
-
+			self.endFeatureDemoMessage()
 			
 		elif self.demoIndex == 6:	#	"Parsed data output location #3: Console"
 			self.clearDemo()
-			warningMessage = "In the previous demo feature, you could see every variable's details (offset, length, value etc.) in the snapshot.csv file."	\
+			infoMessage = "In the previous demo feature, you could see every variable's details (offset, length, value etc.) in the snapshot.csv file."	\
 							+"\n\nHowever, sometimes you want to see the output directly printed on a text file or on the console (command line) itself. "	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
 			self.showUnraveledRowNumInTreeView(5)
-			warningMessage = "\n\nThis tool does that, too. Everytime you map some code onto the data, it writes the nicely indented details of ALL the mapped variables"	\
+			infoMessage = "\n\nThis tool does that, too. Everytime you map some code onto the data, it writes the nicely indented details of ALL the mapped variables"	\
 							+"on the console (or the command line from where you invoked this tool). You can use Alt-Tab to see the console to confirm the same."	\
 							+"\n\n(Just ensure that you do not scroll it up in the console, as then the program might hang)"
-			warningRoutine(warningMessage)
-			warningMessage = "This gives the user the ability to run further tools on the text output (well, you could run it on the snapshot.csv file, too."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
+			infoMessage = "This gives the user the ability to run further tools on the text output (well, you could run it on the snapshot.csv file, too."
+			infoRoutine(infoMessage)
 
-			warningMessage = "This concludes the demo for \"Parsed data output location #3: Console\". After clicking OK, play with the cursor to see it for yourself. "	\
-							+"\n\nOnce you are done, choose one of the three options:\n"		\
-							+"\n1. To demo this feature again, click on the middle button (in between the << and >> buttons)."	\
-							+"\n2. To demo the previous feature, click on the << button."	\
-							+"\n3. To demo the next feature, click on the >> button."	
-			warningRoutine(warningMessage)
+			self.endFeatureDemoMessage()
 
 
 		elif self.demoIndex == 7:	#	"One Variable to Many Data: Arrays and Structs"
 			self.clearDemo()
-			warningMessage = "Till now, we have deliberately chosen examples where a single piece of code (a simple declaration of a variable) mapped to a single piece of data item."	\
+			infoMessage = "Till now, we have deliberately chosen examples where a single piece of code (a simple declaration of a variable) mapped to a single piece of data item."	\
 							+"In such cases, highlighting the details of the variable (its value, start/end addresses, length etc.) was easy."	\
 							+"\n\nHowever, that is not the case always. There are many cases where instead of a one-to-one correspondence between Code and Data, a One-to-Many or Many-to-One relationship exists."	\
 							+"\n\nIn this demo feature, we will examine the first case where a single piece of code (a simple variable declaration) can map to many Data items."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "Array and struct declarations are two such cases where a single piece of Code maps to many data items."	\
+			infoMessage = "Array and struct declarations are two such cases where a single piece of Code maps to many data items."	\
 							+"Take this example. Here, when we take our cursor on top of the var_int, exactly a single Data item of 4 bytes length gets highlighted in the Data windows"	\
 							+"and the corresponding details (Description, Start/End Addresses, Length, Big-Endian and Little-Endian values) gets displayed below."	
 			dataInput = ["2.14", "2.21", "1.0", "1.12", "1.0", "1.4", "var_int is of type int", "0x000000000", "0x000000003", "-520103681", "-2555936", "4 bytes", "yellow"]
 			self.populateTransientDataWindow(dataInput)
 			
-			warningMessage = "We are seeing what happens when we take our cursor on the \"var_int\" in the Interpreted Code window. "	\
+			infoMessage = "We are seeing what happens when we take our cursor on the \"var_int\" in the Interpreted Code window. "	\
 							+"\n\nIt's a single piece of variable declaration code, and it maps to a single piece of 4-byte data."		\
 							+"Now, let's see what will happen if we place our cursor on \"structVar\" on the 7th line. It is a struct variable of type \"struct S\"."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.dePopulateTransientDataWindow(dataInput)
 
 			# Now manually add the tags for the declaration "struct S structVar;"
 			#[codeStart, codeEnd, hexStart, hexEnd, asciiStart, asciiEnd, codeMeaning, addrStart, addrEnd, dataValLE, dataValBE, dataLength, useColor]
 			dataInput = ["7.9", "7.18", "4.24", "4.48", "4.8", "4.16", "structVar is of type struct S", "0x000000038", "0x00000003F", "        ", "        ", "8 bytes", "yellow"]
 			self.populateTransientDataWindow(dataInput)
-			warningMessage = "We are now seeing what happens when we take our cursor on the \"structVar\" in the Interpreted Code window. "	\
+			infoMessage = "We are now seeing what happens when we take our cursor on the \"structVar\" in the Interpreted Code window. "	\
 							+"\n\nIt's a single piece of variable declaration code, and yet maps to a multiple pieces of Data."		\
 							+"Observe that the Big- or Little-endian values are no longer being populated, since for a struct variable they make no sense "	\
 							+"(a collective variable like a stuct has length but no \"collective\" value. Its individual elements have value though."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.dePopulateTransientDataWindow(dataInput)
 
 			
 			dataInput = ["6.4","6.12", "1.24", "4.23", "1.8","4.7", "intArray is array of size 3 X 4 of type int", "0x0000000008", "0x0000000037","         ","        ","48 bytes", "yellow"]
 			self.populateTransientDataWindow(dataInput)
-			warningMessage = "Similarly, when we take our cursor on the \"intArray\" in the Interpreted Code window. "											\
+			infoMessage = "Similarly, when we take our cursor on the \"intArray\" in the Interpreted Code window. "											\
 							+"\n\nIt's a single piece of variable declaration code, and yet maps to a multiple (12) pieces of Data."							\
 							+"Observe that the Big- or Little-endian values are no longer being populated, since for an array variable they make no sense "		\
 							+"(a collective variable like an array has length but no \"collective\" value. Its individual array elements have value though."	\
 							+"\n\nSo, the question is: How do we get to see the value of the individual array items? It's obvious we cannot do that from the "	\
 							+"Interpreted Code window - For that, we have to take our cursor to the Data window. "
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.dePopulateTransientDataWindow(dataInput)
 
 			dataInput = ["6.4","6.12","3.12", "3.24","3.4","3.8", "intArray[1][3], where intArray is an array of size 3 X 4 of type int", "0x0000000024","0x0000000027","1279870543", "1330006348", "4 bytes","yellow"]
 			self.populateTransientDataWindow(dataInput)
-			warningMessage = "When we place the cursor on any of the highlighted Data items corresponding to intArray. Then it will not only highlight the "	\
+			infoMessage = "When we place the cursor on any of the highlighted Data items corresponding to intArray. Then it will not only highlight the "	\
 							+"corresponding variable in the Interpreted Code window, but also it will highlight the smallest possible array item in the "		\
 							+"Data Window iteself, and display the corresponding Description/Address(start/End), Value, Length."	\
 							+"\n\nThis is how it looks when we take our cursor in the Data window to he 4-byte area corresponding to intArray[1][3]."			\
 							+"Pay special attention to the \"Description\" field, which now says exactly which array element it is (in this case, it is "		\
 							+"intArray[1][3]). It is immensely helpful to know the array index values."
-			warningRoutine(warningMessage)
-			warningMessage = "So, this way, we can know the details for every one of the 12 array items by placing the cursor in their corresponding data "		\
+			infoRoutine(infoMessage)
+			infoMessage = "So, this way, we can know the details for every one of the 12 array items by placing the cursor in their corresponding data "		\
 							+"items in the Data Window area. But, doing this for each array elements can be tedious, especially if the array contains a lot "	\
 							+"of elements. A better strategy would be to provide a simple listing of details for each of those array elements."					\
 							+"\n\nWhich is precisely what we do in the Tree Window at the bottom. There, if we encounter an array item, there would be a \"+\""	\
 							+" (plus) sign to its left, clicking which will \"unravel\" the array into its array elements."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.showUnraveledRowNumInTreeView(12)
-			warningMessage = "So, this way, we can know the details for every one of the 12 array items by placing the cursor in their corresponding data "		\
+			infoMessage = "So, this way, we can know the details for every one of the 12 array items by placing the cursor in their corresponding data "		\
 							+"\n\n(Alternatively, you can also just double-click on the area corresponding to an array element in the Data windows, and it "	\
 							+"will automatically unfurl the array in the Tree window show that corresponding array element to you."
 			self.dePopulateTransientDataWindow(dataInput)
@@ -22537,30 +22554,30 @@ class MainWindow:
 
 		elif self.demoIndex == 8:	#	"Union"
 			self.clearDemo()
-			warningMessage = "In the previous demo feature, we handled the case where one single piece of code declaration might correspond to multiple data items"	\
+			infoMessage = "In the previous demo feature, we handled the case where one single piece of code declaration might correspond to multiple data items"	\
 							+"(array or struct).\n\nHowever, the reverse situation also exists, where one piece of data corresponds to multiple variable declarations."		\
 							+"\n\nHere we examine: UNIONs"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "Here we have mapped the Union U onto the data."	\
+			infoMessage = "Here we have mapped the Union U onto the data."	\
 							+"(array or struct).\n\nHowever, the reverse situation also exists, where one piece of data corresponds to multiple variable declarations."		\
 							+"\n\nHere is a case where we mapped a union onto the data."
-			warningRoutine(warningMessage)
-			warningMessage = "One interesting thing to note the color schme of the various bytes in the Data window.\n\nIn a union, one piece of data may be interpreted "	\
+			infoRoutine(infoMessage)
+			infoMessage = "One interesting thing to note the color schme of the various bytes in the Data window.\n\nIn a union, one piece of data may be interpreted "	\
 							+"onto each of the member variables of the union. Therefore, the first byte can be interpreted either as the var_int, var_short, or var_char."	\
 							+"Since each of these member variables are colored using a different color in the Interpreted Code window, which color do we choose to color "	\
 							+"the data byte that is common to ALL these member variables?"
-			warningRoutine(warningMessage)
-			warningMessage = "We devise a new coloring scheme: We do the coloring of the data bytes in the reverse order of the variable size (largest to smallest). "		\
+			infoRoutine(infoMessage)
+			infoMessage = "We devise a new coloring scheme: We do the coloring of the data bytes in the reverse order of the variable size (largest to smallest). "		\
 							+"In other words, since var_int is largest member variable (4 bytes), we color the first 4 data bytes using its color. The var_short is the "	\
 							+"second largest member variable (2 bytes), we color the first 2 data bytes using its color. Finally, The var_char is the third largest member "\
 							+"variable (2 bytes), we color the first 1 data byte using its color."	\
 							+"\n\nSo, the first data byte's color gets overwritten by the color of the progressively smaller variables. However, the third and fourth data"	\
 							+"bytes (the last two bytes of an integer) are unaffected by the short and the char variables. So they retain the color of the var_int."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
 
@@ -22568,65 +22585,65 @@ class MainWindow:
 		elif self.demoIndex == 9:	#	"Display values in Decimal or Hexadecimal"
 			
 			self.clearDemo()
-			warningMessage = "In this demo, we show how we can show values in either decimal or hexadecimal, and how to toggle between the two by clicking on the Dec/Hex button on top right."
-			warningRoutine(warningMessage)
+			infoMessage = "In this demo, we show how we can show values in either decimal or hexadecimal, and how to toggle between the two by clicking on the Dec/Hex button on top right."
+			infoRoutine(infoMessage)
 			
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(5)
-			warningMessage = "By default, Little-Endian and Big-Endian values are shown in Decimal. You can toggle this to Hex by clicking on the Dec/Hex button on top right. Let's see what happens presuming we clicked that."
-			warningRoutine(warningMessage)
+			infoMessage = "By default, Little-Endian and Big-Endian values are shown in Decimal. You can toggle this to Hex by clicking on the Dec/Hex button on top right. Let's see what happens presuming we clicked that."
+			infoRoutine(infoMessage)
 			self.toggleHexDec()
 			self.showUnraveledRowNumInTreeView(5)
-			warningMessage = "Now you can see that all the values are being displayed in Hex."
-			warningRoutine(warningMessage)
-			warningMessage = "However, if having to click on the Dec/Hex button every time gets on your nerve, you can also change the default behavior of displaying Little-Endian and Big-Endian values in Decimal. You can change this behavior to Hex in two ways:"			\
+			infoMessage = "Now you can see that all the values are being displayed in Hex."
+			infoRoutine(infoMessage)
+			infoMessage = "However, if having to click on the Dec/Hex button every time gets on your nerve, you can also change the default behavior of displaying Little-Endian and Big-Endian values in Decimal. You can change this behavior to Hex in two ways:"			\
 							+"\n\n1. For changing the default behavior just once, while invoking the tool, pass the command-line parameter \"-x\" or \"--hex\", like \"python ParseAndC -x\""		\
 							+"\n\n2. For changing the default behavior forever, Change the source code \"DISPLAY_INTEGRAL_VALUES_IN_HEX = False\" to \"DISPLAY_INTEGRAL_VALUES_IN_HEX = True\""		\
 							+"\n\nRemember, even when you change the default behavior to Hex, you can still display the values in Decimal at runtime by clicking on the Hex/Dec button on top-right."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 10:	#	"Anonymous and Nested structure"
 			
 			self.clearDemo()
-			warningMessage = "In this demo, we show how this tool handles Anonymous and Nested structures."
-			warningRoutine(warningMessage)
+			infoMessage = "In this demo, we show how this tool handles Anonymous and Nested structures."
+			infoRoutine(infoMessage)
 			
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(5)
-			warningMessage = "In C, you can have anonymous and/or nested structures. However, since you can have multiple anonymous structs defined, we need "	\
+			infoMessage = "In C, you can have anonymous and/or nested structures. However, since you can have multiple anonymous structs defined, we need "	\
 							+"a way to differentiate between various anonymous structs. \n\nWe use the prefix of \"Anonymous#\" followed by a digit."	\
 							+"\n\nFor example, here we say that the struct variable AnonStructVar is of type \"struct Anonymous#1\""
-			warningRoutine(warningMessage)
-			warningMessage = "However, if you want to assign a different prefix, just change this line in the source code:"	\
+			infoRoutine(infoMessage)
+			infoMessage = "However, if you want to assign a different prefix, just change this line in the source code:"	\
 							+"\n\nanonymousStructPrefix = \"Anonymous#\""	\
 							+"\n\nNote of caution: Make sure that the new prefix ends with the pound (#) symbol, which will ensure that it can never clash with any regular struct type."	\
 							+"\n\nNext we will look at the nested structure."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(5)
-			warningMessage = "Here we look at the nested structures. We recall that even the nested struct names must be globally unique. "	\
+			infoMessage = "Here we look at the nested structures. We recall that even the nested struct names must be globally unique. "	\
 							+"\nThat is why the the following is a valid declaration: \n\nstruct nested NestedStructVar2;"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 11:	#	"Bitfields"
 			
 			self.clearDemo()
-			warningMessage = "In this demo, we show how this tool handles bitfield."
-			warningRoutine(warningMessage)
+			infoMessage = "In this demo, we show how this tool handles bitfield."
+			infoRoutine(infoMessage)
 			
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
@@ -22635,12 +22652,12 @@ class MainWindow:
 			self.showUnraveledRowNumInTreeView(2)
 			dataInput = ["3.14","3.20", "1.3", "1.5", "1.1","1.2", "Height is bitfield ", "0x00000001.0", "0x00000001.6","-40","-20","7 bits", "yellow"]
 			self.populateTransientDataWindow(dataInput)
-			warningMessage = "In C, you can have bitfields. Its behavior in this tool is very similar to non-bitfield structs, but there is a key difference. "	\
+			infoMessage = "In C, you can have bitfields. Its behavior in this tool is very similar to non-bitfield structs, but there is a key difference. "	\
 							+"The Start/End address for every bitfield now not only contains the byte number, it also contains the bit number."	\
 							+"\n\nAlso, the length field now shows how many BITS the bitfield is wide."	\
 							+"\n\nHere, we show what the different Details fields would look like if we took our cursor on top of the \"Height\" variable "\
 							+"in the Interpreted Code window. (We also expanded the Tree window)"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.dePopulateTransientDataWindow(dataInput)
 
 			self.openCodeFile([self.demoIndex,1])
@@ -22648,14 +22665,14 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "Here is another example involving bitfields. Here, we are starting a new integer container right after the \"Age\" variable, so that "	\
+			infoMessage = "Here is another example involving bitfields. Here, we are starting a new integer container right after the \"Age\" variable, so that "	\
 							+"the next variable (Height) always starts on a new integer boundary."	\
 							+"\n\nAs a result, the size of the overall struct variable bitfieldStructVar is now 8 bytes instead of 4 in the previous example."	
-			warningRoutine(warningMessage)
-			warningMessage = "One final note of caution: How the bits get packed is extremely dependent on the compiler, and not every compiler is open-sourced."	\
+			infoRoutine(infoMessage)
+			infoMessage = "One final note of caution: How the bits get packed is extremely dependent on the compiler, and not every compiler is open-sourced."	\
 							+"\n\nAlso, when we pack using Big-endian method, the bit offsets change - they are not the same as the Little-endian offsets. "	\
 							+"It is not possible to show both offsets, so this tool only sticks to Little-endian offsets."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
 			
@@ -22663,8 +22680,8 @@ class MainWindow:
 		elif self.demoIndex == 12:	#	"Compiler-generated Padding"
 			
 			self.clearDemo()
-			warningMessage = "In this demo, we show how this tool handles the padding generated by the compiler."
-			warningRoutine(warningMessage)
+			infoMessage = "In this demo, we show how this tool handles the padding generated by the compiler."
+			infoRoutine(infoMessage)
 			
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
@@ -22672,38 +22689,38 @@ class MainWindow:
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
 			self.showUnraveledRowNumInTreeView(5)
-			warningMessage = "As you can see here, the size of the structVar1 is 8 bytes, even though the sum of the member variable sizes is 7 bytes "	\
+			infoMessage = "As you can see here, the size of the structVar1 is 8 bytes, even though the sum of the member variable sizes is 7 bytes "	\
 							+"(4 bytes for var_int, 2 bytes for var_short, 1 byte for var_char). This means, there is a padding of 1 byte at the end, which is unused."	\
 							+"\n\nOn the other hand, the size of structVar2 is 12 bytes, even though the sum of the member variable sizes is still 7 bytes."	\
 							+"\n\nThis is beacuse an int can only start from an address aligned to the word (4 bytes) boundary. So, there are 3 bytes of padding before "	\
 							+"the var_int and 2 bytes of padding after the var_short. The overall size of the structVar2 is still 12 bytes since it must be aligned to "	\
 							+"the size of its largest member variable (4 bytes for var_int)."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			#TO-DO:	Take cursor above the padding
 			
-			warningMessage = "One final note of caution: How the bytes get packed is extremely dependent on the compiler, and not every compiler is open-sourced."	
-			warningRoutine(warningMessage)
+			infoMessage = "One final note of caution: How the bytes get packed is extremely dependent on the compiler, and not every compiler is open-sourced."	
+			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 13:	#	"Packed and Aligned"
 			
 			self.clearDemo()
-			warningMessage = "In this demo, we show how this tool handles the Packed and Aligned directives, which tell the compiler how to pack and align the various members."
-			warningRoutine(warningMessage)
+			infoMessage = "In this demo, we show how this tool handles the Packed and Aligned directives, which tell the compiler how to pack and align the various members."
+			infoRoutine(infoMessage)
 			
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "sizeof(C) = 4, because now the compiler will pack only the member s as tightly as possible. "		\
+			infoMessage = "sizeof(C) = 4, because now the compiler will pack only the member s as tightly as possible. "		\
 							+"And for char variables, the compiler does not need (and therefore ignores) any "					\
 							+"__attribute__((packed)), since a char can start from any byte boundary. "							\
 							+"However, if instead of \"char c2;\" we had a \"char c2[2];\", in that case the sizeof(C) would  "	\
 							+"be 6 since the compiler would align it to a 2-byte-boundary. "	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
@@ -22711,8 +22728,8 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "sizeof(D) = 18, because now the compiler will pack only the member i[4] as tightly as possible. "	
-			warningRoutine(warningMessage)
+			infoMessage = "sizeof(D) = 18, because now the compiler will pack only the member i[4] as tightly as possible. "	
+			infoRoutine(infoMessage)
 
 
 			self.clearDemo()
@@ -22721,11 +22738,11 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "sizeof(H) = 2, because unlike the __attribute__((packed)), when you place the __attribute__((aligned)) "	\
+			infoMessage = "sizeof(H) = 2, because unlike the __attribute__((packed)), when you place the __attribute__((aligned)) "	\
 							+"at the struct definition level (NOT at the struct member level), the aligned attribute does NOT apply "	\
 							+"to each individual struct member. Because if it did, we would get sizeof(H) = 4."	\
 							+"Instead, it will apply to the \"overall\" structure length."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,3])
@@ -22733,27 +22750,27 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(4)
-			warningMessage = "sizeof(K) = 6, not 5, inspite of the packed attributed being applied to the whole struct (and thus all members). "	\
+			infoMessage = "sizeof(K) = 6, not 5, inspite of the packed attributed being applied to the whole struct (and thus all members). "	\
 							+"Out of these 6 bytes, the second and the last bytes are the padding (C3 occupies fourth and fifth bytes). "			\
 							+"This also illustrates one vital property of aligned - the moment you apply to any of the struct member "				\
 							+"variables, it also applies to the overall struct itself. "
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 14:	#	"#pragma pack()"
 			
 			self.clearDemo()
-			warningMessage = "In this demo, we show how this tool handles the #pragma pack directives, which tell the compiler how to override the pack and align directives."
-			warningRoutine(warningMessage)
+			infoMessage = "In this demo, we show how this tool handles the #pragma pack directives, which tell the compiler how to override the pack and align directives."
+			infoRoutine(infoMessage)
 			
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "sizeof(B) = 10, because the compiler will pack i2 right after the short s. It's because 2 is smaller than sizeof(int), which is 4. "		
-			warningRoutine(warningMessage)
+			infoMessage = "sizeof(B) = 10, because the compiler will pack i2 right after the short s. It's because 2 is smaller than sizeof(int), which is 4. "		
+			infoRoutine(infoMessage)
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
@@ -22761,10 +22778,10 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(1)
-			warningMessage = "sizeof(J2) = 4. That's because now the aligned directive expands the short to 4 bytes, "		\
+			infoMessage = "sizeof(J2) = 4. That's because now the aligned directive expands the short to 4 bytes, "		\
 							+"and the #pragma pack (8) cannot increase it because min(4,8) = 4. "							\
 							+"This shows the proof that #pragma pack does not mean that \"Ignore the other aligned\", They are still processed. "		
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,2])
@@ -22772,54 +22789,54 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(1)
-			warningMessage = "sizeof(N2) = now 3. That's because now the aligned directive expands the short to 4 bytes, "		\
+			infoMessage = "sizeof(N2) = now 3. That's because now the aligned directive expands the short to 4 bytes, "		\
 							+"but the #pragma pack(1) statement reduces it back to 2 bytes. Also, the #pragma pack(1) overrides the requirement "		\
 							+"for the aligned(4) that the short can only be aligned at a 4-byte boundary. "		\
 							+"So it starts packing from the second byte itself."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 15:			# Typedef
 		
 			self.clearDemo()
-			warningMessage = "In this demo, we show how this tool handles the typedef, which tell the compiler to create a new type."	\
+			infoMessage = "In this demo, we show how this tool handles the typedef, which tell the compiler to create a new type."	\
 							+"\n\nYou can convert ANY declaration statement into a typedef statement simply by putting the keyword \"typedef\" at the beginning."	\
 							+"\n\nFor example, \"typedef int intType;\" does not create any allocation on the stack, but instead creates a new type called "		\
 							+"\"intType\" which is same as an integer. It is NOT a declaration statement, only a \"definition\" statement. "
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "Let's take a simple example. Here we first create (define) a new type called \"Struct_S\", and then declare a variables (Svar1) using that new type. "		\
+			infoMessage = "Let's take a simple example. Here we first create (define) a new type called \"Struct_S\", and then declare a variables (Svar1) using that new type. "		\
 							+"\n\nHowever, when we map that, the original typedef also gets mapped."		\
 							+"\n\nWhy? Because in many production codes, all we have in the .h file are the creation (definition) of the type - the declaration "	\
 							+"part happens later in a .c file. Very rarely you will get to see a type creation and its immediate usage in the same file, as you see here."	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
-			warningMessage = "Of course, we can just choose the Svar1 variable to map to the data. That will work fine, and we will get to see their "	\
+			infoMessage = "Of course, we can just choose the Svar1 variable to map to the data. That will work fine, and we will get to see their "	\
 							+"member variable values (like Svar1.var_int, Svar1.var_short, Svar1.var_char[0], Svar1.var_char[1]) in the Tree window. "	\
 							+"\n\nHowever, if we want to just place our cursor above the various member variables (var_int, var_short) in the Interpreted Code window "	\
 							+"for the struct variable Svar1, that is no longer possible."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
-			warningMessage = "So, we end up in a situation where sometimes we want to treat the typedef statement as pure definition (no declaration), but some other "	\
+			infoMessage = "So, we end up in a situation where sometimes we want to treat the typedef statement as pure definition (no declaration), but some other "	\
 							+"times we also want to treat typedef statements as both definition and declaration statements. This is akin to having the cake and eating it too."	\
 							+"\n\nWe solve this problem by giving the user the ability to dynamically treat (or not treat) the typedef statements as declaration statements. "	\
 							+"(if we treat it as declaration statement, we also map it. There is a button at the bottom which indicates if we mapping typedefs or not."	\
 							+ "\n\nWhen we click on the \"Mapping typedefs too\" button below, the original typedef does not get mapped any more."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.toggleMapTypedefsToo()
-			warningMessage = "Now the original typedef does not get mapped."	\
+			infoMessage = "Now the original typedef does not get mapped."	\
 							+"\n\nThe default behavior is to map the typedef. You can change this by command-line argument while invoking the tool: "\
 							+"\n\n $ pythong --typedef off "	\
 							+"\n\nAlternatively, if you want the tool to not map typedefs by default, change the statement below in the source code to False:"	\
 							+"\n\nMAP_TYPEDEFS_TOO = True"	\
 							+"\n\nOnce again, irrespective of the default behavior, you can always change the behavior at runtime using the button at the bottom."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
@@ -22829,10 +22846,10 @@ class MainWindow:
 			self.showUnraveledRowNumInTreeView(20)
 			dataInput = ["4.21","4.29", "5.0", "6.12", "5.0","6.4", "typedefI2 is array of size 5 pointer to pointer to pointer to array of size 2 of type function that accepts Argument list ['int'] and returns a of type int", "0x0000000040", "0x0000000053","              ","              ","20 bytes", "yellow"]
 			self.populateTransientDataWindow(dataInput)
-			warningMessage = "Let's take a more complex example. Here we create (define) types, and then create further new types from these types."		\
+			infoMessage = "Let's take a more complex example. Here we create (define) types, and then create further new types from these types."		\
 							+"\n\nWe are show what the details window will show when we place the cursor above typedefI2 in the Interpreted Code window."		\
 							+"\n\nThis is just to show the powers of this compiler, which we wrote from scatch here. Pretty neat, huh? "	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.dePopulateTransientDataWindow(dataInput)
 
 			self.endFeatureDemoMessage()
@@ -22840,13 +22857,13 @@ class MainWindow:
 		elif self.demoIndex == 16:			# Builtin Typedef
 		
 			self.clearDemo()
-			warningMessage = "In this demo, we show how this tool handles some of the builtin typedefs."	\
+			infoMessage = "In this demo, we show how this tool handles some of the builtin typedefs."	\
 							+"\n\nIn production C code, we often find types like int8_t, int32_t etc. which are usually defined in the stdint.h file."	\
 							+"\n\nOne solution is to include the stdint.h, but that contains a LOT other typedefs and macros, which in turn require "	\
 							+"including a signnificant part of the C library. So, instead of having to include the stdint.h, this tool explicitly"		\
 							+"create the typedef for the following types if they are not supplied:"	\
 							+"\n\nint8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t, size_t, ptrdiff_t, intptr_t, uintptr_t"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
@@ -22854,27 +22871,27 @@ class MainWindow:
 			self.interpret()
 			self.toggleMapTypedefsToo()
 			self.mapStructureToData()
-			warningMessage = "In the first example, we are explicitly creating the type int8_t, and it is working fine. "		
-			warningRoutine(warningMessage)
+			infoMessage = "In the first example, we are explicitly creating the type int8_t, and it is working fine. "		
+			infoRoutine(infoMessage)
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "In the second example, we are NOT explicitly creating the type int8_t, yet it is working fine. "		
-			warningRoutine(warningMessage)
+			infoMessage = "In the second example, we are NOT explicitly creating the type int8_t, yet it is working fine. "		
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 17:			# Enum
 		
 			self.clearDemo()
-			warningMessage = "In this demo, we show how this tool handles Enums."	\
+			infoMessage = "In this demo, we show how this tool handles Enums."	\
 							+"\n\nIn production C code, we often find many enums, which are usually integers."	\
 							+"\n\nIt is possible to assign any integral value to enums."	\
 							+"What this tool does is to display the value itself as enum, which makes understanding the data a lot easier."		
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.toggleMapTypedefsToo()
 			
@@ -22883,22 +22900,22 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "In the first example, we are creating the enum WEEKDAYS, without assinging any explicit value. "	\
+			infoMessage = "In the first example, we are creating the enum WEEKDAYS, without assinging any explicit value. "	\
 							+"Observe that since the value (-520103681) doesn't correspond to any of the enum literals, it is being displayed as is."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.dataOffsetEntry.delete(0, tk.END)
 			self.dataOffsetEntry.insert(tk.END,"0x58")
 			self.dataOffset.set(88)
 			self.mapStructureToData()
-			warningMessage = "Now we change the data offset to 0x58, so that the value of day is 0. "	\
+			infoMessage = "Now we change the data offset to 0x58, so that the value of day is 0. "	\
 							+"\n\nObserve that since the value of 0 now corresponds to a valid enum literal, it is being now displayed as 0 (Sun)."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
-			warningMessage = "Now, once interesting case in C is that nothing prevents from a values of enum literals being non-unique. "	\
+			infoMessage = "Now, once interesting case in C is that nothing prevents from a values of enum literals being non-unique. "	\
 							+"\n\nFor example, the following is valid C code: "	\
 							+"\n\ntypedef enum weekdays { Sun=0, Mon=0, Tue, Wed, Thu, Fri, Sat } WEEKDAYS;"	\
 							+"\n\nNow the question is: If there is a data item with a value of 0, do we associate it with Sun or Mon?"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
@@ -22908,19 +22925,19 @@ class MainWindow:
 			self.dataOffsetEntry.insert(tk.END,"0x58")
 			self.dataOffset.set(88)
 			self.mapStructureToData()
-			warningMessage = "We handle it this way. In this example, both the Sun and Mon now correspond to 0. As a result, when we encounter a value of 0, the tool informs us that it could be either Sun or Mon."		
-			warningRoutine(warningMessage)
+			infoMessage = "We handle it this way. In this example, both the Sun and Mon now correspond to 0. As a result, when we encounter a value of 0, the tool informs us that it could be either Sun or Mon."		
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 18:			# Enum in bitfield
 		
 			self.clearDemo()
-			warningMessage = "In the previous demo, we saw how this tool handles Enums."	\
+			infoMessage = "In the previous demo, we saw how this tool handles Enums."	\
 							+"\n\nNow, in production C code, we often find many enums, which are also used inside a bitfield."	\
 							+"\n\nNow, recall that the container of an enum is compiler-dependent and it is usually an integer."	\
 							+"\n\nHowever, inside a bitfield, we do not get a full integer - we get only the specified bits to hold the enum values."		
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.toggleMapTypedefsToo()
 
@@ -22933,25 +22950,25 @@ class MainWindow:
 			self.dataOffset.set(88)
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(20)
-			warningMessage = "Now, you can put the enum even inside a bitfield. By default enums in C are signed integers, but in this tool you are allowed to assume "	\
+			infoMessage = "Now, you can put the enum even inside a bitfield. By default enums in C are signed integers, but in this tool you are allowed to assume "	\
 							+"the sign and container type (char / short / int / long) if all other bitfield variables have the same signed/unsigned container type, "	\
 							+"but while displaying the enum literal whenever possible. "	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
-			warningMessage = "For C purists this might sound like blasphemy, but essentially we expanded the C semantics without changing the C systax. "	\
+			infoMessage = "For C purists this might sound like blasphemy, but essentially we expanded the C semantics without changing the C systax. "	\
 							+"\n\nWe will see more of this in the next set of demos."	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 19:			# Macros
 		
 			self.clearDemo()
-			warningMessage = "One of the most useful features of C is macros. Technically, they are preprocessor statements which the compiler do not see,"	\
+			infoMessage = "One of the most useful features of C is macros. Technically, they are preprocessor statements which the compiler do not see,"	\
 							+"but let's not get pedantic here. In this tool, when we use the term \"compiler\", we often use it the generic way - we "		\
 							+"actually mean the preprocessor. "	\
 							+"Let's see it in action."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
@@ -22959,20 +22976,20 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(3)
-			warningMessage = "Here, we have a macro named \"ARRAY_SIZE\" that simply indicates the number 4. "	\
+			infoMessage = "Here, we have a macro named \"ARRAY_SIZE\" that simply indicates the number 4. "	\
 							+"\n\nIn the Interpreted Code window, we see that \"ARRAY_SIZE\" has been replaced with \"4\" (a textual substitution). "	\
 							+"\n\nThis is the simplest kind of macros, without taking any parameters."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "Next, we examine macros that take inputs and behave more like functions. "	\
+			infoMessage = "Next, we examine macros that take inputs and behave more like functions. "	\
 							+"Here, we have a macro named \"concat\" that simply concatenates the input by using the double-hash operator (##). "	\
 							+"Here, by using concat(a,b) we created a new variable ab. "	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 
 			self.clearDemo()
@@ -22980,45 +22997,45 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,2])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "One of the biggest power of macros is that macros can call macros, just like functions can call functions. "	\
+			infoMessage = "One of the biggest power of macros is that macros can call macros, just like functions can call functions. "	\
 							+"\n\nIt can get pretty complicated. Here is one such example. "	\
 							+"\n\nOne interesting thing this tool does is that it does not give you the ultimate calculated value. "	\
 							+"Instead, it lays it down to you exactly how the textual replacement happened. "		\
 							+"\n\nThat is why in the Interpreted Code window, we have \"int roll[ ( 0 + 2 + 3 ) ];\" instead of simply \"int roll[5];\""	\
 							+"\n\nThis makes it clear to user exactly what substitutions were made by this tool."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 20:			# Variadic Macros
 		
 			self.clearDemo()
-			warningMessage = "One of the most useful features of C is variadic macros, which takes a variable number of arguments."	\
+			infoMessage = "One of the most useful features of C is variadic macros, which takes a variable number of arguments."	\
 							+"\n\nLet's see it in action."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
 			self.interpret()
-			warningMessage = "It works! "	
-			warningRoutine(warningMessage)
+			infoMessage = "It works! "	
+			infoRoutine(infoMessage)
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
 			self.interpret()
-			warningMessage = "It again works! "	
-			warningRoutine(warningMessage)
+			infoMessage = "It again works! "	
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 21:			# Builtin Macros
 
 			self.clearDemo()
-			warningMessage = "In C, when we compile a program with included files, many a times we come across macros that are builtin within the compiler."	\
+			infoMessage = "In C, when we compile a program with included files, many a times we come across macros that are builtin within the compiler."	\
 							+"\n\nIt's very tedious to know all such builtin macros for all C compilers, especially since not every one of them is open-sourced."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
-			warningMessage = "Hence, within this tool, we try to have builtin macros that we have come across. Some examples:\n\n"	\
+			infoMessage = "Hence, within this tool, we try to have builtin macros that we have come across. Some examples:\n\n"	\
 							+"\n#define __SSP_STRONG__, 3]"	\
 							+"\n#define __DBL_MIN_EXP__, (-1021)]"	\
 							+"\n#define __FLT32X_MAX_EXP__, 1024]"	\
@@ -23029,11 +23046,11 @@ class MainWindow:
 							+"\n#define __UINT_LEAST8_TYPE__, unsigned char]"	\
 							+"\n#define __SIZEOF_FLOAT80__, 16]"		\
 							+"\n#define __FLT_MIN__, 1.17549435082228750796873653722224568e-38F]"	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
-			warningMessage = "It's very tedious to know all such builtin macros for all C compilers, especially since not every one of them is open-sourced." 	\
+			infoMessage = "It's very tedious to know all such builtin macros for all C compilers, especially since not every one of them is open-sourced." 	\
 							+"\n\nSo, we try to implement as many as we can. We have done a few HUNDREDs."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 
@@ -23041,21 +23058,21 @@ class MainWindow:
 		elif self.demoIndex == 22:			# Static branching
 
 			self.clearDemo()
-			warningMessage = "C compilers (actually, preprocessors) allow preprocessor statements that allow branching capability, "	\
+			infoMessage = "C compilers (actually, preprocessors) allow preprocessor statements that allow branching capability, "	\
 							+"where the same strucure may contain different set of member variables. This is known during static time (compile-time) itself."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			warningMessage = "Please pay close attention to the #commands. In C, a conditional preprocessor command may only contain fields who values are known statically, "	\
+			infoMessage = "Please pay close attention to the #commands. In C, a conditional preprocessor command may only contain fields who values are known statically, "	\
 							+"i.e during compile time. When we will compile (preprocess) this code, these #if-#else-#endif statements will NOT persist. \n\nPress OK to interpret."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "Now take a look at the Interpreted Code windows. After we compiled (preprocessed) this code, none of these #if-#else-#endif statements persisted."
-			warningRoutine(warningMessage)
+			infoMessage = "Now take a look at the Interpreted Code windows. After we compiled (preprocessed) this code, none of these #if-#else-#endif statements persisted."
+			infoRoutine(infoMessage)
 
-			warningMessage = "Regular C code is usually filled such #if-#then-#else-#endif branches, and those branchings can be nested."
-			warningRoutine(warningMessage)
+			infoMessage = "Regular C code is usually filled such #if-#then-#else-#endif branches, and those branchings can be nested."
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 
@@ -23067,19 +23084,19 @@ class MainWindow:
 			self.clearDemo()
 			
 			'''
-			warningMessage = "Till now, what you saw was ParseAndC 1.0 features. Next we are going to show you 2.0 features." 					\
+			infoMessage = "Till now, what you saw was ParseAndC 1.0 features. Next we are going to show you 2.0 features." 					\
 							+"\n\nWe will first summarize the deltas (new features), and then go through demo of each feature one by one. "		\
 							+"\n\nPlease bear with me for a few more clicks. Press OK to continue."
-			warningRoutine(warningMessage)
-			warningMessage = "We make a rather tall claim with ParseAndC 2.0 - whatever we can do in a regular C program for parsing, we can do it via sheer Structure "	\
+			infoRoutine(infoMessage)
+			infoMessage = "We make a rather tall claim with ParseAndC 2.0 - whatever we can do in a regular C program for parsing, we can do it via sheer Structure "	\
 							+"definition alone - NO separate parser program needed. \n\nSounds crazy, right?"
-			warningRoutine(warningMessage)
-			warningMessage = "How is that even possible? In a C program, we can do stuff that is not possible to do statically. For example, while parsing a network packet, "	\
+			infoRoutine(infoMessage)
+			infoMessage = "How is that even possible? In a C program, we can do stuff that is not possible to do statically. For example, while parsing a network packet, "	\
 							+"we might first parse the field designating the packet header length, and only after we deduce the header length, "								\
 							+"we get to know how many more bytes to read for decoding the full header. How would we do that statically, by a single structure definition alone?"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
-			warningMessage = "We achieve it via introducing the following new features in ParseAndC 2.0:\n" 	\
+			infoMessage = "We achieve it via introducing the following new features in ParseAndC 2.0:\n" 	\
 							+"\n1. Dynamic structures with runtime branching "									\
 							+"\n2. Variable-length arrays "														\
 							+"\n3. Variable-width bitfields"													\
@@ -23089,56 +23106,56 @@ class MainWindow:
 							+"\n7. Unknown data offset? No problem!"											\
 							+"\n\nAnd the best part - we do ALL these while NOT changing the C syntax!!!"		\
 							+"\n\nNow we will demo each of these features in detail."
-			warningRoutine(warningMessage)
-			warningMessage = "With ParseAndC 2.0, we introduce the concept of \"Dynamic\" structures. They look very much like C structures, with some hidden extra powers." 	\
+			infoRoutine(infoMessage)
+			infoMessage = "With ParseAndC 2.0, we introduce the concept of \"Dynamic\" structures. They look very much like C structures, with some hidden extra powers." 	\
 							+"\n\n1) The biggest difference is, anything that is supposed to be a constant in a C structre (like array dimension, bitfield width etc.) "		\
 							+"is now allowed to be an expression involving prior variables."																					\
 							+"\n\nThis captures the information-flow-capability of C programs, where we assign values to later variables based on the value of the prior variables."
-			warningRoutine(warningMessage)
-			warningMessage = "The second additional power of dynamic structures is that, just like we have preprocessing commands (like #define/#if/#elif/#else/#endif) in C, "	\
+			infoRoutine(infoMessage)
+			infoMessage = "The second additional power of dynamic structures is that, just like we have preprocessing commands (like #define/#if/#elif/#else/#endif) in C, "	\
 							+"in Dynamic structures we have #RUNTIME commands that operates on runtime variables rather than compile-time constants."							\
 							+"\n\nThis captures the branching capability of C programs."
-			warningRoutine(warningMessage)
-			warningMessage = "The third additional power of dynamic structures is verification, where we re-use the C's initialization statement and use it as an "				\
+			infoRoutine(infoMessage)
+			infoMessage = "The third additional power of dynamic structures is verification, where we re-use the C's initialization statement and use it as an "				\
 							+"assert statement instead. \n\nIn Dynamic structures, we can have complex conditions to tell if our struct fields have their intended value(s)."	\
 							+"\n\nThis is very helpful to see if our data makes sense or not."
-			warningRoutine(warningMessage)
-			warningMessage = "The fourth and final new power of dynamic structures is speculative execution and dimension-less arrays. "									\
+			infoRoutine(infoMessage)
+			infoMessage = "The fourth and final new power of dynamic structures is speculative execution and dimension-less arrays. "									\
 							+"\n\nDimension-less arrays are nothing but arrays with dimension value of inifinity, which means they will never terminate." 					\
 							+"\n\nSo, we provide a verifification statement as the termination criteria, and speculatively execute all possible array dimension values "	\
 							+"until that termination criteria gets satisfied. This allows us to parse even when we do not know from offset to parse from, as long as we "	\
 							+"know the expected values of certain key fields."
-			warningRoutine(warningMessage)
-			warningMessage = "Sorry about the wall of text. Now let's see these features in action.\n\n\n (drum roll) "									
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
+			infoMessage = "Sorry about the wall of text. Now let's see these features in action.\n\n\n (drum roll) "									
+			infoRoutine(infoMessage)
 			'''
 			self.clearDemo()
-			warningMessage = "In ParseAndC, we introduce the concept of \"Dynamic\" structures. They look very much like C structures, with some hidden extra powers." 	\
+			infoMessage = "In ParseAndC, we introduce the concept of \"Dynamic\" structures. They look very much like C structures, with some hidden extra powers." 	\
 							+"\n\nNow let's look at some branching capability, where the same strucure may contain different set of member variables at runtime."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			warningMessage = "Please pay close attention to the #commands. In C, a conditional preprocessor command may only contain fields who values are known statically, "	\
+			infoMessage = "Please pay close attention to the #commands. In C, a conditional preprocessor command may only contain fields who values are known statically, "	\
 							+"i.e during compile time. However, in this code, the condition (#if parentCount == 2) contains a variable whose value would only be known "		\
 							+"at the runtime.\n\nThat is why when we will compile this code, these #if-#else-#endif statements will persist. \n\nPress OK to interpret."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.interpret()
-			warningMessage = "As expected, these #if-#else-#endif statements did not go away even in the interpreted code. We call these as \"Runtime statements\". "			\
+			infoMessage = "As expected, these #if-#else-#endif statements did not go away even in the interpreted code. We call these as \"Runtime statements\". "			\
 							+"\n\nPress OK to map this data."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.mapStructureToData()
-			warningMessage = "As you can see, depending on the runtime data, only one side of the decision tree got executed. "		\
+			infoMessage = "As you can see, depending on the runtime data, only one side of the decision tree got executed. "		\
 							+"\n\nLet's change the mapping offset so that we can see how the other branch of the branch condition also gets executed."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.dataOffsetEntry.insert(tk.END,"12")
 			self.dataOffset.set(12)
 			self.mapStructureToData()
-			warningMessage = "So, the same structure can now behave differently based on the runtime data. Who would have thunk!!"
-			warningRoutine(warningMessage)
-			warningMessage = "Now, we would like to remind that Dynamic structures can have both statically-resolvable preprocessor commands and dynamically-resolvable "	\
+			infoMessage = "So, the same structure can now behave differently based on the runtime data. Who would have thunk!!"
+			infoRoutine(infoMessage)
+			infoMessage = "Now, we would like to remind that Dynamic structures can have both statically-resolvable preprocessor commands and dynamically-resolvable "	\
 							+"Runtime statements. They can absolutely coexit Let's see that in the next example.!!"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 
@@ -23149,24 +23166,24 @@ class MainWindow:
 			
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			warningMessage = "We have loaded a new Dynamic structure that contains BOTH Regular preprocessing commands and Runtime statements. "		\
+			infoMessage = "We have loaded a new Dynamic structure that contains BOTH Regular preprocessing commands and Runtime statements. "		\
 							+"\n\nWhen we interpret this, we will see that the compile-time preprocessor statements will no longer exist in the interpreted code, "		\
 							+"but runtime statements will continue to be there."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.interpret()
-			warningMessage = "As predicted, after inpretation, only the runtime statements remain. Press OK to map the data."
-			warningRoutine(warningMessage)
+			infoMessage = "As predicted, after inpretation, only the runtime statements remain. Press OK to map the data."
+			infoRoutine(infoMessage)
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(3)
-			warningMessage = "Again, only one side of the decision tree got executed. "		\
+			infoMessage = "Again, only one side of the decision tree got executed. "		\
 							+"\n\nLet's change the mapping offset so that we can see how the other branch of the branch condition also gets executed."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.dataOffsetEntry.insert(tk.END,"12")
 			self.dataOffset.set(12)
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(3)
-			warningMessage = "So, the same structure can now behave differently based on the runtime data.!!"
-			warningRoutine(warningMessage)
+			infoMessage = "So, the same structure can now behave differently based on the runtime data.!!"
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 
@@ -23174,43 +23191,43 @@ class MainWindow:
 		elif self.demoIndex == 25:			# Feature # 2: Variable length array 
 			
 			self.clearDemo()
-			warningMessage = "New Feature: Variable-length array\n\nIn C structures, all array dimensions must be constant - it cannot be coming from another runtime variable. "	\
+			infoMessage = "New Feature: Variable-length array\n\nIn C structures, all array dimensions must be constant - it cannot be coming from another runtime variable. "	\
 							+"\n\nAgain, we are talking about C structures, not general C programs."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			warningMessage = "The array dimension of packet_data is one plus \"packet_length\", which is the previous struct member. \n\nWe cannot do this in C structure."		\
+			infoMessage = "The array dimension of packet_data is one plus \"packet_length\", which is the previous struct member. \n\nWe cannot do this in C structure."		\
 							+"\n\nPress OK to interpret and map this Dynamic structure on the data."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "You can see that inside the data, the size of the packet_data is indeed designated by the value of packet_length ("+STR(getRuntimeValue(['packet_length'])[1])+")"
-			warningRoutine(warningMessage)
-			warningMessage = "Caveat: With great power, comes great responsibility.\n\nEarlier, the C compiler mandated that an array dimension of a struct member variable "		\
+			infoMessage = "You can see that inside the data, the size of the packet_data is indeed designated by the value of packet_length ("+STR(getRuntimeValue(['packet_length'])[1])+")"
+			infoRoutine(infoMessage)
+			infoMessage = "Caveat: With great power, comes great responsibility.\n\nEarlier, the C compiler mandated that an array dimension of a struct member variable "		\
 							+"must be a non-negative integer constant (NOT a runtime variable), but Dynamic strucures allow that. However, now it is the job of the coder "			\
 							+"to ensure that the array dimension value (that gets resolved during runtime) is indeed a positive integer."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 		
 		elif self.demoIndex == 26:			# Feature # 3: Variable length Bitfield 
 		
 			self.clearDemo()
-			warningMessage = "New Feature: Variable-width Bitfield\n\nIn C structures, all bitfield widths must be constant - it cannot be coming from another runtime variable."
-			warningRoutine(warningMessage)
+			infoMessage = "New Feature: Variable-width Bitfield\n\nIn C structures, all bitfield widths must be constant - it cannot be coming from another runtime variable."
+			infoRoutine(infoMessage)
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			warningMessage = "Here the bitfield width (num_flags) for the struct member variable bit_flags - it comes from the "	\
+			infoMessage = "Here the bitfield width (num_flags) for the struct member variable bit_flags - it comes from the "	\
 							+"previous struct member variable num_flags. \n\nWe cannot do this in C structure."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "You can see that inside the data, the size of the bit_flags is indeed designated by the value of num_flags ("+STR(getRuntimeValue(['num_flags'])[1])+")."
-			warningRoutine(warningMessage)
+			infoMessage = "You can see that inside the data, the size of the bit_flags is indeed designated by the value of num_flags ("+STR(getRuntimeValue(['num_flags'])[1])+")."
+			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
 		
@@ -23218,54 +23235,54 @@ class MainWindow:
 		elif self.demoIndex == 27:			# Feature # 4: Verification via Initialization
 
 			self.clearDemo()
-			warningMessage = "Feature # 4: Verification via Initialization.\n\nIn C, when we declare a variable, we can initialialize it to a value. "						\
+			infoMessage = "Feature # 4: Verification via Initialization.\n\nIn C, when we declare a variable, we can initialialize it to a value. "						\
 							+"\n\nHowever, when we declare a C struct for parsing (reading) some data, initialization makes no sense (as there is no writing involved)."	\
 							+"\n\nPress OK to continue."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
-			warningMessage = "We turn the tables here. We use the \"initialization\" as \"verification\", i.e., if a variable var_A is initialized to some value val_A in the "	\
+			infoMessage = "We turn the tables here. We use the \"initialization\" as \"verification\", i.e., if a variable var_A is initialized to some value val_A in the "	\
 							+"struct definition, we expect var_A to have the value of val_A after parsing. If not, a warning will be issued. "									\
 							+"\n\nNow that you can see the code on the left describing the ELF identification header and a sample a.out file on the right, we are going to "	\
 							+"map this this ELF header onto the data. If the magic number indeed matches, no warning would be issued."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "As you saw, the initialization value check did succeed (no warning message popped up). Let's re-map the data from a wrong offset (0x10). "	\
+			infoMessage = "As you saw, the initialization value check did succeed (no warning message popped up). Let's re-map the data from a wrong offset (0x10). "	\
 							+"and see what happens"	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.dataOffsetEntry.insert(tk.END,"0x10")
 			self.dataOffset.set(16)
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "Now you see, the initialization value check did NOT succeed (warning message popped up). \n\nWe will use this initialzation / verification "	\
+			infoMessage = "Now you see, the initialization value check did NOT succeed (warning message popped up). \n\nWe will use this initialzation / verification "	\
 							+"feature as a building block for another powerful feature later. \n\nFor now, press OK to continue."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 		
 			self.endFeatureDemoMessage()
 			
 		elif self.demoIndex == 28:			# Feature # 5: Looping and Dimension-less array:
 			
 			self.clearDemo()
-			warningMessage = "Feature # 5: Looping and Dimension-less array. \n\nIn C structures, array dimensions must be provided at compile-time. The C99 does allow "		\
+			infoMessage = "Feature # 5: Looping and Dimension-less array. \n\nIn C structures, array dimensions must be provided at compile-time. The C99 does allow "		\
 							+"flexible arrays, but puts a constrint that it must be the last member in a C struct. \n\nHere, we allow arrays to be dimension-less and "			\
 							+"treat it is an infinite-dimension array. This essentially can serve as a do/while loop that are one of the most essential building blocks "		\
 							+"of any imperative programing language like C. (we will discuss the termination condition for infinite loops later)"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			warningMessage = "Suppose a datastream is simply many packets coming one after another, where each packet header contains a single \"packet_length\" field "		\
+			infoMessage = "Suppose a datastream is simply many packets coming one after another, where each packet header contains a single \"packet_length\" field "		\
 							+"followed by that many bytes of data. In ParseAndC 2.0, the code on the left is akin to an infinite loop until the datastream is exhausted."		\
 							+"\n\nBe aware that once you hit the OK, it will take some time for the next screen to appear."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			warningMessage = "Now that you can see the alternate-colored \"packet_length\" and \"packet_data\" fields.\n\nPress OK to continue."
-			warningRoutine(warningMessage)
+			infoMessage = "Now that you can see the alternate-colored \"packet_length\" and \"packet_data\" fields.\n\nPress OK to continue."
+			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
 		
@@ -23273,37 +23290,37 @@ class MainWindow:
 		elif self.demoIndex == 29:		# Speculative execution and C strings
 		
 			self.clearDemo()
-			warningMessage = "We just saw that using dimensionless arrays can be used for looping endlessly. However, looping endlessly is only of limited use."		\
+			infoMessage = "We just saw that using dimensionless arrays can be used for looping endlessly. However, looping endlessly is only of limited use."		\
 							+"What we want is smart looping, where we stop after certain criteria is met. This is very similar to while(condition) { } loop in C."		\
 							+"Unfortunately, we committed to NOT changing the C syntax, so we needed to devise a special way to mention the termination condition "		
-			warningRoutine(warningMessage)
-			warningMessage = "For any dimensionless array, we can specify its termination critera by the lexically closest subsequent initialization statement. "		\
+			infoRoutine(infoMessage)
+			infoMessage = "For any dimensionless array, we can specify its termination critera by the lexically closest subsequent initialization statement. "		\
 							+"What this means is that, instead of looping endlessly, now the tool will speculatively loop for different array dimension values "		\
 							+"until the termination condition gets satisfied. \n\nLet's take a very practical example of this feature. "		
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 		
-			warningMessage = "Feature # 6: Speculative execution and C strings\n\nC does not have any special class for strings (character arrays ending with the null "	\
+			infoMessage = "Feature # 6: Speculative execution and C strings\n\nC does not have any special class for strings (character arrays ending with the null "	\
 							+"character). However, we have C strings in nearly every real-life data (section names, program names, variable names etc.). So, if there is "	\
 							+"a C string field in the incoming datastream, but we do not know its length beforehand, then we cannot capture it via a regular C structure. "	\
 							+"\n\n(Sure, we can write a C program to figure that out easily, but here we are talking about capturing it via the structure definition alone.)"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			warningMessage = "Interestingly, we observe that the way C strings are constructed (a stream of non-null characters followed by the null character) makes it a "		\
+			infoMessage = "Interestingly, we observe that the way C strings are constructed (a stream of non-null characters followed by the null character) makes it a "		\
 							+"tailor-made case for dimensionless array with termination criteria. \n\nIn the code on the left, the tool will speculatively try all "		\
 							+"possible values (1,2,3, ...) of dimension for the array variable Char[] until the subsequent nullChar gets a value of '\0' in the datastream. "	\
 							+"\n\nSo, we can use this to map C strings whose length we do not know beforehand."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			
 			self.interpret()
 			self.mapStructureToData()
 			
-			warningMessage = "As you see, this tool indeed found the C string. Let's try to map a lot more C strings at a time. "		\
+			infoMessage = "As you see, this tool indeed found the C string. Let's try to map a lot more C strings at a time. "		\
 							+"Since we will be doing a lot of speculative execution, this step will take a bit of time."	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.endFeatureDemoMessage()
 		
 		elif self.demoIndex == 30:			# Using C string as a class
@@ -23315,9 +23332,9 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "We deliberately chose to code an array of names treating the structure almost like a \"class\". "	\
+			infoMessage = "We deliberately chose to code an array of names treating the structure almost like a \"class\". "	\
 							+"\n\nAs you see, this tool indeed found all the C strings."	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.endFeatureDemoMessage()
 		
 		elif self.demoIndex == 31:		# Feature # 7: Unknown Offset? No problem! Parse even without knowing which data offset to parse from:
@@ -23325,73 +23342,73 @@ class MainWindow:
 			self.clearDemo()
 
 			# Variable-length arrays (speculative execution)
-			warningMessage = "Feature # 7: Unknown data offset? No problem!\n\nUsually, in order to parse a datastream, We to know from which data offset we should start parsing. "	\
+			infoMessage = "Feature # 7: Unknown data offset? No problem!\n\nUsually, in order to parse a datastream, We to know from which data offset we should start parsing. "	\
 							+"But, what if we do not know where the data is? \n\nAmazingly, the new features (Dimensionless arrays with termination conditions via  "	\
 							+"initialization) can help us there. \n\nLet's take an example to illustrate this."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			warningMessage = "On the code window, we see the struct Initialization_tester, which describes the data format for the packet that we are looking for. "	\
+			infoMessage = "On the code window, we see the struct Initialization_tester, which describes the data format for the packet that we are looking for. "	\
 							+"Unfortunately, we do not know what offset it appears at. \n\nIf we blindly try to map from offset 0, it will throw warning messages "		\
 							+"informing us that the \"magic_number\" field does NOT hold the intended value (0x0400FEFF) in the data. "									\
 							+"\n\nPress OK to see that in action."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
 							
-			warningMessage = "As expected, we were hit with warning messages informing that the initialization (verification) statement did not succeed. "	\
+			infoMessage = "As expected, we were hit with warning messages informing that the initialization (verification) statement did not succeed. "	\
 							+"\n\nLuckily, using our keen eyesight, we observe that if we just mapped from the offset of 16 instead of 0, the \"magic_number\" would have "		\
 							+"held the intended value (0x0400FEFF). Let's do that and verify."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.dataOffsetEntry.insert(tk.END,"16")
 			self.dataOffset.set(16)
 			self.mapStructureToData()
-			warningMessage = "As expected, this time we were NOT hit with any warning messages since the initialization (verification) statement did succeed: "		\
+			infoMessage = "As expected, this time we were NOT hit with any warning messages since the initialization (verification) statement did succeed: "		\
 							+"when mapped from the offset of 16 instead of 0, the \"magic_number\" indeed held the intended value (0x0400FEFF).	"					\
 							+"\n\nHowever, this was more of a lucky break. We cannot really rely upon human ability to look at the raw binary data and still be "	\
 							+"able to identify the intended value. We would rather expect the tool to do the job for us."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.endFeatureDemoMessage()
 		
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
-			warningMessage = "That is precisely what we achieve here. Take a look at the Code window, where we have added a new line at the top. "							\
+			infoMessage = "That is precisely what we achieve here. Take a look at the Code window, where we have added a new line at the top. "							\
 							+"\n\nThis new line \"int filler_junk [ ];\" is a variable-length array, where we do NOT mention the array dimension. "							\
 							+"\n\nIn our tool, we treat the very next (lexically closest) initialization statement (magic_number=0x0400FEFF) as its termination condition."	\
 							+"\n\nSo, this tool will start parsing from offset 0, but it will speculatively execute all the possible array dimension values (1 through "	\
 							+"infinity) for filler_junk [ ] until that initialization test succeeds."	
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "As you can see, the tool did the speculative execution and found the correct offset so that the target termination criteria got met. "		\
+			infoMessage = "As you can see, the tool did the speculative execution and found the correct offset so that the target termination criteria got met. "		\
 							+"This is an extremely powerful feature, where we can parse even witout knowing where to parse from (as long as we have some apriori knowlege"	\
 							+"about what the data from the correct offset would look like.\n\nPress OK to continue."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.endFeatureDemoMessage()
 		
 		elif self.demoIndex == 32:
 			self.clearDemo()
-			warningMessage = "OK, enough with all these \"test\" data. Let's see this tool in action on some REAL data (network packet headers captured via Wireshark)."					
-			warningRoutine(warningMessage)
+			infoMessage = "OK, enough with all these \"test\" data. Let's see this tool in action on some REAL data (network packet headers captured via Wireshark)."					
+			infoRoutine(infoMessage)
 			
 			# Real-life example for network packet header parsing using Dynamic structure:
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			warningMessage = "What we have on the right are real Ethernet II frame headers followed by IPv4 header, and then TCP/UDP/ICMP headers after that."		\
+			infoMessage = "What we have on the right are real Ethernet II frame headers followed by IPv4 header, and then TCP/UDP/ICMP headers after that."		\
 							+"\n\nWe will be using a SINGLE Dynamic structure to decode all of it."
-			warningRoutine(warningMessage)
-			warningMessage = "In the bottom of the code, we have a single NW_pkt_hdr[3] array for the three different headers (TCP, UDP and ICMP)"
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
+			infoMessage = "In the bottom of the code, we have a single NW_pkt_hdr[3] array for the three different headers (TCP, UDP and ICMP)"
+			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
-			warningMessage = "Et voila!! (Pardon my French)"	\
+			infoMessage = "Et voila!! (Pardon my French)"	\
 							+ "\n\nThis marks the end of the demo, once you click OK, you will be able to take your cursor above various colored items in the "		\
 							+"interpreted code window and the data window and see how the Description, Address and Values are shown below. \n\nYou will also be "	\
 							+"able to play with the Expand/Collapse buttons to see the internals of the mapped variables."
-			warningRoutine(warningMessage)
+			infoRoutine(infoMessage)
 			self.endFeatureDemoMessage()
 			
 		elif 0 < self.demoIndex < len(demoFeatureCodeData):
