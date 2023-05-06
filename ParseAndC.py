@@ -845,6 +845,7 @@
 # 2023-04-30 - Improved the demo.
 # 2023-05-03 - Improved the demo. Added suggested color buttons.
 # 2023-05-05 - Improved the demo. Added toggle between Code and Data.
+# 2023-05-05 - Improved the demo.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -1843,10 +1844,16 @@ demoFeatureCodeData = [
 '          short var_short;\n',
 '          char var_char[2];\n',
 '        } structVar;\n'],
+generalData],
+[['struct S{\n',
+'          int var_int;\n',
+'          short var_short;\n',
+'          char char1,char2;\n',
+'        } structVar;\n'],
 generalData]
+
 ]
 ],
-
 ############################################################################################	1
 ["How to specify the input format", 	
 [
@@ -1895,6 +1902,28 @@ generalData]
 ],
 ],
 ############################################################################################	2
+["How to choose only part of the input format", 	
+[
+# All mixed
+[['int i;\n',
+'float f;\n',
+'\n',
+'struct S1{\n',
+'          int var_int;\n',
+'          short var_short;\n',
+'          char var_char[2];\n',
+'        } S1_var;\n',
+'\n',
+'long l;\n',
+'\n',
+'struct S2{\n',
+'          int INT;\n',
+'          short SHORT;\n',
+'        } S2_var;\n'],
+generalData]
+],
+],
+############################################################################################	3
 ["How to specify the datasream (and textified Hex)", 	
 [
 # 
@@ -1912,7 +1941,7 @@ generalData],
 textifiedHexdata]
 ],
 ],
-############################################################################################	3
+############################################################################################	4
 ["How to specify the data offset", 	
 [
 # 
@@ -1923,18 +1952,6 @@ textifiedHexdata]
 '        };\n'],
 generalData],
 ],
-],
-############################################################################################	4
-["How to use the cursor on Code and Data", 	# Mention Dummy variable
-[
-# 
-[['struct S{\n',
-'          int var_int;\n',
-'          short var_short;\n',
-'          char char1,char2;\n',
-'        };\n'],
-generalData]
-]
 ],
 ############################################################################################	5
 ["How to toggle bewteen Code and Data", 	
@@ -22239,16 +22256,18 @@ class MainWindow:
 			return
 
 		if self.demoIndex == -1:
-			infoMessage = "To use the demo, you need to do TWO things. " 	\
+			infoMessage = "There are over 30 features that are demoed here. To see it all, you need to do TWO things. " 	\
 							+"\n\n1. CHOOSE a feature using the \"<<\" or \">>\" buttons."	\
 							+"\n\n2. CLICK on the middle button in between the \"<<\" and \">>\" buttons to actually start the demo for that feature."	
 			infoRoutine(infoMessage)
-			infoMessage = "The way this Demo is organized, first you choose a feature you want to Demo. You can go through the feature list by using the Forward (>>) or Backward (<<) " 	\
-							 + "button. \n\nOnce you choose a feature you want to demo, just click on it (the middle button between the \"<<\" and \">>\". "	\
-							 +"\n\nHowever, once the Demo of that feature starts, you have to wait to let it finish (during that time, all you are allowed to do is to "	\
-							 +"press OK on the various popup messages. Only after the current feature's Demo is completed, you get the control back and then can jump to "	\
-							 +"another feature, forward or backward."	\
+			infoMessage = "Remember, once the Demo of a feature starts, you have to wait to let it finish (during that time, all you are allowed to do is to press Enter "	\
+							 +"(or click OK) on the various popup messages. Only after the current feature's Demo is completed, you get the control back where you can do "	\
+							 +"whatever on the screen. \n\nOnce you are done playing, you can jump to another feature, forward or backward, or re-demo the current feature "	\
+							 +"by clicking one of the 3 buttons below."	\
 							 + "\n\nIf you have not used this tool before, it is advised to go through ALL demo features sequencetially."
+			infoRoutine(infoMessage)
+			infoMessage = "To help you guide through the demo, the tool automatically makes the button GREEN where it wants you to click." 	\
+						+"\n\nOr, just keep hitting the ENTER, and it will take you through everything."
 			infoRoutine(infoMessage)
 			self.demoThisFeatureButton.configure(text="Re-Demo this feature: Intro: How to use this Demo")
 			infoMessage = "This is the end of \"How to use the Demo\". \n\nUse the Forward (>>) button to start navigating across various features. " 	
@@ -22302,22 +22321,99 @@ class MainWindow:
 							+"the fields listed at the bottom window. We mapped the input format from a data offset of zero (default), but that can be changed." 	\
 							+"\n\nThis is an extremely simplistic view of what the tool does, but we will explain all the features in detail later."
 			infoRoutine(infoMessage)
+			infoMessage = "Lastly, you can also run this tool from a terminal in batch mode (where no GUI is possible). just invoke it with the \"-b\" (or \"--batch\") option."	\
+						+"\n\npython ParseAndC -b -c CodeFile -d DataFile [-o Offset]"	\
+						+"\n\nOf course, when you run it in the batch mode, you have to supply the data you want to parse (DataFile), and its format (CodeFile) at the minimum."	\
+						+"\n\nIn fact, if you invoke this tool from such an environment where no GUI is possible, it will automatically run in the Batch Mode."	\
+						+"\nSure, you will miss out many of the GUI features, but the ability to run it just from a shell makes it very useful for testing."
+			infoRoutine(infoMessage)
+			infoMessage = "To know which all options are available under the batch mode, just run the following command:"	\
+						+"\n\npython ParseAndC.py --help"	\
+						+"\n\nIt will list all the command-line options available to you in the batch mode."
+			infoRoutine(infoMessage)
+		
+		
+			#"How to use the cursor on Code and Data"
+			self.clearDemo()
+			infoMessage = "However, when we have GUI, there is a lot more this tool can do for you. "	\
+						+"\n\nHere, we talk about how to use the cursor on the Interpreted Code window and the Data windows (both Hex and ASCIII)"
+			infoRoutine(infoMessage)
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(2)
+			infoMessage = "Once you have mapped the input format onto the data from a certain offset, you can see the color-coded stuff in both Interpred Code and Data Windows."	\
+							+"\n\nWe paint the data and its corresponding variable(s) with the same color."
+			infoRoutine(infoMessage)
+			original_background = self.CodeDataMeaningText.cget("background")
+			self.CodeDataMeaningText.configure(text="                                          ", background="yellow")
+			self.dataAddressStartText.configure(text="           ", background="yellow")
+			self.dataAddressEndText.configure(text="           ", background="yellow")
+			self.dataLengthText.configure(text="           ", background="yellow")
+			self.dataValueLEText.configure(text="           ", background="yellow")
+			self.dataValueBEText.configure(text="           ", background="yellow")
+			infoMessage = "At the same time, there are a number of fields just above the bottom long window: Description, Address (start), Address (end), Value (Little-Endian), Value (Big-Endian), Length." \
+							+"\n\n These fields are usually blank. However, when you take your cursor on top of any of these color-coded items (either in the Interpreted Code or Data window), some magic will start happening."
+			infoRoutine(infoMessage)
+			infoMessage = "If you take your cursor on top a color-coded item in the Interpreted Code, it will highlight the corresponding mapped data in Data window), and vice versa."	\
+							+"\n\nAt the same time, these fields will also get populated: Description, Address (start), Address (end), Value (Little-Endian), Value (Big-Endian), Length."	\
+							+"\n\nLet's see what happens when we take our cursor on the \"var_int\" in the Interpreted Code window."
+			infoRoutine(infoMessage)
+			self.interpretedCodeText.tag_add("yellowbg", "2.14", "2.21")	
+			self.viewDataHexText.tag_add("yellowbg", "1.0", "1.12")	
+			self.viewDataAsciiText.tag_add("yellowbg", "1.0", "1.4")	
+			self.CodeDataMeaningText.configure(text="var_int is of type int")
+			self.dataAddressStartText.configure(text="0x000000000")
+			self.dataAddressEndText.configure(text="0x000000003")
+			self.dataLengthText.configure(text="4 bytes")
+			self.dataValueLEText.configure(text="-520103681")
+			self.dataValueBEText.configure(text="-2555936")
 			
+			
+			infoMessage = "We are seeing what happens when we take our cursor on the \"var_int\" in the Interpreted Code window. "	\
+							+"\n\nAfter the next popup message, place your cursor on various colored items and see what happens."
+			infoRoutine(infoMessage)
+
+			self.interpretedCodeText.tag_remove("yellowbg", "2.14", "2.21")		
+			self.viewDataHexText.tag_remove("yellowbg", "1.0", "1.12")	
+			self.viewDataAsciiText.tag_remove("yellowbg", "1.0", "1.4")	
+			self.CodeDataMeaningText.configure(text="", background=original_background)
+			self.dataAddressStartText.configure(text="", background=original_background)
+			self.dataAddressEndText.configure(text="", background=original_background)
+			self.dataLengthText.configure(text="", background=original_background)
+			self.dataValueLEText.configure(text="", background=original_background)
+			self.dataValueBEText.configure(text="", background=original_background)
+
 			self.endFeatureDemoMessage()
-			
+
 		elif self.demoIndex == 1:
 			self.clearDemo()
 			# Single struct
-			infoMessage = "In this demo, we show different ways we can enter the Input format (the \"Code\") and the datastream (the \"Data\")."	\
+			infoMessage = "In this demo, we show different ways we can enter the Input format (the \"Code\") for the datastream (the \"Data\")."	\
 							+"\n\nRemember, this is a READ-ONLY tool. Nothing you do here will EVER change your code or data. "	\
 							+"\n\nIt was deliberately designed that way to give the user the peace of mind."
 			infoRoutine(infoMessage)
 							
-			infoMessage = "There are 3 ways you can enter the \"Code\" (the Input Format). \n"	\
-							+"\n1. By clicking on the \"Open Code file\" button on top left and choosing a code file, which will load it into the \"Original code\" window." \
-							+"\n2. By straightaway typing the code in the \"Original code\" window."	\
-							+"\n3. By combining the previous two methods."
+			infoMessage = "There are 3 ways you can enter the \"Code\" (the Input Format). "	\
+							+"\n\n1. By clicking on the \"Open Code file\" button on top left and choosing a code file, which will load it into the \"Original code\" window." \
+							+"\n\n2. By directly typing the code in the \"Original code\" window."	\
+							+"\n\n3. By combining the previous two methods."
 			infoRoutine(infoMessage)
+			infoMessage = "Your Code may have \"#include\" statements, like \n"	\
+						+"\n#include <header2.h>, or "	\
+						+"\n#include \"header3.c\""		\
+						+"\n\nIn either case, the tool will look for those files, and when found, replace the include statement with the content of that file."
+			infoRoutine(infoMessage)
+
+			infoMessage = "The folder or library location the tool looks for the included file is the current folder, followed by a system variable called INCLUDE_FILE_PATHS."	\
+						+"\n\nYou can modify this system variable to something like this: "	\
+						+"\n\nINCLUDE_FILE_PATHS = r'C:\Folder1 ; F:\Folder2' "	\
+						+"\n\nAlternatively, you can also supply the include library paths while invoking this tool the following way: "	\
+						+"\n\n$ python ParseAndC -i \"C:\Folder1 ; F:\Folder2 \" "	\
+						+"\n\n(Observe that the quoted string can contain multiple folders, not just one."		
+			infoRoutine(infoMessage)
+			
 			infoMessage = "For data though, there is only ONE way to enter it - by clicking on the \"Open data file\" button and choosing a data file. "	\
 							+"\n\nFor minimizing the memory used, it usually does NOT load the whole file into memory, and rather reads just enough data "	\
 							+"to display in the Data windows."
@@ -22367,13 +22463,15 @@ class MainWindow:
 			infoMessage = "Similarly, if the Datafile does not fit in the Data Window on the right, you can use the Page Up/Page Down just like any other regular Hex viewer. \n\n"	\
 							+"There is no scrollbar, but you can either either explicitly mention a File Offset, or choose one among the Spinbox"
 			infoRoutine(infoMessage)
+			self.endFeatureDemoMessage()
 
+		elif self.demoIndex == 2:	# Map only portion of the Interpreted code
 			self.clearDemo()
-			self.openCodeFile([self.demoIndex,3])
-			self.openDataFile([self.demoIndex,3])
+			self.openCodeFile([self.demoIndex,0])
+			self.openDataFile([self.demoIndex,0])
 			self.interpret()
-			infoMessage = "Also, it is not necessary that you must choose all of the input format to map. You can even map a selected portion of the interpreted code, "	\
-							+"using your cursor. Essentially, you are telling the compiler - compile this input data format, but map only this much."
+			infoMessage = "Sometimes, it is not necessary that you must choose all of the input format to map. You can even map a selected portion of the interpreted code, "	\
+							+"using your cursor. \n\nEssentially, you are telling the compiler - compile the input data format fully, but map only this much."
 			infoRoutine(infoMessage)
 			# This selects the region from line 2 to line 5, but the moment the warning message comes on top, the blue color of selection is not shown somehow
 			selectionStartLineChar = "2.4"
@@ -22390,9 +22488,26 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			self.interpretedCodeText.tag_remove("bluebg", selectionStartLineChar, selectionEndLineChar)	
 
+			self.interpretedCodeText.tag_add("bluebg", "1.0", "1.6")
+			self.interpretedCodeText.tag_add("bluebg", "3.0", "7.17")
+			infoMessage = "Now, let's get into some more quirky senarios. What if we want to choose the \"int i\" and the \"struct S1\", but not the \"float f\"? "	\
+						+ "It is impossible to use your cursor to make TWO selections that are not contiguous."
+			infoRoutine(infoMessage)
+			
+			infoMessage = "There is a simple solution - rearrange the Code in such a way that the previously non-contiguous variables are now contiguous. "	\
+						+"\n\nFor example, here if we exchange the position of the first two lines, that will solve our problems. "		\
+						+"\n\nBut such kind of a solution is not always possible."
+			infoRoutine(infoMessage)
+			infoMessage = "That is where the batch mode wins over the GUI mode. In batch mode, you can specify exactly which Global-level variables you want to map."	\
+						+"\n\nFor that, we use the following command line option:\n\n -g  \"i S1_var\" "	\
+						+"\n\nThat tells the tool - compile the input format, but map only the global-level variables \"i\" and the \"S1_var\" "
+			infoRoutine(infoMessage)
+			self.interpretedCodeText.tag_remove("bluebg", "1.0", "1.6")
+			self.interpretedCodeText.tag_remove("bluebg", "3.0", "7.17")
+
 			self.endFeatureDemoMessage()
 			
-		elif self.demoIndex == 2:	# How to enter the data
+		elif self.demoIndex == 3:	# How to enter the data
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
@@ -22433,7 +22548,7 @@ class MainWindow:
 
 			self.endFeatureDemoMessage()
 			
-		elif self.demoIndex == 3:	#"How to specify the data offset"
+		elif self.demoIndex == 4:	#"How to specify the data offset"
 			self.clearDemo()
 			infoMessage = "We map the data format from the offset of 0 by default. Of course, we can change that. \n\nLet's see what happens when we map it from one-fourth "	\
 							+"of a Kilobyte. You can specify this in any format, as pure 256, or 0x100, or even 1KB/4, which is very much human readable. Press OK to continue."
@@ -22448,6 +22563,7 @@ class MainWindow:
 			self.dataOffsetEntry.insert(tk.END,"16")
 			self.dataOffset.set(16)
 			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(2)
 			infoMessage = "Now you see, that data mapping is happening from the offset of 16. However, we could have also used Hexadecimal values to mention. We now use \"0x1D\" as data offset"
 			infoRoutine(infoMessage)
 			self.dataOffsetEntry.delete(0, tk.END)
@@ -22465,9 +22581,13 @@ class MainWindow:
 			self.dataOffset.set(1024)
 			self.interpret()
 			self.mapStructureToData()
-			infoMessage = "Now you see, that data mapping is happening from the offset of 1KB (which is 0x400, or 1024)."
+			self.showUnraveledRowNumInTreeView(2)
+			infoMessage = "Now you see, that data mapping is happening from the offset of 1KB (which is 0x400, or 1024)."	\
+						+"\n\nUnfortunately, it is outside the currently displayed data window, so the mapped Data bytes are not visible."	\
+						+"\n\nTo make it visible, we simulate hitting the Page Down key twice (each time it moves 512 bytes of data)."
 			infoRoutine(infoMessage)
-			infoMessage = "However, we could have also used complex expressions like 1KB/4+0x10-8"
+			self.fileOffset.set(1024)
+			infoMessage = "Now you see, it is visible. \n\nHowever, we could have also used complex expressions like 1KB/4+0x10-8"
 			infoRoutine(infoMessage)
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
@@ -22476,60 +22596,10 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.dataOffset.set(264)
-			infoMessage = "Now you see, that data mapping is happening from the offset of 1KB/4+0x10-8 (which is 0x408, or 1032). Basically, these Data Offset field is very versatile"
+			self.showUnraveledRowNumInTreeView(2)
+			infoMessage = "Now you see, that data mapping is happening from the offset of 1KB/4+0x10-8 (which is 0x108, or 264). "	\
+						+"\n\nBasically, these Data Offset field is very versatile."
 			infoRoutine(infoMessage)
-
-			self.endFeatureDemoMessage()
-
-		elif self.demoIndex == 4:	#"How to use the cursor on Code and Data"
-			self.clearDemo()
-			infoMessage = "Here, we talk about how to use the cursor on the Interpreted Code window and the Data windows (both Hex and ASCIII)"
-			infoRoutine(infoMessage)
-			self.openCodeFile([self.demoIndex,0])
-			self.openDataFile([self.demoIndex,0])
-			self.interpret()
-			self.mapStructureToData()
-			infoMessage = "Once you have mapped the input format onto the data from a certain offset, you can see the color-coded stuff in both Interpred Code and Data Windows."	\
-							+"\n\nWe paint the data and its corresponding variable(s) with the same color."
-			infoRoutine(infoMessage)
-			original_background = self.CodeDataMeaningText.cget("background")
-			self.CodeDataMeaningText.configure(text="                                          ", background="yellow")
-			self.dataAddressStartText.configure(text="           ", background="yellow")
-			self.dataAddressEndText.configure(text="           ", background="yellow")
-			self.dataLengthText.configure(text="           ", background="yellow")
-			self.dataValueLEText.configure(text="           ", background="yellow")
-			self.dataValueBEText.configure(text="           ", background="yellow")
-			infoMessage = "At the same time, there are a number of fields just above the bottom long window: Description, Address (start), Address (end), Value (Little-Endian), Value (Big-Endian), Length." \
-							+"\n\n These fields are usually blank. However, when you take your cursor on top of any of these color-coded items (either in the Interpreted Code or Data window), some magic will start happening."
-			infoRoutine(infoMessage)
-			infoMessage = "If you take your cursor on top a color-coded item in the Interpreted Code, it will highlight the corresponding mapped data in Data window), and vice versa."	\
-							+"\n\nAt the same time, these fields will also get populated: Description, Address (start), Address (end), Value (Little-Endian), Value (Big-Endian), Length."	\
-							+"\n\nLet's see what happens when we take our cursor on the \"var_int\" in the Interpreted Code window."
-			infoRoutine(infoMessage)
-			self.interpretedCodeText.tag_add("yellowbg", "2.14", "2.21")	
-			self.viewDataHexText.tag_add("yellowbg", "1.0", "1.12")	
-			self.viewDataAsciiText.tag_add("yellowbg", "1.0", "1.4")	
-			self.CodeDataMeaningText.configure(text="var_int is of type int")
-			self.dataAddressStartText.configure(text="0x000000000")
-			self.dataAddressEndText.configure(text="0x000000003")
-			self.dataLengthText.configure(text="4 bytes")
-			self.dataValueLEText.configure(text="-520103681")
-			self.dataValueBEText.configure(text="-2555936")
-			
-			
-			infoMessage = "We are seeing what happens when we take our cursor on the \"var_int\" in the Interpreted Code window. "	\
-							+"\n\nPlace your cursor on various colored items and see what happens."
-			infoRoutine(infoMessage)
-
-			self.interpretedCodeText.tag_remove("yellowbg", "2.14", "2.21")		
-			self.viewDataHexText.tag_remove("yellowbg", "1.0", "1.12")	
-			self.viewDataAsciiText.tag_remove("yellowbg", "1.0", "1.4")	
-			self.CodeDataMeaningText.configure(text="", background=original_background)
-			self.dataAddressStartText.configure(text="", background=original_background)
-			self.dataAddressEndText.configure(text="", background=original_background)
-			self.dataLengthText.configure(text="", background=original_background)
-			self.dataValueLEText.configure(text="", background=original_background)
-			self.dataValueBEText.configure(text="", background=original_background)
 
 			self.endFeatureDemoMessage()
 
