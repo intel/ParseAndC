@@ -846,6 +846,7 @@
 # 2023-05-03 - Improved the demo. Added suggested color buttons.
 # 2023-05-05 - Improved the demo. Added toggle between Code and Data.
 # 2023-05-05 - Improved the demo.
+# 2023-05-08 - Improved the demo.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -1905,8 +1906,8 @@ generalData]
 ["How to choose only part of the input format", 	
 [
 # All mixed
-[['int i;\n',
-'float f;\n',
+[['int intVar;\n',
+'float floatVar;\n',
 '\n',
 'struct S1{\n',
 '          int var_int;\n',
@@ -1914,7 +1915,7 @@ generalData]
 '          char var_char[2];\n',
 '        } S1_var;\n',
 '\n',
-'long l;\n',
+'long longVar;\n',
 '\n',
 'struct S2{\n',
 '          int INT;\n',
@@ -2103,6 +2104,12 @@ generalData]
 'int intArray[3][4];\n',
 '          \n',
 'struct S structVar;\n'],
+generalData],
+[['struct S{\n',
+'          int var_int;\n',
+'          short var_short;\n',
+'          char var_char;\n',
+'        } structvarArray[10];\n'],
 generalData]
 ]
 ],
@@ -19946,6 +19953,8 @@ class MainWindow:
 		toggleMapTypedefsTooInitalText = "Mapping typedefs too" if MAP_TYPEDEFS_TOO else "Not mapping typedefs"
 		self.toggleMapTypedefsTooButton = ttk.Button(frame, text=toggleMapTypedefsTooInitalText, underline=8,command=self.toggleMapTypedefsToo)
 		
+		self.toggleRunOrClearDemoButton.focus_set()
+		
 		self.originalBackgroundColor = self.CodeDataMeaningText.cget("background")
 
 #		self.style = ttk.Style()
@@ -22156,6 +22165,49 @@ class MainWindow:
 		elif len(dataInput) < 6:
 			EXIT("ERROR in populateTransientDataWindow: dataInput =",STR(dataInput),"need to have at least 6 inputs: codeStart, codeEnd, hexStart, hexEnd, asciiStart, asciiEnd.")
 
+		# Color the Interpreted Code Window
+		if checkIfString(dataInput[0]) or checkIfString(dataInput[1]):
+			if checkIfString(dataInput[0]) and checkIfString(dataInput[1]):
+				PRINT("Single piece of coloring to be done on the Interpreted Code window")
+			else:
+				EXIT("If one of the dataInput[0/1] is a string, ALL of them must be strings.", STR(dataInput))
+		elif isinstance(dataInput[0], list) or isinstance(dataInput[1], list):
+			if isinstance(dataInput[0], list) and isinstance(dataInput[1], list):
+				PRINT("Multiple piece of coloring to be done on Interpreted Code window")
+				if len(dataInput[0]) != len(dataInput[1]):
+					EXIT("All of the dataInput[0/1] lists must be have equal length. ", STR(dataInput))
+				else:
+					for y in range(len(dataInput[0])):
+						if not checkIfString(dataInput[0][y]) or "." not in dataInput[1][y]:
+							EXIT("All of the dataInput[0/1] lists must be have strings in them. ", STR(dataInput))
+			else:
+				EXIT("If one of the dataInput[0/1] is a list, ALL of them must be lists")
+		else:
+				EXIT("The dataInput[0/1] must be strings or lists")
+
+
+		# Color the Hex and ASCII Data Windows
+		if checkIfString(dataInput[2]) or checkIfString(dataInput[3]) or checkIfString(dataInput[4]) or checkIfString(dataInput[5]):
+			if checkIfString(dataInput[2]) and checkIfString(dataInput[3]) and checkIfString(dataInput[4]) and checkIfString(dataInput[5]):
+				PRINT("Single piece of coloring to be done on Data window")
+			else:
+				EXIT("If one of the dataInput[2/3/4/5] is a string, ALL of them must be strings.", STR(dataInput))
+		elif isinstance(dataInput[2], list) or isinstance(dataInput[3], list) or isinstance(dataInput[4], list) or isinstance(dataInput[5], list):
+			if isinstance(dataInput[2], list) and isinstance(dataInput[3], list) and isinstance(dataInput[4], list) and isinstance(dataInput[5], list):
+				PRINT("Multiple piece of coloring to be done on Data window")
+				if len(dataInput[2]) != len(dataInput[3]) or len(dataInput[2]) != len(dataInput[4]) or len(dataInput[2]) != len(dataInput[5]):
+					EXIT("All of the dataInput[2/3/4/5] lists must be have equal length. ", STR(dataInput))
+				else:
+					for x in range(2,6):
+						for y in range(len(dataInput[x])):
+							if not checkIfString(dataInput[x][y]) or "." not in dataInput[x][y]:
+								EXIT("All of the dataInput[2/3/4/5] lists must be have strings in them. ", STR(dataInput))
+							
+			else:
+				EXIT("If one of the dataInput[2/3/4/5] is a list, ALL of them must be lists")
+		else:
+				EXIT("The dataInput[2/3/4/5] must be strings or lists")
+			
 		codeStart 	= dataInput[0]
 		codeEnd 	= dataInput[1]
 		hexStart 	= dataInput[2]
@@ -22170,9 +22222,20 @@ class MainWindow:
 		dataLength 	= "" if len(dataInput) <= 11 else dataInput[11]
 		useColor 	= self.originalBackgroundColor if len(dataInput) <= 12 else dataInput[12]
 
-		self.interpretedCodeText.tag_add("yellowbg", codeStart, codeEnd)	
-		self.viewDataHexText.tag_add("yellowbg", hexStart, hexEnd)	
-		self.viewDataAsciiText.tag_add("yellowbg", asciiStart, asciiEnd)	
+		if checkIfString(codeStart):
+			self.interpretedCodeText.tag_add("yellowbg", codeStart, codeEnd)
+		else:
+			for y in range(len(dataInput[0])):
+				self.interpretedCodeText.tag_add("yellowbg", dataInput[0][y], dataInput[1][y])	
+			
+		if checkIfString(hexStart):
+			self.viewDataHexText.tag_add("yellowbg", hexStart, hexEnd)	
+			self.viewDataAsciiText.tag_add("yellowbg", asciiStart, asciiEnd)
+		else:
+			for y in range(len(dataInput[2])):
+				self.viewDataHexText.tag_add  ("yellowbg", dataInput[2][y], dataInput[3][y])	
+				self.viewDataAsciiText.tag_add("yellowbg", dataInput[4][y], dataInput[5][y])
+		
 		self.CodeDataMeaningText.configure(text=codeMeaning, background=useColor)
 		self.dataAddressStartText.configure(text=addrStart, background=useColor)
 		self.dataAddressEndText.configure(text=addrEnd, background=useColor)
@@ -22180,6 +22243,7 @@ class MainWindow:
 		self.dataValueBEText.configure(text=dataValLE, background=useColor)
 		self.dataLengthText.configure(text=dataLength, background=useColor)
 
+	# This routine does the do the Sanity checks; it assumes that populateTransientDataWindow() already did that (since we are supposed to use the exact same parameter)
 	def dePopulateTransientDataWindow(self, dataInput):
 		if not isinstance(dataInput, list):
 			EXIT("ERROR in dePopulateTransientDataWindow(): dataInput =",STR(dataInput),"is not a list")
@@ -22192,10 +22256,21 @@ class MainWindow:
 		hexEnd 		= dataInput[3]
 		asciiStart 	= dataInput[4]
 		asciiEnd 	= dataInput[5]
+
+		if checkIfString(codeStart):
+			self.interpretedCodeText.tag_remove("yellowbg", codeStart, codeEnd)
+		else:
+			for y in range(len(dataInput[0])):
+				self.interpretedCodeText.tag_remove("yellowbg", dataInput[0][y], dataInput[1][y])	
+			
+		if checkIfString(hexStart):
+			self.viewDataHexText.tag_remove("yellowbg", hexStart, hexEnd)	
+			self.viewDataAsciiText.tag_remove("yellowbg", asciiStart, asciiEnd)
+		else:
+			for y in range(len(dataInput[2])):
+				self.viewDataHexText.tag_remove  ("yellowbg", dataInput[2][y], dataInput[3][y])	
+				self.viewDataAsciiText.tag_remove("yellowbg", dataInput[4][y], dataInput[5][y])
 		
-		self.interpretedCodeText.tag_remove("yellowbg", codeStart, codeEnd)	
-		self.viewDataHexText.tag_remove("yellowbg", hexStart, hexEnd)	
-		self.viewDataAsciiText.tag_remove("yellowbg", asciiStart, asciiEnd)	
 		self.CodeDataMeaningText.configure(text="", background=self.originalBackgroundColor)
 		self.dataAddressStartText.configure(text="", background=self.originalBackgroundColor)
 		self.dataAddressEndText.configure(text="", background=self.originalBackgroundColor)
@@ -22256,7 +22331,9 @@ class MainWindow:
 			return
 
 		if self.demoIndex == -1:
-			infoMessage = "There are over 30 features that are demoed here. To see it all, you need to do TWO things. " 	\
+			infoMessage = "There are over 30 features that are demoed here. \n\nToo see it all, just keep hitting the ENTER. \n\nThat's it." 	
+			infoRoutine(infoMessage)
+			infoMessage = "Alternatively, if you only want to see one (or more) specific feature(s), you need to do TWO things. " 	\
 							+"\n\n1. CHOOSE a feature using the \"<<\" or \">>\" buttons."	\
 							+"\n\n2. CLICK on the middle button in between the \"<<\" and \">>\" buttons to actually start the demo for that feature."	
 			infoRoutine(infoMessage)
@@ -22267,7 +22344,7 @@ class MainWindow:
 							 + "\n\nIf you have not used this tool before, it is advised to go through ALL demo features sequencetially."
 			infoRoutine(infoMessage)
 			infoMessage = "To help you guide through the demo, the tool automatically makes the button GREEN where it wants you to click." 	\
-						+"\n\nOr, just keep hitting the ENTER, and it will take you through everything."
+						+"\n\nRemember, just keep hitting the ENTER, and it will take you through everything."
 			infoRoutine(infoMessage)
 			self.demoThisFeatureButton.configure(text="Re-Demo this feature: Intro: How to use this Demo")
 			infoMessage = "This is the end of \"How to use the Demo\". \n\nUse the Forward (>>) button to start navigating across various features. " 	
@@ -22319,6 +22396,8 @@ class MainWindow:
 			self.showUnraveledRowNumInTreeView(5)
 			infoMessage = "Once we parsed the data based on the input format (basically, mapping the struct onto the data), we can see the values of "	\
 							+"the fields listed at the bottom window. We mapped the input format from a data offset of zero (default), but that can be changed." 	\
+							+"\n\nIf a variable in the Interpreted Code Window and some bytes in the Data window share the same color, it means that those "	\
+							"data bytes correspond (or map) to that variable."	\
 							+"\n\nThis is an extremely simplistic view of what the tool does, but we will explain all the features in detail later."
 			infoRoutine(infoMessage)
 			infoMessage = "Lastly, you can also run this tool from a terminal in batch mode (where no GUI is possible). just invoke it with the \"-b\" (or \"--batch\") option."	\
@@ -22414,10 +22493,6 @@ class MainWindow:
 						+"\n\n(Observe that the quoted string can contain multiple folders, not just one."		
 			infoRoutine(infoMessage)
 			
-			infoMessage = "For data though, there is only ONE way to enter it - by clicking on the \"Open data file\" button and choosing a data file. "	\
-							+"\n\nFor minimizing the memory used, it usually does NOT load the whole file into memory, and rather reads just enough data "	\
-							+"to display in the Data windows."
-			infoRoutine(infoMessage)
 			infoMessage = "Now, what does the Code (the input format) may look like?"	\
 							+"\n\nThe simplest input format would an ordinary C struct, like the one in the next step."
 			infoRoutine(infoMessage)
@@ -22458,7 +22533,7 @@ class MainWindow:
 			infoMessage = "The input format is now specified by a mix of various structures and global-level variables."
 			infoRoutine(infoMessage)
 			
-			infoMessage = "For big structures that do not fit inside the visitble Interpreted Code window in the middle, you can either use the Page Up/ Page Down, or click on the scrollbar"
+			infoMessage = "For big structures that do not fit inside the visitble Interpreted Code window in the middle, you can either use the Page Up/ Page Down, or click on the scrollbar."
 			infoRoutine(infoMessage)
 			infoMessage = "Similarly, if the Datafile does not fit in the Data Window on the right, you can use the Page Up/Page Down just like any other regular Hex viewer. \n\n"	\
 							+"There is no scrollbar, but you can either either explicitly mention a File Offset, or choose one among the Spinbox"
@@ -22473,25 +22548,41 @@ class MainWindow:
 			infoMessage = "Sometimes, it is not necessary that you must choose all of the input format to map. You can even map a selected portion of the interpreted code, "	\
 							+"using your cursor. \n\nEssentially, you are telling the compiler - compile the input data format fully, but map only this much."
 			infoRoutine(infoMessage)
+
+			# This selects the region from line 3 to line 7, but the moment the warning message comes on top, the blue color of selection is not shown somehow
+			selectionStartLineChar = "3.0"
+			selectionEndLineChar = "7.22"
+			self.interpretedCodeText.tag_add(tk.SEL, selectionStartLineChar, selectionEndLineChar)		
+			self.interpretedCodeText.focus_set()
+			# So, we artificially put a blue color
+			self.interpretedCodeText.tag_add("bluebg", selectionStartLineChar, selectionEndLineChar)	
+			infoMessage = "See that we have only selected the the struct S1 as our data format. \n\nWe do not want anything else to map. "	
+			infoRoutine(infoMessage)
+			self.mapStructureToData()
+			infoMessage = "Observe that only the selected variable S1_var (of struct S1 type) got mapped.\n\nvariable intVar / floatVar / longVar and struct S2 didn't."
+			infoRoutine(infoMessage)
+			self.interpretedCodeText.tag_remove("bluebg", selectionStartLineChar, selectionEndLineChar)	
+
+			
 			# This selects the region from line 2 to line 5, but the moment the warning message comes on top, the blue color of selection is not shown somehow
-			selectionStartLineChar = "2.4"
+			selectionStartLineChar = "2.9"
 			selectionEndLineChar = "5.22"
 			self.interpretedCodeText.tag_add(tk.SEL, selectionStartLineChar, selectionEndLineChar)		
 			self.interpretedCodeText.focus_set()
 			# So, we artificially put a blue color
 			self.interpretedCodeText.tag_add("bluebg", selectionStartLineChar, selectionEndLineChar)	
-			infoMessage = "See that we have only selected the float variable f and only a portion of struct S1. "	\
-							+"However, whenever we select ANY portion of a struct, the whole of the struct gets selected."
+			infoMessage = "See that we have only selected a portion of the float variable floatVar and only a portion of struct S1. "	\
+							+"\n\nHowever, whenever we select ANY portion of a global variable or a struct, the whole thing gets selected."
 			infoRoutine(infoMessage)
 			self.mapStructureToData()
-			infoMessage = "Observe that only the selected variable f and the whole struct S1 got mapped - variable i, variable l and struct S2 didn't. Press OK to continue."
+			infoMessage = "Observe that only the selected variable floatVar and the whole struct S1 got mapped - variable intVar, variable longVar and struct S2 didn't."
 			infoRoutine(infoMessage)
 			self.interpretedCodeText.tag_remove("bluebg", selectionStartLineChar, selectionEndLineChar)	
 
-			self.interpretedCodeText.tag_add("bluebg", "1.0", "1.6")
-			self.interpretedCodeText.tag_add("bluebg", "3.0", "7.17")
-			infoMessage = "Now, let's get into some more quirky senarios. What if we want to choose the \"int i\" and the \"struct S1\", but not the \"float f\"? "	\
-						+ "It is impossible to use your cursor to make TWO selections that are not contiguous."
+			self.interpretedCodeText.tag_add("bluebg", "1.0", "1.11")
+			self.interpretedCodeText.tag_add("bluebg", "3.0", "7.20")
+			infoMessage = "Now, let's get into some more quirky senarios. What if we want to choose the \"int intVar\" and the \"struct S1\", but not the \"float floatVar\"? "	\
+						+ "\n\nIt is impossible to use your cursor to make TWO selections that are not contiguous."
 			infoRoutine(infoMessage)
 			
 			infoMessage = "There is a simple solution - rearrange the Code in such a way that the previously non-contiguous variables are now contiguous. "	\
@@ -22499,11 +22590,11 @@ class MainWindow:
 						+"\n\nBut such kind of a solution is not always possible."
 			infoRoutine(infoMessage)
 			infoMessage = "That is where the batch mode wins over the GUI mode. In batch mode, you can specify exactly which Global-level variables you want to map."	\
-						+"\n\nFor that, we use the following command line option:\n\n -g  \"i S1_var\" "	\
-						+"\n\nThat tells the tool - compile the input format, but map only the global-level variables \"i\" and the \"S1_var\" "
+						+"\n\nFor that, we use the following command line option:\n\n -g  \"intVar S1_var\" "	\
+						+"\n\nThat tells the tool - compile the input format, but map only the global-level variables \"intVar\" and the \"S1_var\" "
 			infoRoutine(infoMessage)
-			self.interpretedCodeText.tag_remove("bluebg", "1.0", "1.6")
-			self.interpretedCodeText.tag_remove("bluebg", "3.0", "7.17")
+			self.interpretedCodeText.tag_remove("bluebg", "1.0", "1.11")
+			self.interpretedCodeText.tag_remove("bluebg", "3.0", "7.20")
 
 			self.endFeatureDemoMessage()
 			
@@ -22866,7 +22957,21 @@ class MainWindow:
 			infoMessage = "So, this way, we can know the details for every one of the 12 array items by placing the cursor in their corresponding data "		\
 							+"\n\n(Alternatively, you can also just double-click on the area corresponding to an array element in the Data windows, and it "	\
 							+"will automatically unfurl the array in the Tree window show that corresponding array element to you."
+			infoRoutine(infoMessage)
 			self.dePopulateTransientDataWindow(dataInput)
+
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			self.interpret()
+			self.mapStructureToData()
+			dataInput = ["2.14","2.21", ["1.0","2.0", "3.0", "4.0", "5.0", "1.24", "2.24", "3.24", "4.24", "5.24"], ["1.12","2.12","3.12","4.12","5.12", "1.36", "2.36", "3.36", "4.36", "5.36"], ["1.0","2.0","3.0","4.0","5.0","1.8","2.8","3.8","4.8","5.8"],["1.4","2.4","3.4","4.4","5.4","1.12","2.12","3.12","4.12","5.12"], "var_int is of type int", "0x0000000048", "0x000000004B","352328448","1769493","4 bytes", "yellow"]
+			self.populateTransientDataWindow(dataInput)
+			infoMessage = "Now, we have a structvarArray[10]. Now, if you take your cursor on top of the var_int variable in the Interpreted Code window, "		\
+						+"You will see that ALL the 10 occurrences of the var_int in the Data windows are now getting highlighted. "	
+			infoRoutine(infoMessage)
+			self.dePopulateTransientDataWindow(dataInput)
+
 			self.endFeatureDemoMessage()
 
 
@@ -22880,6 +22985,7 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(2)
 			infoMessage = "Here we have mapped the Union U onto the data."	\
 							+"(array or struct).\n\nHowever, the reverse situation also exists, where one piece of data corresponds to multiple variable declarations."		\
 							+"\n\nHere is a case where we mapped a union onto the data."
@@ -22897,44 +23003,38 @@ class MainWindow:
 							+"bytes (the last two bytes of an integer) are unaffected by the short and the char variables. So they retain the color of the var_int."	\
 							+"\n\nIn the next screen, we will see this visually how a single byte of data gets mapped to many variables."
 			infoRoutine(infoMessage)
-			dataInput = ["2.14","2.21","1.0", "1.12","1.0","1.4", "unionVar.var_char, where var_char is of type char", "0x0000000000","0x0000000000","-1", "-1", "1 byte","yellow"]
+			dataInput = [["2.14","3.16","4.15","5.10"],["2.21","3.25", "4.23", "5.18"], "1.0", "1.12","1.0","1.4", "unionVar.var_char, where var_char is of type char", "0x0000000000","0x0000000000","-1", "-1", "1 byte","yellow"]
 			self.populateTransientDataWindow(dataInput)
-			self.interpretedCodeText.tag_add("yellowbg", "3.16", "3.25")
-			self.interpretedCodeText.tag_add("yellowbg", "4.15", "4.23")
-			self.interpretedCodeText.tag_add("yellowbg", "5.10", "5.18")
 			infoMessage = "Let's consider very first byte of the Data window (Hex or ASCII). We know that this byte belongs to all three union member "	\
 						+"variables (var_int, var_short, var_char) plus the union variable \"unionVar\" itself. \n\nSo, pretend we took the cursor "	\
 						+"on this very first data byte. Here is what the screen looks like."
 			infoRoutine(infoMessage)
 
 			self.dePopulateTransientDataWindow(dataInput)
-			self.interpretedCodeText.tag_remove("yellowbg", "3.16", "3.25")
-			self.interpretedCodeText.tag_remove("yellowbg", "4.15", "4.23")
-			self.interpretedCodeText.tag_remove("yellowbg", "5.10", "5.18")
 
-			dataInput = ["2.14","2.21","1.0", "1.12","1.0","1.4", "unionVar.var_short, where var_char is of type short", "0x0000000000","0x0000000001","-9985", "-40", "2 bytes","yellow"]
+			dataInput = [["2.14","3.16","5.10"],["2.21","3.25", "5.18"],"1.0", "1.12","1.0","1.4", "unionVar.var_short, where var_char is of type short", "0x0000000000","0x0000000001","-9985", "-40", "2 bytes","yellow"]
 			self.populateTransientDataWindow(dataInput)
-			self.interpretedCodeText.tag_add("yellowbg", "3.16", "3.25")
-			self.interpretedCodeText.tag_add("yellowbg", "5.10", "5.18")
+#			self.interpretedCodeText.tag_add("yellowbg", "3.16", "3.25")
+#			self.interpretedCodeText.tag_add("yellowbg", "5.10", "5.18")
 			infoMessage = "Now, consider second byte of the Data window (Hex or ASCII). We know that this byte belongs to TWO union member "	\
 						+"variables (var_int and var_short, but NOT var_char) plus the union variable \"unionVar\" itself. \n\nSo, pretend we took the cursor "	\
 						+"on this very second data byte. Here is what the screen looks like."
 			infoRoutine(infoMessage)
 
 			self.dePopulateTransientDataWindow(dataInput)
-			self.interpretedCodeText.tag_remove("yellowbg", "3.16", "3.25")
-			self.interpretedCodeText.tag_remove("yellowbg", "5.10", "5.18")
+#			self.interpretedCodeText.tag_remove("yellowbg", "3.16", "3.25")
+#			self.interpretedCodeText.tag_remove("yellowbg", "5.10", "5.18")
 
-			dataInput = ["2.14","2.21","1.0", "1.12","1.0","1.4", "unionVar.var_int, where var_int is of type int", "0x0000000000","0x0000000003","-520103681", "-2555936", "4 bytes","yellow"]
+			dataInput = [["2.14","5.10"],["2.21","5.18"],"1.0", "1.12","1.0","1.4", "unionVar.var_int, where var_int is of type int", "0x0000000000","0x0000000003","-520103681", "-2555936", "4 bytes","yellow"]
 			self.populateTransientDataWindow(dataInput)
-			self.interpretedCodeText.tag_add("yellowbg", "5.10", "5.18")
+#			self.interpretedCodeText.tag_add("yellowbg", "5.10", "5.18")
 			infoMessage = "Finally, consider the third and fourth bytes of the Data window (Hex or ASCII). We know that these twos bytes belongs to union member "	\
 						+"variable var_int (NOT var_short or var_char) plus the union variable \"unionVar\" itself. \n\nSo, pretend we took the cursor "	\
 						+"on either the third or fourth data byte. Here is what the screen looks like."
 			infoRoutine(infoMessage)
 
 			self.dePopulateTransientDataWindow(dataInput)
-			self.interpretedCodeText.tag_remove("yellowbg", "5.10", "5.18")
+#			self.interpretedCodeText.tag_remove("yellowbg", "5.10", "5.18")
 
 
 			
@@ -22965,7 +23065,7 @@ class MainWindow:
 			infoMessage = "Now you can see that all the values are being displayed in Hex."
 			infoRoutine(infoMessage)
 			infoMessage = "However, if having to click on the Dec/Hex button every time gets on your nerve, you can also change the default behavior of displaying Little-Endian and Big-Endian values in Decimal. You can change this behavior to Hex in two ways:"			\
-							+"\n\n1. For changing the default behavior just once, while invoking the tool, pass the command-line parameter \"-x\" or \"--hex\", like \"python ParseAndC -x\""		\
+							+"\n\n1. For changing the default behavior just once, while invoking the tool, pass the command-line parameter \"-x\" or \"--hex\", like \"python ParseAndC.py -x\""		\
 							+"\n\n2. For changing the default behavior forever, Change the source code \"DISPLAY_INTEGRAL_VALUES_IN_HEX = False\" to \"DISPLAY_INTEGRAL_VALUES_IN_HEX = True\""		\
 							+"\n\nRemember, even when you change the default behavior to Hex, you can still display the values in Decimal at runtime by clicking on the Hex/Dec button on top-right."
 			infoRoutine(infoMessage)
@@ -23002,7 +23102,7 @@ class MainWindow:
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(5)
 			infoMessage = "Here we look at the nested structures. We recall that even the nested struct names must be globally unique. "	\
-							+"\nThat is why the the following is a valid declaration: \n\nstruct nested NestedStructVar2;"
+							+"\n\nThat is why the the following is a valid declaration: \n\nstruct nested NestedStructVar2;"
 			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
@@ -23091,7 +23191,7 @@ class MainWindow:
 						+"from an even byte, and an int (4 byte wide) can only start from an address that is a multiple of 4. Efficient compilers can ever rearrange the "	\
 						+"stack layout to save memory space where it is a premium (like for embedded systems). However, for this tool, we strictly maintain the order of "	\
 						+"the variables, which means the lexical order is same as the mapping order. "	\
-						+"\n\nTo summarize, there is no padding around the global variables, but there is padding inside the struct, as you can see here."
+						+"\n\nTo summarize, there is no padding around the non-struct global variables, but there is padding inside the struct, as you can see here."
 			infoRoutine(infoMessage)
 
 			#TO-DO:	Take cursor above the padding
@@ -23229,7 +23329,7 @@ class MainWindow:
 			self.toggleMapTypedefsToo()
 			infoMessage = "Now the original typedef does not get mapped."	\
 							+"\n\nThe default behavior is to map the typedef. You can change this by command-line argument while invoking the tool: "\
-							+"\n\n $ pythong --typedef off "	\
+							+"\n\n $ python ParseAndC.py --typedef off [rest of args]"	\
 							+"\n\nAlternatively, if you want the tool to not map typedefs by default, change the statement below in the source code to False:"	\
 							+"\n\nMAP_TYPEDEFS_TOO = True"	\
 							+"\n\nOnce again, irrespective of the default behavior, you can always change the behavior at runtime using the button at the bottom."
@@ -23241,7 +23341,7 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(20)
-			dataInput = ["4.21","4.29", "5.0", "6.12", "5.0","6.4", "typedefI2 is array of size 5 pointer to pointer to pointer to array of size 2 of type function that accepts Argument list ['int'] and returns a of type int", "0x0000000040", "0x0000000053","              ","              ","20 bytes", "yellow"]
+			dataInput = ["4.21","4.30", "5.0", "6.12", "5.0","6.4", "typedefI2 is array of size 5 pointer to pointer to pointer to array of size 2 of type function that accepts Argument list ['int'] and returns a of type int", "0x0000000040", "0x0000000053","              ","              ","20 bytes", "yellow"]
 			self.populateTransientDataWindow(dataInput)
 			infoMessage = "Let's take a more complex example. Here we create (define) types, and then create further new types from these types."		\
 							+"\n\nWe are show what the details window will show when we place the cursor above typedefI2 in the Interpreted Code window."		\
@@ -23257,7 +23357,7 @@ class MainWindow:
 			infoMessage = "In this demo, we show how this tool handles some of the builtin typedefs."	\
 							+"\n\nIn production C code, we often find types like int8_t, int32_t etc. which are usually defined in the stdint.h file."	\
 							+"\n\nOne solution is to include the stdint.h, but that contains a LOT other typedefs and macros, which in turn require "	\
-							+"including a signnificant part of the C library. So, instead of having to include the stdint.h, this tool explicitly"		\
+							+"including a signnificant part of the C library. So, instead of having to include the stdint.h, this tool explicitly "		\
 							+"create the typedef for the following types if they are not supplied:"	\
 							+"\n\nint8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t, size_t, ptrdiff_t, intptr_t, uintptr_t"
 			infoRoutine(infoMessage)
@@ -23290,7 +23390,8 @@ class MainWindow:
 							+"What this tool does is to display the value itself as enum, which makes understanding the data a lot easier."		
 			infoRoutine(infoMessage)
 			
-			self.toggleMapTypedefsToo()
+			if MAP_TYPEDEFS_TOO == True:
+				self.toggleMapTypedefsToo()
 			
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
@@ -23308,7 +23409,7 @@ class MainWindow:
 							+"\n\nObserve that since the value of 0 now corresponds to a valid enum literal, it is being now displayed as 0 (Sun)."
 			infoRoutine(infoMessage)
 
-			infoMessage = "Now, once interesting case in C is that nothing prevents from a values of enum literals being non-unique. "	\
+			infoMessage = "Now, once interesting case in C is that nothing prevents from values of enum literals being non-unique. "	\
 							+"\n\nFor example, the following is valid C code: "	\
 							+"\n\ntypedef enum weekdays { Sun=0, Mon=0, Tue, Wed, Thu, Fri, Sat } WEEKDAYS;"	\
 							+"\n\nNow the question is: If there is a data item with a value of 0, do we associate it with Sun or Mon?"
@@ -23325,6 +23426,7 @@ class MainWindow:
 			infoMessage = "We handle it this way. In this example, both the Sun and Mon now correspond to 0. As a result, when we encounter a value of 0, the tool informs us that it could be either Sun or Mon."		
 			infoRoutine(infoMessage)
 
+			
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 20:			# Enum in bitfield
@@ -23336,7 +23438,8 @@ class MainWindow:
 							+"\n\nHowever, inside a bitfield, we do not get a full integer - we get only the specified bits to hold the enum values."		
 			infoRoutine(infoMessage)
 			
-			self.toggleMapTypedefsToo()
+			if MAP_TYPEDEFS_TOO == True:
+				self.toggleMapTypedefsToo()
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
@@ -23355,12 +23458,16 @@ class MainWindow:
 			infoMessage = "For C purists this might sound like blasphemy, but essentially we expanded the C semantics without changing the C systax. "	\
 							+"\n\nWe will see more of this in the next set of demos."	
 			infoRoutine(infoMessage)
-
+			
 			self.endFeatureDemoMessage()
 
 		elif self.demoIndex == 21:			# Macros
 		
 			self.clearDemo()
+			
+			if MAP_TYPEDEFS_TOO == True:		# The previous feature turned it on
+				self.toggleMapTypedefsToo()
+				
 			infoMessage = "One of the most useful features of C is macros. Technically, they are preprocessor statements which the compiler do not see,"	\
 							+"but let's not get pedantic here. In this tool, when we use the term \"compiler\", we often use it the generic way - we "		\
 							+"actually mean the preprocessor. "	\
@@ -23551,7 +23658,7 @@ class MainWindow:
 			infoMessage = "So, the same structure can now behave differently based on the runtime data. Who would have thunk!!"
 			infoRoutine(infoMessage)
 			infoMessage = "Now, we would like to remind that Dynamic structures can have both statically-resolvable preprocessor commands and dynamically-resolvable "	\
-							+"Runtime statements. They can absolutely coexit Let's see that in the next example.!!"
+							+"Runtime statements. They can absolutely coexit We will see that in the next feature!!"
 			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
@@ -23633,8 +23740,7 @@ class MainWindow:
 
 			self.clearDemo()
 			infoMessage = "Feature # 4: Verification via Initialization.\n\nIn C, when we declare a variable, we can initialialize it to a value. "						\
-							+"\n\nHowever, when we declare a C struct for parsing (reading) some data, initialization makes no sense (as there is no writing involved)."	\
-							+"\n\nPress OK to continue."
+							+"\n\nHowever, when we declare a C struct for parsing (reading) some data, initialization makes no sense (as there is no writing involved)."	
 			infoRoutine(infoMessage)
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
@@ -23672,13 +23778,16 @@ class MainWindow:
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			infoMessage = "Suppose a datastream is simply many packets coming one after another, where each packet header contains a single \"packet_length\" field "		\
-							+"followed by that many bytes of data. In ParseAndC 2.0, the code on the left is akin to an infinite loop until the datastream is exhausted."		\
-							+"\n\nBe aware that once you hit the OK, it will take some time for the next screen to appear."
+							+"followed by that many bytes of data. In ParseAndC, the code on the left is akin to an infinite loop until the datastream is exhausted."		\
+							+"\n\nBe aware that once you hit the OK in the next Warning message box, it will take some time for the next screen to appear."
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			infoMessage = "Now that you can see the alternate-colored \"packet_length\" and \"packet_data\" fields.\n\nPress OK to continue."
+			infoMessage = "Now you can see the alternate-colored \"packet_length\" and \"packet_data\" fields. Basically, this tool will continue to parse first "		\
+						+"packetArray[0], then packetArray[1], then packetArray[2], and so on until the data file gets exhausted. And remember, each of these "		\
+						+"packetArray array elements are of different lengths. packetArray[0] is 257 bytes long, packetArray[1] is only 2 bytes long, while "		\
+						+"packetArray[2] is 21 bytes long."		
 			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
