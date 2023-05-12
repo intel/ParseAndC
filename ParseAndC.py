@@ -847,6 +847,7 @@
 # 2023-05-05 - Improved the demo. Added toggle between Code and Data.
 # 2023-05-05 - Improved the demo.
 # 2023-05-08 - Improved the demo.
+# 2023-05-12 - Improved the demo.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -2533,12 +2534,7 @@ generalData]]
 '  char nullChar = 0;    \n',
 '} C_string;  \n'
 ],
-CStrings]]
-], 
-##############################################################################################	32
-
-["Using C string as a class",
-[
+CStrings],
 [['struct C_String {  \n',
 '  // Dimensionless array  \n',
 '  char Char[ ] ;  \n',
@@ -2548,7 +2544,63 @@ CStrings]]
 '};   \n',
 'struct C_String Name[10];  \n'
 ],
-CStrings]]
+CStrings]
+]
+], 
+##############################################################################################	32
+
+["Multiple speculative execution",
+[
+[['struct multipleDimensionlessArray {  \n',
+'  // Dimensionless array #1  \n',
+'  int Keys[ ];  \n',
+'  // Termination condition for array #1  \n',
+'  char terminalChar1 = 2;    \n',
+'            \n',
+'            \n',
+'            \n',
+'  // Dimensionless array #2  \n',
+'  char Char[ ] ;  \n',
+'  // Termination condition for array #2  \n',
+'  char terminalChar2 = 1;    \n',
+'} multiple;  \n'
+],
+generalData],
+[['//This does not work \n',
+'                      \n',
+'struct nestedDimensionlessArray {  \n',
+'  // Dimensionless array #1  \n',
+'  int keys[ ]; \n',
+'               \n',
+'  // Dimensionless array #2  \n',
+'  char Char[ ] ;  \n',
+'  // Termination condition for array #2\n',
+'  char terminalChar2 = 0;    \n',
+'  // Termination condition for array #1\n',
+'  char terminalChar1 = 0;    \n',
+'} nested;  \n'
+],
+generalData],
+[['//This does work \n',
+' struct S2 {\n',
+'       // Dimensionless array #2  \n',
+'       char Char[ ] ;  \n',
+'       // Termination condition for array #2  \n',
+'       char terminalChar2 = 0;    \n',
+'}; \n',
+'         \n',
+'struct nestedDimensionlessArray {  \n',
+'  // Dimensionless array #1  \n',
+'  int keys[ ]; \n',
+'               \n',
+'  struct S2 newClassVariable; \n',
+'                              \n',
+'  // Termination condition for array #1  \n',
+'  char terminalChar1 = 0;    \n',
+'} nested;  \n'
+],
+generalData]
+]
 ], 
 ##############################################################################################	33
 #
@@ -14422,7 +14474,7 @@ def getAncestorList(variableId):
 #
 # struct S1 {						// In this case, n is the terminal variable corresponding to the blank array variable c.
 #		struct S2{					// But they are not direct siblings. So this routine will return the variable ids of V2 and n.
-#				char c[];			// Not that V2 is the ancestor of c, and n is the sibling of V2.
+#				char c[];			// Note that V2 is the ancestor of c, and n is the sibling of V2.
 #				int i;
 #				} V2;
 #		char n = '\0';
@@ -14432,7 +14484,7 @@ def getAncestorList(variableId):
 #
 # struct S1 {						// In this case, n is the terminal variable corresponding to the blank array variable c.
 #		struct S2{					// But they are not direct siblings. So this routine will return the variable ids of V2 and V3.
-#				char c[];			// Not that the ancestor of c is V2, which is the sibling of V3, which is the ancestor of n.
+#				char c[];			// Note that the ancestor of c is V2, which is the sibling of V3, which is the ancestor of n.
 #				int i;
 #				} V2;
 #		struct S3{
@@ -14445,7 +14497,7 @@ def getAncestorList(variableId):
 # char c[];
 # struct S1 {						// In this case, n is the terminal variable corresponding to the blank array variable c.
 #		struct S2{					// But they are not direct siblings. So this routine will return the variable ids of c and V1.
-#				float f;			// Not that c is a global variable, which is the sibling of V1, which is the ancestor of n.
+#				float f;			// Note that c is a global variable, which is the sibling of V1, which is the ancestor of n.
 #				int i;
 #				} V2;
 #		struct S3{
@@ -14549,58 +14601,6 @@ def findBlankArrayVariableForInitializationPartner(variableId):
 				PRINT("Returing blank array dimension variable",variableDeclarations[blankDimensionArrayVariableId][0],"(id",blankDimensionArrayVariableId,")","for initialization partner variable",variableDeclarations[partnerVariableId][0],"(id",partnerVariableId,")")
 				return blankDimensionArrayVariableId
 		return None
-'''		
-#################################################################################################################################
-# This routine takes a variableId and adds all the "unraveled" variables to the supplied allPossibleQualifiedNames recursively
-# This routine is pretty much same as addVariableToUnraveled(), except that we do not add any values, and we do not care about the level.
-# It is possible to merge these two functions into a single one, but for now I am keeping them separate for clarity.
-#################################################################################################################################
-def printAllArrayVariableNames(variableId, prefix, arrayDimensionsSupplied, allPossibleQualifiedNamesSupplied):
-	PRINT=OUTPUT
-	arrayDimensions = deepCopy(arrayDimensionsSupplied)
-	PRINT("\nInside printAllArrayVariableNames(variableId =",variableId,", prefix =",prefix,", arrayDimensions =",arrayDimensions,", allPossibleQualifiedNamesSupplied)")
-	MUST_printUnraveled(unraveled)
-	for row in unraveled:
-		PRINT(row)
-	allPossibleQualifiedNamesSupplied.append(prefix)
-	if arrayDimensions:	# For array, the prefix already contains the array variable name
-		if checkIfIntegral(arrayDimensions[0]):
-			arrayDimensionValue = arrayDimensions[0]
-		else:
-			getRuntimeValueResult = getRuntimeValue(arrayDimensions[0])
-			if getRuntimeValueResult[0] == True:
-				arrayDimensionValue = getRuntimeValueResult[1]
-			else:
-				arrayDimensionValue = LOGICAL_TEST_RESULT_INDETERMINATE
-		
-		if checkIfIntegral(arrayDimensionValue) and arrayDimensionValue > 1:
-			PRINT("arrayDimensions[0] =",arrayDimensions[0])
-			for d in range(arrayDimensionValue):
-				allPossibleQualifiedNamesSupplied = printAllArrayVariableNames(variableId, prefix+"["+STR(d)+"]", arrayDimensions[1:], allPossibleQualifiedNamesSupplied)
-	elif variableDeclarations[variableId][4]["datatype"] in getDictKeyList(suDict):
-		structName = variableDeclarations[variableId][4]["datatype"]
-		N = 0
-		while N < len(structuresAndUnions[suDict[structName][-1]]["components"]):
-			PRINT("Component #",N)
-			structMember = structuresAndUnions[suDict[structName][-1]]["components"][N]
-			PRINT ("\nInside printAllArrayVariableNames(), Processing from structMember =",structMember )
-			structMemberVariableName 		= structMember[0]
-			structMemberDescription 		= structMember[4]
-			structMemberVariableId			= structMemberDescription["variableId"]
-			if structMemberVariableName.startswith(dummyUnnamedBitfieldNamePrefix):
-				PRINT ("Omitting structMemberVariableName =",structMemberVariableName)
-			else:
-				structMemberArrayDimensions = [] if not structMemberDescription["isArray"] else structMemberDescription["arrayDimensions"]
-				allPossibleQualifiedNamesSupplied = printAllArrayVariableNames(structMemberVariableId, prefix+"."+structMemberVariableName, structMemberArrayDimensions, allPossibleQualifiedNamesSupplied)
-			PRINT ("\nfor structName =", structName,", for N =",N,", structMemberVariableName =",structMemberVariableName,", structMemberVariableId =",structMemberVariableId,", structMemberDescription =",structMemberDescription)
-			N += 1
-	return allPossibleQualifiedNamesSupplied
-
-#string = '{0}'
-#result = True if re.match(r'{}|{0(,0)*}',string) else False
-#OUTPUT(result)
-#sys.exit()
-'''
 ######################################################################################################################################################
 # This routine taken in a named variable (like "a.b[2].c[var+1][4]") and splits it into names and array sizes. It returns 4 lists:
 # 1) nameList = ["a","b","c"], 	<== only contains the variable names
@@ -19978,6 +19978,8 @@ class MainWindow:
 		self.viewDataAsciiText.tag_configure("graybg", background="lightgray")
 		self.viewDataAsciiText.tag_configure("yellowbg", background=HIGHLIGHT_COLOR)
 		
+		self.originalCodeText.tag_configure("bluebg", background="blue")
+		self.originalCodeText.tag_configure("yellowbg", background="yellow")
 		self.interpretedCodeText.tag_configure("bluebg", background="blue")
 		self.interpretedCodeText.tag_configure("yellowbg", background=HIGHLIGHT_COLOR)
 
@@ -22158,6 +22160,46 @@ class MainWindow:
 				self.treeView.see(row[1])
 				break
 
+	# dataInputCode = [color, start, end] or [  [color1, start1, end1], [color2, start2, end2], .... ]
+	def colorOriginalCodeWindow(self, dataInputCode):
+		if not isinstance(dataInputCode, list):
+			EXIT("ERROR in colorOriginalCodeWindow: dataInputCode =",STR(dataInputCode),"is not a list")
+		else:
+			if checkIfString(dataInputCode[0]):
+				dataInput = [dataInputCode]
+			else:
+				dataInput = dataInputCode
+
+		PRINT("Handling dataInput =",dataInput)
+		for item in dataInput:
+			PRINT("checking item = ",item) 
+			if not isinstance(item, list):
+				EXIT("ERROR in colorOriginalCodeWindow: dataInput =",STR(dataInput),"is not proper")
+			elif len(item) != 3:
+				EXIT("ERROR in colorOriginalCodeWindow: dataInput =",STR(dataInput),", data item =", STR(item)," is illegal (must have 3 members).")
+			elif not (checkIfString(item[0]) and checkIfString(item[1]) and checkIfString(item[2])):
+				EXIT("ERROR in colorOriginalCodeWindow: dataInput =",STR(dataInput),", data item =", STR(item)," is illegal (must have 3 string members).")
+
+		for item in dataInput:
+			PRINT("Performing original code coloring for item = ",item) 
+			self.originalCodeText.tag_add(item[0], item[1], item[2])	
+
+	# dataInput = [color, start, end] or [  [color1, start1, end1], [color2, start2, end2], .... ]
+	def deColorOriginalCodeWindow(self, dataInputCode):
+		# No extensive sanily checking since it presumes that colorOriginalCodeWindow() has already done it
+		if not isinstance(dataInputCode, list):
+			EXIT("ERROR in deColorOriginalCodeWindow: dataInputCode =",STR(dataInputCode),"is not a list")
+		else:
+			if checkIfString(dataInputCode[0]):
+				dataInput = [dataInputCode]
+			else:
+				dataInput = dataInputCode
+				
+		for item in dataInput:
+			PRINT("Removing original code coloring for item = ",item) 
+			self.originalCodeText.tag_remove(item[0], item[1], item[2])	
+
+
 	# dataInput = [codeStart, codeEnd, hexStart, hexEnd, asciiStart, asciiEnd, codeMeaning, addrStart, addrEnd, dataValLE, dataValBE, dataLength, useColor]
 	def populateTransientDataWindow(self, dataInput):
 		if not isinstance(dataInput, list):
@@ -23527,7 +23569,7 @@ class MainWindow:
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
 			self.interpret()
-			infoMessage = "It again works! "	
+			infoMessage = "This also works! "	
 			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
@@ -23634,8 +23676,9 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			'''
 			self.clearDemo()
-			infoMessage = "In ParseAndC, we introduce the concept of \"Dynamic\" structures. They look very much like C structures, with some hidden extra powers." 	\
-							+"\n\nNow let's look at some branching capability, where the same strucure may contain different set of member variables at runtime."
+			infoMessage = "In ParseAndC, we introduce the concept of \"Dynamic\" structures. They look very much like C structures, with some hidden extra powers " 	\
+						+ "that makes them closer to C programs rather than simple structures. "	\
+						+"\n\nNow let's look at some branching capability, where the same strucure may contain different set of member variables at runtime."
 			infoRoutine(infoMessage)
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
@@ -23656,6 +23699,13 @@ class MainWindow:
 			self.dataOffset.set(12)
 			self.mapStructureToData()
 			infoMessage = "So, the same structure can now behave differently based on the runtime data. Who would have thunk!!"
+			infoRoutine(infoMessage)
+			infoMessage = "So, by allowing this kind of Dynamic branching, our Dynamic structures are looking more like regular C programs, since program's main power is branching a looping."
+			infoRoutine(infoMessage)
+			infoMessage = "Exploiting this, we can easily implement parsers that parse different layers based on the current data. For exaple, using Dynamic structures, "	\
+						+"once you parse the IP headers in a network packet, depending on whether the value of the IPv4_protocol is 6(TCP) or 17(UDP), you can easily "	\
+						+"branch the next layer as TCP or UDP."	\
+						+"\n\nThis is an immensely powerful feature."
 			infoRoutine(infoMessage)
 			infoMessage = "Now, we would like to remind that Dynamic structures can have both statically-resolvable preprocessor commands and dynamically-resolvable "	\
 							+"Runtime statements. They can absolutely coexit We will see that in the next feature!!"
@@ -23698,7 +23748,9 @@ class MainWindow:
 			infoMessage = "New Feature: Variable-length array\n\nIn C structures, all array dimensions must be constant - it cannot be coming from another runtime variable. "	\
 							+"\n\nAgain, we are talking about C structures, not general C programs."
 			infoRoutine(infoMessage)
-#			demoIndex += 1
+			infoMessage = "In a parser, you often first read a field that tells you how many bytes more to expect."	\
+							+"\n\nFor example, first you read the header length, which tells how many more bytes you must decode in order to parse the full header."
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			infoMessage = "The array dimension of packet_data is one plus \"packet_length\", which is the previous struct member. \n\nWe cannot do this in C structure."		\
@@ -23742,14 +23794,16 @@ class MainWindow:
 			infoMessage = "Feature # 4: Verification via Initialization.\n\nIn C, when we declare a variable, we can initialialize it to a value. "						\
 							+"\n\nHowever, when we declare a C struct for parsing (reading) some data, initialization makes no sense (as there is no writing involved)."	
 			infoRoutine(infoMessage)
-#			demoIndex += 1
+			infoMessage = "We turn the tables here. We use the \"initialization\" as \"verification\", i.e., if a variable var_A is initialized to some value val_A in the "	\
+							+"struct definition, we expect var_A to have the value of val_A after parsing. If not, a warning will be issued. "									
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
-			infoMessage = "We turn the tables here. We use the \"initialization\" as \"verification\", i.e., if a variable var_A is initialized to some value val_A in the "	\
-							+"struct definition, we expect var_A to have the value of val_A after parsing. If not, a warning will be issued. "									\
-							+"\n\nNow that you can see the code on the left describing the ELF identification header and a sample a.out file on the right, we are going to "	\
-							+"map this this ELF header onto the data. If the magic number indeed matches, no warning would be issued."
+			dataInput=["bluebg","2.16","2.41"]
+			self.colorOriginalCodeWindow(dataInput)
+			infoMessage = "\n\nNow that you can see the code on the left describing the ELF identification header and a sample a.out file on the right, we are going to "	\
+						+"map this this ELF header onto the data. If the magic number indeed matches, no warning would be issued."
 			infoRoutine(infoMessage)
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
@@ -23762,6 +23816,7 @@ class MainWindow:
 			infoMessage = "Now you see, the initialization value check did NOT succeed (warning message popped up). \n\nWe will use this initialzation / verification "	\
 							+"feature as a building block for another powerful feature later. \n\nFor now, press OK to continue."
 			infoRoutine(infoMessage)
+			self.deColorOriginalCodeWindow(dataInput)
 		
 			self.endFeatureDemoMessage()
 			
@@ -23774,9 +23829,10 @@ class MainWindow:
 							+"of any imperative programing language like C. (we will discuss the termination condition for infinite loops later)"
 			infoRoutine(infoMessage)
 			
-#			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
+			dataInput = ["bluebg","4.21","4.34"]
+			self.colorOriginalCodeWindow(dataInput)
 			infoMessage = "Suppose a datastream is simply many packets coming one after another, where each packet header contains a single \"packet_length\" field "		\
 							+"followed by that many bytes of data. In ParseAndC, the code on the left is akin to an infinite loop until the datastream is exhausted."		\
 							+"\n\nBe aware that once you hit the OK in the next Warning message box, it will take some time for the next screen to appear."
@@ -23789,6 +23845,7 @@ class MainWindow:
 						+"packetArray array elements are of different lengths. packetArray[0] is 257 bytes long, packetArray[1] is only 2 bytes long, while "		\
 						+"packetArray[2] is 21 bytes long."		
 			infoRoutine(infoMessage)
+			self.deColorOriginalCodeWindow(dataInput)
 			
 			self.endFeatureDemoMessage()
 		
@@ -23806,15 +23863,16 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			
 		
-			infoMessage = "Feature # 6: Speculative execution and C strings\n\nC does not have any special class for strings (character arrays ending with the null "	\
+			infoMessage = "C does not have any special class for strings (character arrays ending with the null "	\
 							+"character). However, we have C strings in nearly every real-life data (section names, program names, variable names etc.). So, if there is "	\
 							+"a C string field in the incoming datastream, but we do not know its length beforehand, then we cannot capture it via a regular C structure. "	\
 							+"\n\n(Sure, we can write a C program to figure that out easily, but here we are talking about capturing it via the structure definition alone.)"
 			infoRoutine(infoMessage)
 			
-#			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
+			dataInput = ["bluebg","3.7","3.14"]
+			self.colorOriginalCodeWindow(dataInput)
 			infoMessage = "Interestingly, we observe that the way C strings are constructed (a stream of non-null characters followed by the null character) makes it a "		\
 							+"tailor-made case for dimensionless array with termination criteria. \n\nIn the code on the left, the tool will speculatively try all "		\
 							+"possible values (1,2,3, ...) of dimension for the array variable Char[] until the subsequent nullChar gets a value of '\0' in the datastream. "	\
@@ -23827,20 +23885,77 @@ class MainWindow:
 			infoMessage = "As you see, this tool indeed found the C string. Let's try to map a lot more C strings at a time. "		\
 							+"Since we will be doing a lot of speculative execution, this step will take a bit of time."	
 			infoRoutine(infoMessage)
-			self.endFeatureDemoMessage()
-		
-		elif self.demoIndex == 32:			# Using C string as a class
-		
+			self.deColorOriginalCodeWindow(dataInput)
+
 			self.clearDemo()
 
-#			demoIndex += 1
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			self.interpret()
+			infoMessage = "Let's take another example. This time we deliberately chose to code an array of names treating the structure almost like a \"class\". "
+			infoRoutine(infoMessage)
+			self.mapStructureToData()
+			infoMessage = "As you see, this tool indeed found all the C strings."	
+			infoRoutine(infoMessage)
+			
+			self.endFeatureDemoMessage()
+		
+		elif self.demoIndex == 32:			# Multiple speculative execution
+
+			self.clearDemo()
+			infoMessage = "In the previous demo, we saw how we can use the speculative execution to use Dimensionless arrays, which can come real handy. "	\
+							+"But, what if there are multiple such cases of Dimensionless arrays? How will it work?"	
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
+			dataInput = [["bluebg","3.0","3.48"], ["bluebg","5.0","5.48"], ["yellowbg","10.0","10.48"], ["yellowbg","12.0","12.48"]]
+			self.colorOriginalCodeWindow(dataInput)
+			infoMessage = "On the code window, we see TWO instances of dimensionless arrays. Since their termination criterion comes right after them, they are fine. "		\
+						+"\n\nA dimensionless array and its termination condition statements have been highlighted with the same color for your understanding."
+			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
-			infoMessage = "We deliberately chose to code an array of names treating the structure almost like a \"class\". "	\
-							+"\n\nAs you see, this tool indeed found all the C strings."	
+			infoMessage = "The tool had no problem handling it. Now, let's take another example."
 			infoRoutine(infoMessage)
+			self.deColorOriginalCodeWindow(dataInput)
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			dataInput = [["bluebg","5.0","5.48"], ["yellowbg","8.0","8.48"], ["yellowbg","10.0","10.48"], ["bluebg","12.0","12.48"]]
+			self.colorOriginalCodeWindow(dataInput)
+			infoMessage = "This time we want to use a \"nested\" version of the dimensionless array "		\
+						+"and its corresponding termination criteria. See the highlighted color coding to understand."
+			infoRoutine(infoMessage)
+			infoMessage = "This does not work, since the tool defines the termination criterion for any dimensionless array as the closest subsequent initialization statement."	\
+						+"\n\nTherefore, the following statement \"char terminalChar2 = 0;\" serves as the termination criteria for both keys[ ] and Char[ ]. "		\
+						+"\n\nThat is NOT what we want, so it does not work."
+			infoRoutine(infoMessage)
+			self.deColorOriginalCodeWindow(dataInput)
+			
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,2])
+			self.openDataFile([self.demoIndex,2])
+			dataInput = [["bluebg","4.0","4.48"], ["bluebg","6.0","6.48"], ["yellowbg","11.0","11.48"], ["yellowbg","16.0","16.48"]]
+			self.colorOriginalCodeWindow(dataInput)
+			infoMessage = "Interestingly, we can still use a \"nested\" version of the dimensionless array by clever restructure of the code. "		\
+						+"\n\n See the highlighted color coding to understand."
+			infoRoutine(infoMessage)
+			self.interpret()
+			infoMessage = "This does work. Only thing we need to remember is that NOT to include the struct S2 while mapping."
+			infoRoutine(infoMessage)
+			# This selects the region from line 3 to line 7, but the moment the warning message comes on top, the blue color of selection is not shown somehow
+#			selectionStartLineChar = "3.0"
+#			selectionEndLineChar = "7.22"
+#			self.interpretedCodeText.tag_add(tk.SEL, selectionStartLineChar, selectionEndLineChar)		
+#			self.interpretedCodeText.focus_set()
+			# So, we artificially put a blue color
+#			self.interpretedCodeText.tag_add("bluebg", selectionStartLineChar, selectionEndLineChar)	
+#			self.mapStructureToData()
+			self.deColorOriginalCodeWindow(dataInput)
+			
+		
 			self.endFeatureDemoMessage()
 		
 		elif self.demoIndex == 33:		# Feature # 7: Unknown Offset? No problem! Parse even without knowing which data offset to parse from:
@@ -23848,11 +23963,10 @@ class MainWindow:
 			self.clearDemo()
 
 			# Variable-length arrays (speculative execution)
-			infoMessage = "Feature # 7: Unknown data offset? No problem!\n\nUsually, in order to parse a datastream, We to know from which data offset we should start parsing. "	\
+			infoMessage = "Unknown data offset? No problem!\n\nUsually, in order to parse a datastream, We to know from which data offset we should start parsing. "	\
 							+"But, what if we do not know where the data is? \n\nAmazingly, the new features (Dimensionless arrays with termination conditions via  "	\
 							+"initialization) can help us there. \n\nLet's take an example to illustrate this."
 			infoRoutine(infoMessage)
-#			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			infoMessage = "On the code window, we see the struct Initialization_tester, which describes the data format for the packet that we are looking for. "	\
@@ -23906,14 +24020,11 @@ class MainWindow:
 			infoMessage = "What we have on the right are real Ethernet II frame headers followed by IPv4 header, and then TCP/UDP/ICMP headers after that."		\
 							+"\n\nWe will be using a SINGLE Dynamic structure to decode all of it."
 			infoRoutine(infoMessage)
-			infoMessage = "In the bottom of the code, we have a single NW_pkt_hdr[3] array for the three different headers (TCP, UDP and ICMP)"
+			infoMessage = "In the bottom Tree Window, we will see a single NW_pkt_hdr[3] array for the three different headers (TCP, UDP and ICMP)"
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
-			infoMessage = "Et voila!! (Pardon my French)"	\
-							+ "\n\nThis marks the end of the demo, once you click OK, you will be able to take your cursor above various colored items in the "		\
-							+"interpreted code window and the data window and see how the Description, Address and Values are shown below. \n\nYou will also be "	\
-							+"able to play with the Expand/Collapse buttons to see the internals of the mapped variables."
+			infoMessage = "Et voila!! (Pardon my French)"	
 			infoRoutine(infoMessage)
 			self.endFeatureDemoMessage()
 			
