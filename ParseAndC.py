@@ -848,6 +848,7 @@
 # 2023-05-05 - Improved the demo.
 # 2023-05-08 - Improved the demo.
 # 2023-05-12 - Improved the demo.
+# 2023-05-13 - Improved the demo again.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -19822,7 +19823,9 @@ class MainWindow:
 		if 0 < self.demoIndex <= len(demoFeatureCodeData)-1:
 			self.clearDemo()
 			self.demoIndex -= 1
+			self.nextDemoStepButton.configure(bg="gray80")
 			self.demoThisFeatureButton.configure(text="Demo this feature: "+demoFeatureCodeData[self.demoIndex][0], bg="green2")
+			self.demoThisFeatureButton.focus_set()
 
 
 	def gotoNextDemoStep(self):
@@ -19978,7 +19981,7 @@ class MainWindow:
 		self.viewDataAsciiText.tag_configure("graybg", background="lightgray")
 		self.viewDataAsciiText.tag_configure("yellowbg", background=HIGHLIGHT_COLOR)
 		
-		self.originalCodeText.tag_configure("bluebg", background="blue")
+		self.originalCodeText.tag_configure("bluebg", background="blue", foreground="white")
 		self.originalCodeText.tag_configure("yellowbg", background="yellow")
 		self.interpretedCodeText.tag_configure("bluebg", background="blue")
 		self.interpretedCodeText.tag_configure("yellowbg", background=HIGHLIGHT_COLOR)
@@ -22161,9 +22164,11 @@ class MainWindow:
 				break
 
 	# dataInputCode = [color, start, end] or [  [color1, start1, end1], [color2, start2, end2], .... ]
-	def colorOriginalCodeWindow(self, dataInputCode):
+	def highlightCodeWindow(self, dataInputCode, frame2highlight):
+		if frame2highlight not in (self.originalCodeText, self.interpretedCodeText):
+			EXIT("ERROR in highlightCodeWindow: frame2highlight =",STR(dataInputCode),"is not the Original Code or the Interpreted Code")
 		if not isinstance(dataInputCode, list):
-			EXIT("ERROR in colorOriginalCodeWindow: dataInputCode =",STR(dataInputCode),"is not a list")
+			EXIT("ERROR in highlightCodeWindow: dataInputCode =",STR(dataInputCode),"is not a list")
 		else:
 			if checkIfString(dataInputCode[0]):
 				dataInput = [dataInputCode]
@@ -22174,21 +22179,25 @@ class MainWindow:
 		for item in dataInput:
 			PRINT("checking item = ",item) 
 			if not isinstance(item, list):
-				EXIT("ERROR in colorOriginalCodeWindow: dataInput =",STR(dataInput),"is not proper")
+				EXIT("ERROR in highlightCodeWindow: dataInput =",STR(dataInput),"is not proper")
 			elif len(item) != 3:
-				EXIT("ERROR in colorOriginalCodeWindow: dataInput =",STR(dataInput),", data item =", STR(item)," is illegal (must have 3 members).")
+				EXIT("ERROR in highlightCodeWindow: dataInput =",STR(dataInput),", data item =", STR(item)," is illegal (must have 3 members).")
 			elif not (checkIfString(item[0]) and checkIfString(item[1]) and checkIfString(item[2])):
-				EXIT("ERROR in colorOriginalCodeWindow: dataInput =",STR(dataInput),", data item =", STR(item)," is illegal (must have 3 string members).")
+				EXIT("ERROR in highlightCodeWindow: dataInput =",STR(dataInput),", data item =", STR(item)," is illegal (must have 3 string members).")
 
 		for item in dataInput:
-			PRINT("Performing original code coloring for item = ",item) 
-			self.originalCodeText.tag_add(item[0], item[1], item[2])	
+			PRINT("Performing code coloring for item = ",item) 
+			frame2highlight.tag_add(item[0], item[1], item[2])
+
+
 
 	# dataInput = [color, start, end] or [  [color1, start1, end1], [color2, start2, end2], .... ]
-	def deColorOriginalCodeWindow(self, dataInputCode):
-		# No extensive sanily checking since it presumes that colorOriginalCodeWindow() has already done it
-		if not isinstance(dataInputCode, list):
-			EXIT("ERROR in deColorOriginalCodeWindow: dataInputCode =",STR(dataInputCode),"is not a list")
+	def deHighlightCodeWindow(self, dataInputCode, frame2highlight):
+		# No extensive sanily checking since it presumes that highlightCodeWindow() has already done it
+		if frame2highlight not in (self.originalCodeText, self.interpretedCodeText):
+			EXIT("ERROR in deHighlightCodeWindow: frame2highlight =",STR(dataInputCode),"is not the Original Code or the Interpreted Code")
+		elif not isinstance(dataInputCode, list):
+			EXIT("ERROR in deHighlightCodeWindow: dataInputCode =",STR(dataInputCode),"is not a list")
 		else:
 			if checkIfString(dataInputCode[0]):
 				dataInput = [dataInputCode]
@@ -22196,8 +22205,8 @@ class MainWindow:
 				dataInput = dataInputCode
 				
 		for item in dataInput:
-			PRINT("Removing original code coloring for item = ",item) 
-			self.originalCodeText.tag_remove(item[0], item[1], item[2])	
+			PRINT("Removing code coloring for item = ",item) 
+			frame2highlight.tag_remove(item[0], item[1], item[2])	
 
 
 	# dataInput = [codeStart, codeEnd, hexStart, hexEnd, asciiStart, asciiEnd, codeMeaning, addrStart, addrEnd, dataValLE, dataValBE, dataLength, useColor]
@@ -22653,7 +22662,7 @@ class MainWindow:
 			infoRoutine(infoMessage)
 
 			infoMessage = "Next, we are going to handle a special case where the input datastream is a TEXT file (rather than BINARY), but the characters in that text file "	\
-						+"seems to be Hex representation of binary data. \n\nIn such cases, this tool coverts the Hex characters in that text file to binary."
+						+"seems to be Hex representation of binary data. \n\nIn such cases, this tool converts the Hex characters in that text file to binary."
 			infoRoutine(infoMessage)
 			infoMessage = "Let's take an example. Support the Datastream is a text file which contains the following TEXT:\n\n"	\
 						+"\"0x46 0x7269 0x65 6E6473 2C\""	\
@@ -22690,7 +22699,7 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			self.mapStructureToData()
-			infoMessage = "Now let's map the data from a different offset, say 16. For that, we input \"16\" in ht e\"Data Offset\" box in the top middle"
+			infoMessage = "Now let's map the data from a different offset, say 16. For that, we input \"16\" in the \"Data Offset\" box in the top middle"
 			infoRoutine(infoMessage)
 			self.dataOffsetEntry.delete(0, tk.END)
 			self.dataOffsetEntry.insert(tk.END,"16")
@@ -22900,7 +22909,7 @@ class MainWindow:
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
 			self.showUnraveledRowNumInTreeView(5)
-			infoMessage = "However, one limitation of this Tree Window is that it can show only a few rows - you have to scroll and choose by expanding the parent records repeatedly."		\
+			infoMessage = "One limitation of this Tree Window is that it can show only a few rows - you have to scroll and choose by expanding the parent records repeatedly."		\
 							+ "\n\nHowever, instead of having to do this manually, all you want is a straightforward listing of details of ALL possible variables, preferably in a text or CSV file."	\
 							+ "\n\nThat is precisely what this tool does. Every time you map something, it creates the detailed listing of all such variables in a CSV file "	\
 							+ "named \"snapshot.csv\", which is created in the same folder you are running this tool from."		\
@@ -22962,8 +22971,8 @@ class MainWindow:
 			dataInput = ["7.9", "7.18", "4.24", "4.48", "4.8", "4.16", "structVar is of type struct S", "0x000000038", "0x00000003F", "        ", "        ", "8 bytes", "yellow"]
 			self.populateTransientDataWindow(dataInput)
 			infoMessage = "We are now seeing what happens when we take our cursor on the \"structVar\" in the Interpreted Code window. "	\
-							+"\n\nIt's a single piece of variable declaration code, and yet maps to a multiple pieces of Data."		\
-							+"Observe that the Big- or Little-endian values are no longer being populated, since for a struct variable they make no sense "	\
+							+"\n\nIt's a single piece of variable declaration code, and yet maps to a multiple pieces of Data. "		\
+							+"Observe that the Big-endian or Little-endian values are no longer being populated, since for a struct variable they make no sense "	\
 							+"(a collective variable like a stuct has length but no \"collective\" value. Its individual elements have value though."
 			infoRoutine(infoMessage)
 			self.dePopulateTransientDataWindow(dataInput)
@@ -22972,8 +22981,8 @@ class MainWindow:
 			dataInput = ["6.4","6.12", "1.24", "4.23", "1.8","4.7", "intArray is array of size 3 X 4 of type int", "0x0000000008", "0x0000000037","         ","        ","48 bytes", "yellow"]
 			self.populateTransientDataWindow(dataInput)
 			infoMessage = "Similarly, when we take our cursor on the \"intArray\" in the Interpreted Code window. "											\
-							+"\n\nIt's a single piece of variable declaration code, and yet maps to a multiple (12) pieces of Data."							\
-							+"Observe that the Big- or Little-endian values are no longer being populated, since for an array variable they make no sense "		\
+							+"\n\nIt's a single piece of variable declaration code, and yet maps to a multiple (12) pieces of Data. "							\
+							+"Observe that the Big-endian or Little-endian values are no longer being populated, since for an array variable they make no sense "		\
 							+"(a collective variable like an array has length but no \"collective\" value. Its individual array elements have value though."	\
 							+"\n\nSo, the question is: How do we get to see the value of the individual array items? It's obvious we cannot do that from the "	\
 							+"Interpreted Code window - For that, we have to take our cursor to the Data window. "
@@ -22985,7 +22994,7 @@ class MainWindow:
 			infoMessage = "When we place the cursor on any of the highlighted Data items corresponding to intArray. Then it will not only highlight the "	\
 							+"corresponding variable in the Interpreted Code window, but also it will highlight the smallest possible array item in the "		\
 							+"Data Window iteself, and display the corresponding Description/Address(start/End), Value, Length."	\
-							+"\n\nThis is how it looks when we take our cursor in the Data window to he 4-byte area corresponding to intArray[1][3]."			\
+							+"\n\nThis is how it looks when we take our cursor in the Data window to he 4-byte area corresponding to intArray[1][3]. "			\
 							+"Pay special attention to the \"Description\" field, which now says exactly which array element it is (in this case, it is "		\
 							+"intArray[1][3]). It is immensely helpful to know the array index values."
 			infoRoutine(infoMessage)
@@ -23609,6 +23618,8 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
+			dataInput=[["bluebg","4.0","4.50"],["bluebg","7.0","7.50"],["bluebg","9.0","9.50"]]
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "Please pay close attention to the #commands. In C, a conditional preprocessor command may only contain fields who values are known statically, "	\
 							+"i.e during compile time. When we will compile (preprocess) this code, these #if-#else-#endif statements will NOT persist. \n\nPress OK to interpret."
 			infoRoutine(infoMessage)
@@ -23619,6 +23630,7 @@ class MainWindow:
 
 			infoMessage = "Regular C code is usually filled such #if-#then-#else-#endif branches, and those branchings can be nested."
 			infoRoutine(infoMessage)
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 
 			self.endFeatureDemoMessage()
 
@@ -23683,6 +23695,8 @@ class MainWindow:
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
+			dataInputOriginalCode=["bluebg","3.0","3.50"]
+			self.highlightCodeWindow(dataInputOriginalCode, self.originalCodeText)
 			infoMessage = "Please pay close attention to the #commands. In C, a conditional preprocessor command may only contain fields who values are known statically, "	\
 							+"i.e during compile time. However, in this code, the condition (#if parentCount == 2) contains a variable whose value would only be known "		\
 							+"at the runtime.\n\nThat is why when we will compile this code, these #if-#else-#endif statements will persist. \n\nPress OK to interpret."
@@ -23710,6 +23724,7 @@ class MainWindow:
 			infoMessage = "Now, we would like to remind that Dynamic structures can have both statically-resolvable preprocessor commands and dynamically-resolvable "	\
 							+"Runtime statements. They can absolutely coexit We will see that in the next feature!!"
 			infoRoutine(infoMessage)
+			self.deHighlightCodeWindow(dataInputOriginalCode, self.originalCodeText)
 
 			self.endFeatureDemoMessage()
 
@@ -23745,7 +23760,7 @@ class MainWindow:
 		elif self.demoIndex == 27:			# Feature # 2: Variable length array 
 			
 			self.clearDemo()
-			infoMessage = "New Feature: Variable-length array\n\nIn C structures, all array dimensions must be constant - it cannot be coming from another runtime variable. "	\
+			infoMessage = "In C structures, all array dimensions must be constant - it cannot be coming from another runtime variable. "	\
 							+"\n\nAgain, we are talking about C structures, not general C programs."
 			infoRoutine(infoMessage)
 			infoMessage = "In a parser, you often first read a field that tells you how many bytes more to expect."	\
@@ -23753,6 +23768,8 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
+			dataInput=["bluebg","4.28","4.41"]
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "The array dimension of packet_data is one plus \"packet_length\", which is the previous struct member. \n\nWe cannot do this in C structure."		\
 							+"\n\nPress OK to interpret and map this Dynamic structure on the data."
 			infoRoutine(infoMessage)
@@ -23765,17 +23782,20 @@ class MainWindow:
 							+"must be a non-negative integer constant (NOT a runtime variable), but Dynamic strucures allow that. However, now it is the job of the coder "			\
 							+"to ensure that the array dimension value (that gets resolved during runtime) is indeed a positive integer."
 			infoRoutine(infoMessage)
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 
 			self.endFeatureDemoMessage()
 		
 		elif self.demoIndex == 28:			# Feature # 3: Variable length Bitfield 
 		
 			self.clearDemo()
-			infoMessage = "New Feature: Variable-width Bitfield\n\nIn C structures, all bitfield widths must be constant - it cannot be coming from another runtime variable."
+			infoMessage = "In C structures, all bitfield widths must be constant - it cannot be coming from another runtime variable."
 			infoRoutine(infoMessage)
 #			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
+			dataInput=["bluebg","3.27","3.36"]
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "Here the bitfield width (num_flags) for the struct member variable bit_flags - it comes from the "	\
 							+"previous struct member variable num_flags. \n\nWe cannot do this in C structure."
 			infoRoutine(infoMessage)
@@ -23784,6 +23804,7 @@ class MainWindow:
 			self.showUnraveledRowNumInTreeView(2)
 			infoMessage = "You can see that inside the data, the size of the bit_flags is indeed designated by the value of num_flags ("+STR(getRuntimeValue(['num_flags'])[1])+")."
 			infoRoutine(infoMessage)
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 
 			self.endFeatureDemoMessage()
 		
@@ -23791,7 +23812,7 @@ class MainWindow:
 		elif self.demoIndex == 29:			# Feature # 4: Verification via Initialization
 
 			self.clearDemo()
-			infoMessage = "Feature # 4: Verification via Initialization.\n\nIn C, when we declare a variable, we can initialialize it to a value. "						\
+			infoMessage = "Verification via Initialization.\n\nIn C, when we declare a variable, we can initialialize it to a value. "						\
 							+"\n\nHowever, when we declare a C struct for parsing (reading) some data, initialization makes no sense (as there is no writing involved)."	
 			infoRoutine(infoMessage)
 			infoMessage = "We turn the tables here. We use the \"initialization\" as \"verification\", i.e., if a variable var_A is initialized to some value val_A in the "	\
@@ -23801,7 +23822,7 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,0])
 			self.interpret()
 			dataInput=["bluebg","2.16","2.41"]
-			self.colorOriginalCodeWindow(dataInput)
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "\n\nNow that you can see the code on the left describing the ELF identification header and a sample a.out file on the right, we are going to "	\
 						+"map this this ELF header onto the data. If the magic number indeed matches, no warning would be issued."
 			infoRoutine(infoMessage)
@@ -23816,14 +23837,14 @@ class MainWindow:
 			infoMessage = "Now you see, the initialization value check did NOT succeed (warning message popped up). \n\nWe will use this initialzation / verification "	\
 							+"feature as a building block for another powerful feature later. \n\nFor now, press OK to continue."
 			infoRoutine(infoMessage)
-			self.deColorOriginalCodeWindow(dataInput)
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 		
 			self.endFeatureDemoMessage()
 			
 		elif self.demoIndex == 30:			# Feature # 5: Looping and Dimension-less array:
 			
 			self.clearDemo()
-			infoMessage = "Feature # 5: Looping and Dimension-less array. \n\nIn C structures, array dimensions must be provided at compile-time. The C99 does allow "		\
+			infoMessage = "In C structures, array dimensions must be provided at compile-time. The C99 does allow "		\
 							+"flexible arrays, but puts a constrint that it must be the last member in a C struct. \n\nHere, we allow arrays to be dimension-less and "			\
 							+"treat it is an infinite-dimension array. This essentially can serve as a do/while loop that are one of the most essential building blocks "		\
 							+"of any imperative programing language like C. (we will discuss the termination condition for infinite loops later)"
@@ -23831,8 +23852,8 @@ class MainWindow:
 			
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			dataInput = ["bluebg","4.21","4.34"]
-			self.colorOriginalCodeWindow(dataInput)
+			dataInput = ["bluebg","5.2","5.50"]
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "Suppose a datastream is simply many packets coming one after another, where each packet header contains a single \"packet_length\" field "		\
 							+"followed by that many bytes of data. In ParseAndC, the code on the left is akin to an infinite loop until the datastream is exhausted."		\
 							+"\n\nBe aware that once you hit the OK in the next Warning message box, it will take some time for the next screen to appear."
@@ -23845,7 +23866,7 @@ class MainWindow:
 						+"packetArray array elements are of different lengths. packetArray[0] is 257 bytes long, packetArray[1] is only 2 bytes long, while "		\
 						+"packetArray[2] is 21 bytes long."		
 			infoRoutine(infoMessage)
-			self.deColorOriginalCodeWindow(dataInput)
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 			
 			self.endFeatureDemoMessage()
 		
@@ -23872,7 +23893,7 @@ class MainWindow:
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			dataInput = ["bluebg","3.7","3.14"]
-			self.colorOriginalCodeWindow(dataInput)
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "Interestingly, we observe that the way C strings are constructed (a stream of non-null characters followed by the null character) makes it a "		\
 							+"tailor-made case for dimensionless array with termination criteria. \n\nIn the code on the left, the tool will speculatively try all "		\
 							+"possible values (1,2,3, ...) of dimension for the array variable Char[] until the subsequent nullChar gets a value of '\0' in the datastream. "	\
@@ -23885,7 +23906,7 @@ class MainWindow:
 			infoMessage = "As you see, this tool indeed found the C string. Let's try to map a lot more C strings at a time. "		\
 							+"Since we will be doing a lot of speculative execution, this step will take a bit of time."	
 			infoRoutine(infoMessage)
-			self.deColorOriginalCodeWindow(dataInput)
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 
 			self.clearDemo()
 
@@ -23909,7 +23930,7 @@ class MainWindow:
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			dataInput = [["bluebg","3.0","3.48"], ["bluebg","5.0","5.48"], ["yellowbg","10.0","10.48"], ["yellowbg","12.0","12.48"]]
-			self.colorOriginalCodeWindow(dataInput)
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "On the code window, we see TWO instances of dimensionless arrays. Since their termination criterion comes right after them, they are fine. "		\
 						+"\n\nA dimensionless array and its termination condition statements have been highlighted with the same color for your understanding."
 			infoRoutine(infoMessage)
@@ -23917,13 +23938,13 @@ class MainWindow:
 			self.mapStructureToData()
 			infoMessage = "The tool had no problem handling it. Now, let's take another example."
 			infoRoutine(infoMessage)
-			self.deColorOriginalCodeWindow(dataInput)
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 			
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
 			dataInput = [["bluebg","5.0","5.48"], ["yellowbg","8.0","8.48"], ["yellowbg","10.0","10.48"], ["bluebg","12.0","12.48"]]
-			self.colorOriginalCodeWindow(dataInput)
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "This time we want to use a \"nested\" version of the dimensionless array "		\
 						+"and its corresponding termination criteria. See the highlighted color coding to understand."
 			infoRoutine(infoMessage)
@@ -23931,14 +23952,14 @@ class MainWindow:
 						+"\n\nTherefore, the following statement \"char terminalChar2 = 0;\" serves as the termination criteria for both keys[ ] and Char[ ]. "		\
 						+"\n\nThat is NOT what we want, so it does not work."
 			infoRoutine(infoMessage)
-			self.deColorOriginalCodeWindow(dataInput)
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 			
 			
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,2])
 			self.openDataFile([self.demoIndex,2])
 			dataInput = [["bluebg","4.0","4.48"], ["bluebg","6.0","6.48"], ["yellowbg","11.0","11.48"], ["yellowbg","16.0","16.48"]]
-			self.colorOriginalCodeWindow(dataInput)
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "Interestingly, we can still use a \"nested\" version of the dimensionless array by clever restructure of the code. "		\
 						+"\n\n See the highlighted color coding to understand."
 			infoRoutine(infoMessage)
@@ -23952,9 +23973,8 @@ class MainWindow:
 #			self.interpretedCodeText.focus_set()
 			# So, we artificially put a blue color
 #			self.interpretedCodeText.tag_add("bluebg", selectionStartLineChar, selectionEndLineChar)	
-#			self.mapStructureToData()
-			self.deColorOriginalCodeWindow(dataInput)
-			
+			self.mapStructureToData()
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 		
 			self.endFeatureDemoMessage()
 		
@@ -23969,6 +23989,8 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
+			dataInput = ["bluebg","6.6","6.29"]
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "On the code window, we see the struct Initialization_tester, which describes the data format for the packet that we are looking for. "	\
 							+"Unfortunately, we do not know what offset it appears at. \n\nIf we blindly try to map from offset 0, it will throw warning messages "		\
 							+"informing us that the \"magic_number\" field does NOT hold the intended value (0x0400FEFF) in the data. "									\
@@ -23989,11 +24011,15 @@ class MainWindow:
 							+"\n\nHowever, this was more of a lucky break. We cannot really rely upon human ability to look at the raw binary data and still be "	\
 							+"able to identify the intended value. We would rather expect the tool to do the job for us."
 			infoRoutine(infoMessage)
-			self.endFeatureDemoMessage()
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 		
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
+
+			dataInput = [["yellowbg","2.4","2.17"],["bluebg","6.6","6.29"]]
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
+			
 			infoMessage = "That is precisely what we achieve here. Take a look at the Code window, where we have added a new line at the top. "							\
 							+"\n\nThis new line \"int filler_junk [ ];\" is a variable-length array, where we do NOT mention the array dimension. "							\
 							+"\n\nIn our tool, we treat the very next (lexically closest) initialization statement (magic_number=0x0400FEFF) as its termination condition."	\
@@ -24006,6 +24032,7 @@ class MainWindow:
 							+"This is an extremely powerful feature, where we can parse even witout knowing where to parse from (as long as we have some apriori knowlege"	\
 							+"about what the data from the correct offset would look like.\n\nPress OK to continue."
 			infoRoutine(infoMessage)
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 			self.endFeatureDemoMessage()
 		
 		elif self.demoIndex == 34:
