@@ -849,6 +849,7 @@
 # 2023-05-08 - Improved the demo.
 # 2023-05-12 - Improved the demo.
 # 2023-05-13 - Improved the demo again. Now with SourceTree. Now with both.
+# 2023-05-17 - Added the ability to check the current dir before or after the INCLUDE_DIR.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -871,6 +872,7 @@ PRINT_DEBUG_MSG = False		# use True or False ony
 HIGHLIGHT_COLOR = "black"	# "black" or "yellow" works better
 COMPILER_PADDING_ON = True
 STRUCT_END_PADDING_ON = True	# Whether to add additional padding at the end of a structure to make to align to a word boundary
+CHECK_CURRENT_DIR_BEFORE_INCLUDE_DIR = True	# For #include statements, check the current directory before the included directory
 DISPLAY_INTEGRAL_VALUES_IN_HEX = False	#If True, -17 would now be displayed as -0x11
 SNAPSHOT_FILE_NAME = "snapshot.csv"		# This is the output file name where the formatted data snapshot would be written in the current folder
 MAP_TYPEDEFS_TOO = True	# Usually, we do not create any storage for typedef (so no mapping), but if that's all your structure has and you do not want to create extra declaration, turn it to True
@@ -9546,13 +9548,14 @@ def invokeMacrosOnLine(i):
 				includeFilePaths = returnFilePathList(INCLUDE_FILE_PATHS)
 				fileFound = False
 				# First look into the current directory
-				if os.path.exists(includedFileName):
-					path = os.getcwd()
-					path = path if path[-1] == slash else path+slash
-					fileFound = True
-					PRINT("The file",includedFileName,"is present in the current working directory",path)
+				if CHECK_CURRENT_DIR_BEFORE_INCLUDE_DIR:
+					if os.path.exists(includedFileName):
+						path = os.getcwd()
+						path = path if path[-1] == slash else path+slash
+						fileFound = True
+						PRINT("The file",includedFileName,"is present in the current working directory",path)
 				# Next look into the included paths
-				elif includeFilePaths != False and includeFilePaths != []:
+				if not fileFound and includeFilePaths != False and includeFilePaths != []:
 					for item in includeFilePaths:
 						if not checkIfString(item) or item[-1]!=slash:
 							errorMessage = "ERROR in invokeMacrosOnLine() - included file path <%s> is illegal"%(STR(item))
@@ -9591,6 +9594,13 @@ def invokeMacrosOnLine(i):
 								break
 						if fileFound:
 							break
+				# Look into the current directory
+				if not fileFound and not CHECK_CURRENT_DIR_BEFORE_INCLUDE_DIR:
+					if os.path.exists(includedFileName):
+						path = os.getcwd()
+						path = path if path[-1] == slash else path+slash
+						fileFound = True
+						PRINT("The file",includedFileName,"is present in the current working directory",path)
 								
 				if fileFound:
 					with open(path+includedFileName, "r") as includedFile:
@@ -22541,8 +22551,14 @@ class MainWindow:
 						+"\n\nINCLUDE_FILE_PATHS = r'C:\Folder1 ; F:\Folder2' "	\
 						+"\n\nAlternatively, you can also supply the include library paths while invoking this tool the following way: "	\
 						+"\n\n$ python ParseAndC -i \"C:\Folder1 ; F:\Folder2 \" "	\
-						+"\n\n(Observe that the quoted string can contain multiple folders, not just one."		
+						+"\n\n(Observe that the quoted string can contain multiple folders, not just one.)"		
 			infoRoutine(infoMessage)
+
+			infoMessage = "You can control whether to check the current folder before or after checking the INCLUDE_FILE_PATHS by setting the following variable to True or False:"	\
+						+"\n\nCHECK_CURRENT_DIR_BEFORE_INCLUDE_DIR "	\
+						+"\n\nThis gives you quite a bit of flexibility. "	
+			infoRoutine(infoMessage)
+
 			
 			infoMessage = "Now, what does the Code (the input format) may look like?"	\
 							+"\n\nThe simplest input format would an ordinary C struct, like the one in the next step."
