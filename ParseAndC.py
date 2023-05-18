@@ -1424,6 +1424,7 @@ builtinMacroDefinitions = [
 	]
 
 builtinMacros = {
+					'_GNU_SOURCE'							:  ['#define', '_GNU_SOURCE', ''],
 					'__SSP_STRONG__'  						:  ['#define', '__SSP_STRONG__', '3'],
 					'__DBL_MIN_EXP__'  						:  ['#define', '__DBL_MIN_EXP__', '(-1021)'],
 					'__FLT32X_MAX_EXP__'  					:  ['#define', '__FLT32X_MAX_EXP__', '1024'],
@@ -1772,6 +1773,7 @@ builtinMacros = {
 					'__ATOMIC_ACQ_REL'  					:  ['#define', '__ATOMIC_ACQ_REL', '4'],
 					'__ATOMIC_RELEASE'  					:  ['#define', '__ATOMIC_RELEASE', '3']
 				}
+
 
 generalData =  "0xFFD8FFE000104A46494600010200000100010000FFFE00042A00FFE20BF84943"+"435F50524F46494C4500010100000BE800000000020000006D6E747252474220"		\
 				+"58595A2007D90003001B00150024001F61637370000000000000000000000000"+"000000000000000100000000000000000000F6D6000100000000D32D00000000"		\
@@ -3277,6 +3279,8 @@ def getDictKeyList(inputDict):
 		PRINT ("Sorry, only Python 2.7 and above are supported now")
 		sys.exit()
 		
+
+builtinMacroNames = getDictKeyList(builtinMacros)
 		
 try:
 	if sys.version_info >= (3, 0, 0):
@@ -23693,6 +23697,10 @@ class MainWindow:
 							+"\n\nSo, we try to implement as many as we can. We have done a few HUNDREDs."
 			infoRoutine(infoMessage)
 
+			infoMessage = "If you want to have these macros part of your compilation environment, use the \"-gcc\" command-line argument." 		\
+						+"\n\nBy default that is not turned on."
+			infoRoutine(infoMessage)
+
 			self.endFeatureDemoMessage()
 
 
@@ -23877,7 +23885,6 @@ class MainWindow:
 			self.clearDemo()
 			infoMessage = "In C structures, all bitfield widths must be constant - it cannot be coming from another runtime variable."
 			infoRoutine(infoMessage)
-#			demoIndex += 1
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			dataInput=["bluebg","3.27","3.36"]
@@ -23932,18 +23939,23 @@ class MainWindow:
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
+			dataInput=[["bluebg","4.0","4.50"],["bluebg","8.0","8.50"],["bluebg","12.0","12.50"]]
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "In this example, we want the filler[] to consume bytes until BOTH the criteria succeeds "			\
 							+"\n\n(i.e. keyVal_1 = 0x49 and keyVal_2 = 0x45 )"		
 			infoRoutine(infoMessage)
 			infoMessage = "Unfortunately, the filler[] will consume bytes only until the FIRST criteria succeeded (i.e. keyVal_1 = 0x49)."			\
 						+" \n\nAnd then it will give warning that the second initialization condition (keyVal_2 = 0x45) didn't succeed. "		\
 						+"\n\nThis is because every dimensionless array takes the very first initialization after that(lexically). "	\
-						+"\n\nSo the question is:  How do we tie the dimensionless array tie to BOTH these initialization? We have to be creative about that. "		
+						+"\n\nSo the question is:  How do we tie the dimensionless array to BOTH these initialization? We have to be creative about that. "		
 			infoRoutine(infoMessage)
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,2])
 			self.openDataFile([self.demoIndex,2])
+			dataInput=[["bluebg","4.0","4.50"],["yellowbg","8.0","8.50"],["yellowbg","12.0","12.50"],["bluebg","18.0","18.50"],["bluebg","19.0","19.50"]]
+			self.highlightCodeWindow(dataInput, self.originalCodeText)
 			infoMessage = "You see, we are no longer giving the initialization values at the member variable level - we are giving it at the end of the struct."	\
 						+"\n\nThis is very much valid in C, but now get to mention ALL the initialization criteria in ONE go so that we can still associate the "	\
 						+"dimensionless array with with this SINGLE initialization statement which is actually a COMPOSITE initialization statement."
@@ -23953,6 +23965,7 @@ class MainWindow:
 			self.showUnraveledRowNumInTreeView(40)
 			infoMessage = "Now we got exactly what we wanted."
 			infoRoutine(infoMessage)
+			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 		
 			self.endFeatureDemoMessage()
 			
