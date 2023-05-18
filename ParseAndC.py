@@ -850,6 +850,7 @@
 # 2023-05-12 - Improved the demo.
 # 2023-05-13 - Improved the demo again. Now with SourceTree. Now with both.
 # 2023-05-17 - Added the ability to check the current dir before or after the INCLUDE_DIR.
+# 2023-05-17 - Added snapshot file naming. Improved the verification by initialization for multiple variables.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -2031,15 +2032,22 @@ generalData]
 '        } structVar;\n'],
 generalData],
 
-[['struct S1{\n',
+[['//Named struct, named struct var\n',
+'struct S1{\n',
 '          int var_int;\n',
 '          short var_short;\n',
 '        } structVar;\n',
 '                    \n',
+'//Named struct, dummy struct var\n',
 'struct S2{\n',
 '          float var_float;\n',
 '          short int var_short_int;\n',
 '          char char1;\n',
+'        } ;\n',
+'                    \n',
+'//Anonymous struct, dummy struct var\n',
+'struct {\n',
+'          int var_int;\n',
 '        } ;\n'],
 generalData]
 
@@ -2502,7 +2510,47 @@ generalData]]
 '	unsigned char EI_PAD[7];		\n',
 '} elf_identifier;	\n'
 ],
-ELF_header]]
+ELF_header],
+[['//Dimensionless array with TWO\n',
+'//termination criteria (doesn\'t work)\n',
+'                             \n',
+'char filler[];\n',
+'                        \n',
+'struct S {                 \n',
+'	//termination criteria #1\n',
+'	char keyVal_1 = 0x49;\n',
+'	char status1;\n',
+'                              \n',
+'	//termination criteria #2\n',
+'	char keyVal_2 = 0x45;\n',
+'	char status2[3];\n',
+'	int secret;\n',
+'} structVar;\n'
+],
+generalData],
+[['//Dimensionless array with TWO\n',
+'//termination criteria (does work)\n',
+'                             \n',
+'char filler[];\n',
+'                        \n',
+'struct S {                 \n',
+'	//termination criteria #1 removed\n',
+'	char keyVal_1;\n',
+'	char status1;\n',
+'                              \n',
+'	//termination criteria #2 removed\n',
+'	char keyVal_2;\n',
+'	char status2[3];\n',
+'	int secret;\n',
+'} structVar =\n',
+'{\n',
+' // TWO termination criteria \n',
+'   .keyVal_1 = 0x49,  \n',
+'   .keyVal_2 = 0x45  \n',
+'};\n'
+],
+generalData]
+]
 ],
 ##############################################################################################	30
 #
@@ -3332,6 +3380,7 @@ def printHelp():
 	OUTPUT("-i, --include             followed by a single string that contains the include file path(s), separated by semicolon")
 	OUTPUT("-o, --offset              followed by the offset value (from which offset in the data file the struct will start mapping from)")
 	OUTPUT("                          Offsets can be numbers or expressions, but must be then double-quoted, like \"3KB+0x12*43-(0o62/0b10)\"")
+	OUTPUT("-s, --snapshot            followed by the snapshot file name")
 	OUTPUT("-t, --typedef             followed by Yes/No to indicate if typedefs will be mapped as regular variables or not")
 	OUTPUT("-u                        Suppress warnings when the code tries to #undef symbols that are not-yet-defined ")
 	OUTPUT("-v, --verbose, --debug    to indicate if debug messages will be printed or not")
@@ -3340,7 +3389,7 @@ def printHelp():
 
 def parseCommandLineArguments():
 	global BATCHMODE, DISPLAY_INTEGRAL_VALUES_IN_HEX, PRINT_UNDEF_WARNING, PRINT_ENUM_LITERALS, codeFileName, dataLocationOffset, inputVariables, VERIFICATION_WARNING_COUNT_MAX
-	global PRINT_DEBUG_MSG, MAP_TYPEDEFS_TOO, COMPILER_PADDING_ON, STRUCT_END_PADDING_ON, INCLUDE_FILE_PATHS, dummyVariableNamePrefix, EMULATE_GCC_COMPILATION_ENVIRONMENT
+	global PRINT_DEBUG_MSG, MAP_TYPEDEFS_TOO, COMPILER_PADDING_ON, STRUCT_END_PADDING_ON, INCLUDE_FILE_PATHS, dummyVariableNamePrefix, EMULATE_GCC_COMPILATION_ENVIRONMENT, SNAPSHOT_FILE_NAME
 	PRINT ("sys.argv = ",sys.argv)
 	
 	DATAFILENAME = None
@@ -3501,6 +3550,15 @@ def parseCommandLineArguments():
 					OUTPUT("Careful! Supplied Dummy Variable Name Prefix of "+temp+" might clash with regular code variable names")
 				OUTPUT("Setting dummyVariableNamePrefix to <"+temp+">")
 				dummyVariableNamePrefix = temp	
+				N +=1
+		elif sys.argv[N].lower() in ("-s", "--s", "-snapshot", "--snapshot", "-snapshotfile", "--snapshotfile","-snapshotfilename","--snapshotfilename"):
+			N += 1
+			if N > len(sys.argv)-1:
+				OUTPUT("Must supply the snapshot filename following the %s option"%sys.argv[N-1])
+				sys.exit()
+			else:
+				PRINT("Found snapshot file name")
+				SNAPSHOT_FILE_NAME = sys.argv[N]
 				N +=1
 		elif sys.argv[N].lower() in ("-gcc", "--gcc"):
 			OUTPUT("Emulating GCC compilation environment")
@@ -15077,7 +15135,7 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 
 				namedVariableSplitWithoutIndices = [variableDeclarations[x][0] for x in namedVariableIds]
 				PRINT("namedVariable =",namedVariable,"has been split into",'.'.join(namedVariableSplit)," (including array indices) or ",'.'.join(namedVariableSplitWithoutIndices),"(excluding array indices)")
-				MUST_printUnraveled(unraveledSupplied)
+				printUnraveled(unraveledSupplied)
 
 				# Now find the corresponding entry in unraveled. Remember, it is possible that the variable name is indeed one of the struct members, but the 
 				# struct is a dynamic one, and for this instance the struct member is not there. We check it by looking at the ancestry.
@@ -15226,7 +15284,7 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 				r += 1
 			if targetRowNumber == None:
 				PRINT("\nPretty printed unraveled =")
-				MUST_printUnraveled(unraveledSupplied)
+				printUnraveled(unraveledSupplied)
 				PRINT("\nRaw unraveled =")
 				for unraveledRow in unraveledSupplied:
 					PRINT(unraveledRow)
@@ -15740,7 +15798,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				return False
 			elif verifyInitializationResult[1] == False:
 				warningMessage = "Warning in addVariableToUnraveled(): For Regular struct "+variableDatatype+" variable "+variableName+", initialization check failed after calling verifyInitialization()"
-				OUTPUT(warningMessage)
+				PRINT(warningMessage)
 				if not isInitializationPartner:
 					warningRoutine(warningMessage)
 			elif verifyInitializationResult[1] == True:
@@ -19350,7 +19408,7 @@ def createColoredVarsIdOffsetSizeFromUnraveled():
 				errorMessage = "Error in createColoredVarsIdOffsetSizeFromUnraveled(): unraveled["+STR(unraveledRowNumber)+"] = "+STR(unraveled[unraveledRowNumber])+" has non-Integral start or end address for variable "+varname
 				errorRoutine(errorMessage)
 				OUTPUT("\nCurrently, unraveled =")
-				MUST_printUnraveled(unraveled)
+				printUnraveled(unraveled)
 				return False
 			
 			PRINT("After splitting, varname =",varname,"start offset =",row[3],", size =", row[4]-row[3],"for unraveledRowNumber",unraveledRowNumber)
@@ -22906,7 +22964,15 @@ class MainWindow:
 			infoMessage = "Let's take another example. Here, we are defining two structs (S1 and S2), and for S1, we are also declaring a struct S1 variable structVar."	\
 							+"\n\nHowever, even though we are NOT explicitly declaring a struct S2 variable for S2, this tool automatically does that with a dummy variable \"S2#dummyVar0\"."	\
 							+"\n\nThis way, we know exactly which struct we are talking about."	\
-							+"\n\nIn order to expand/collapse a struct, click on the buttons on the left, or double-click on a row, or use the left/right arrow keys."
+							+"\n\nIn order to expand/collapse a struct, one needs to click on the buttons on the left, or double-click on a row, or use the left/right arrow keys."
+			infoRoutine(infoMessage)
+			
+			infoMessage = "However, when there is no name for the struct (it is an anonymous struct), nor there is any declaration, how do we still name the dummy struct variable? "	\
+						+"For that, we have the system variable dummyVariableNamePrefix, which can be changed in two ways: "	\
+							+"\n\n1. Change it permanenetly by modifying the code: "	\
+							+"\ndummyVariableNamePrefix = \"DummyVar#\""	\
+							+"\n\n2. Change it temporarily by supplying the dummyVariableNamePrefix via the command-line arguement while invoking the tool: "	\
+							+"\n      --dummyVariableNamePrefix PUT_YOUR_PREFIX_NAME"
 			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
@@ -22934,6 +23000,10 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			infoMessage = "Its default name (snapshot.csv) can be changed by changing this line in the source code: "	\
 							+"\n\nSNAPSHOT_FILE_NAME = \"snapshot.csv\""
+			infoRoutine(infoMessage)
+			infoMessage = "If you do not want to permanaently change the default filename (snapshot.csv), but would rather choose a specific snapshot filename for the current "	\
+						+"invocation of this tool, you can use the command-line argument of \"-s\" (or \"--snapshot\") followed by the snapshot file name you want to use: "	\
+						+"\n\n-s PUT_YOUR_SNAPSHOT_FILE_NAME "
 			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
@@ -23851,9 +23921,38 @@ class MainWindow:
 			self.dataOffset.set(16)
 			self.showUnraveledRowNumInTreeView(2)
 			infoMessage = "Now you see, the initialization value check did NOT succeed (warning message popped up). \n\nWe will use this initialzation / verification "	\
-							+"feature as a building block for another powerful feature later. \n\nFor now, press OK to continue."
+							+"feature as a building block for another powerful feature later. "
 			infoRoutine(infoMessage)
 			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
+			
+			infoMessage = "In the previous example, we saw the example of Verification via Initialization. "				\
+							+"\n\nHowever, what if we want the termination criteria requiring more than one variable? "		
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			infoMessage = "In this example, we want the filler[] to consume bytes until BOTH the criteria succeeds "			\
+							+"\n\n(i.e. keyVal_1 = 0x49 and keyVal_2 = 0x45 )"		
+			infoRoutine(infoMessage)
+			infoMessage = "Unfortunately, the filler[] will consume bytes only until the FIRST criteria succeeded (i.e. keyVal_1 = 0x49)."			\
+						+" \n\nAnd then it will give warning that the second initialization condition (keyVal_2 = 0x45) didn't succeed. "		\
+						+"\n\nThis is because every dimensionless array takes the very first initialization after that(lexically). "	\
+						+"\n\nSo the question is:  How do we tie the dimensionless array tie to BOTH these initialization? We have to be creative about that. "		
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,2])
+			self.openDataFile([self.demoIndex,2])
+			infoMessage = "You see, we are no longer giving the initialization values at the member variable level - we are giving it at the end of the struct."	\
+						+"\n\nThis is very much valid in C, but now get to mention ALL the initialization criteria in ONE go so that we can still associate the "	\
+						+"dimensionless array with with this SINGLE initialization statement which is actually a COMPOSITE initialization statement."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(40)
+			infoMessage = "Now we got exactly what we wanted."
+			infoRoutine(infoMessage)
 		
 			self.endFeatureDemoMessage()
 			
