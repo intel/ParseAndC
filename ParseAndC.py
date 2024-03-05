@@ -22525,7 +22525,7 @@ class MainWindow:
 							+"\n\nThis is an extremely simplistic view of what the tool does, but we will explain all the features in detail later."
 			infoRoutine(infoMessage)
 			infoMessage = "Lastly, you can also run this tool from a terminal in batch mode (where no GUI is possible). just invoke it with the \"-b\" (or \"--batch\") option."	\
-						+"\n\npython ParseAndC -b -c CodeFile -d DataFile [-o Offset]"	\
+						+"\n\npython ParseAndC.py -b -c CodeFile -d DataFile [-o Offset]"	\
 						+"\n\nOf course, when you run it in the batch mode, you have to supply the data you want to parse (DataFile), and its format (CodeFile) at the minimum."	\
 						+"\n\nIn fact, if you invoke this tool from such an environment where no GUI is possible, it will automatically run in the Batch Mode."	\
 						+"\nSure, you will miss out many of the GUI features, but the ability to run it just from a shell makes it very useful for testing."
