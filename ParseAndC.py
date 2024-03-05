@@ -852,6 +852,7 @@
 # 2023-05-17 - Added the ability to check the current dir before or after the INCLUDE_DIR.
 # 2023-05-17 - Added snapshot file naming. Improved the verification by initialization for multiple variables.
 # 2024-03-04 - Double-blackslashed the various escape characters since Python now gives warning for unescaped ones like '\s'
+# 2024-03-05 - Changed the demo order.
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -2498,6 +2499,52 @@ generalData]]
 ##############################################################################################	29
 #
 #
+# Feature # 5: Looping and Dimension-less array  :
+#
+#
+["Looping and Dimension-less array",
+[
+[['struct packet {\n',
+'   unsigned char       packet_length;\n',
+'  // We add 1 to avoid the 0-length case\n',
+'   char packet_data [packet_length+1] ;\n',
+'} packetArray [ ] ;  //Dimensionless array\n'
+],
+generalData]]
+],
+
+##############################################################################################	30
+#
+#
+# Feature # 6: Speculative execution and C strings:  :
+#
+#
+["Speculative execution and C strings",
+[
+[['struct C_String {  \n',
+'  // Dimensionless array  \n',
+'  char Char[ ] ;  \n',
+'     \n',
+'  // Termination condition for it  \n',
+'  char nullChar = 0;    \n',
+'} C_string;  \n'
+],
+CStrings],
+[['struct C_String {  \n',
+'  // Dimensionless array  \n',
+'  char Char[ ] ;  \n',
+'     \n',
+'  // Termination condition for it  \n',
+"  char nullChar = 0;    \n",
+'};   \n',
+'struct C_String Name[10];  \n'
+],
+CStrings]
+]
+], 
+##############################################################################################	31
+#
+#
 # Feature # 4:	Verification via Initialization :
 #
 #
@@ -2555,52 +2602,6 @@ generalData],
 generalData]
 ]
 ],
-##############################################################################################	30
-#
-#
-# Feature # 5: Looping and Dimension-less array  :
-#
-#
-["Looping and Dimension-less array",
-[
-[['struct packet {\n',
-'   unsigned char       packet_length;\n',
-'  // We add 1 to avoid the 0-length case\n',
-'   char packet_data [packet_length+1] ;\n',
-'} packetArray [ ] ;  //Dimensionless array\n'
-],
-generalData]]
-],
-
-##############################################################################################	31
-#
-#
-# Feature # 6: Speculative execution and C strings:  :
-#
-#
-["Speculative execution and C strings",
-[
-[['struct C_String {  \n',
-'  // Dimensionless array  \n',
-'  char Char[ ] ;  \n',
-'     \n',
-'  // Termination condition for it  \n',
-'  char nullChar = 0;    \n',
-'} C_string;  \n'
-],
-CStrings],
-[['struct C_String {  \n',
-'  // Dimensionless array  \n',
-'  char Char[ ] ;  \n',
-'     \n',
-'  // Termination condition for it  \n',
-"  char nullChar = 0;    \n",
-'};   \n',
-'struct C_String Name[10];  \n'
-],
-CStrings]
-]
-], 
 ##############################################################################################	32
 
 ["Multiple speculative execution",
@@ -22613,7 +22614,7 @@ class MainWindow:
 						+"\n\nYou can modify this system variable to something like this: "	\
 						+"\n\nINCLUDE_FILE_PATHS = r'C:\\Folder1 ; F:\\Folder2' "	\
 						+"\n\nAlternatively, you can also supply the include library paths while invoking this tool the following way: "	\
-						+"\n\n$ python ParseAndC -i \"C:\\Folder1 ; F:\\Folder2 \" "	\
+						+"\n\n$ python ParseAndC.py -i \"C:\\Folder1 ; F:\\Folder2 \" "	\
 						+"\n\n(Observe that the quoted string can contain multiple folders, not just one.)"		
 			infoRoutine(infoMessage)
 
@@ -23903,7 +23904,7 @@ class MainWindow:
 			self.endFeatureDemoMessage()
 		
 
-		elif self.demoIndex == 29:			# Feature # 4: Verification via Initialization
+		elif self.demoIndex == 31:			# Feature # 4: Verification via Initialization
 
 			self.clearDemo()
 			infoMessage = "Verification via Initialization.\n\nIn C, when we declare a variable, we can initialialize it to a value. "						\
@@ -23970,7 +23971,7 @@ class MainWindow:
 		
 			self.endFeatureDemoMessage()
 			
-		elif self.demoIndex == 30:			# Feature # 5: Looping and Dimension-less array:
+		elif self.demoIndex == 29:			# Feature # 5: Looping and Dimension-less array:
 			
 			self.clearDemo()
 			infoMessage = "In C structures, array dimensions must be provided at compile-time. The C99 does allow "		\
@@ -24000,12 +24001,12 @@ class MainWindow:
 			self.endFeatureDemoMessage()
 		
 
-		elif self.demoIndex == 31:		# Speculative execution and C strings
+		elif self.demoIndex == 30:		# Speculative execution and C strings
 		
 			self.clearDemo()
 			infoMessage = "We just saw that using dimensionless arrays can be used for looping endlessly. However, looping endlessly is only of limited use."		\
 							+"What we want is smart looping, where we stop after certain criteria is met. This is very similar to while(condition) { } loop in C."		\
-							+"Unfortunately, we committed to NOT changing the C syntax, so we needed to devise a special way to mention the termination condition "		
+							+"Unfortunately, we committed to NOT changing the C syntax, so we needed to devise a special way to mention the termination condition."		
 			infoRoutine(infoMessage)
 			infoMessage = "For any dimensionless array, we can specify its termination critera by the lexically closest subsequent initialization statement. "		\
 							+"What this means is that, instead of looping endlessly, now the tool will speculatively loop for different array dimension values "		\
