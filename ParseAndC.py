@@ -851,6 +851,7 @@
 # 2023-05-13 - Improved the demo again. Now with SourceTree. Now with both.
 # 2023-05-17 - Added the ability to check the current dir before or after the INCLUDE_DIR.
 # 2023-05-17 - Added snapshot file naming. Improved the verification by initialization for multiple variables.
+# 2024-03-04 - Double-blackslashed the various escape characters since Python now gives warning for unescaped ones like '\s'
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -3661,7 +3662,7 @@ def parseCommandLineArguments():
 			
 	if BATCHMODE and VARIABLENAMES != None:
 		PRINT ("Chosen top-level variable name(s) = ",VARIABLENAMES)
-		inputVariables = re.sub("[,\s]+"," ",VARIABLENAMES.strip()).split(" ")
+		inputVariables = re.sub("[,\\s]+"," ",VARIABLENAMES.strip()).split(" ")
 	
 
 	return True
@@ -5457,10 +5458,10 @@ def checkIfSameUnraveledVariable (findThisString, inThisString, fullMatchRequire
 		errorRoutine(errorMessage)
 		return False
 	
-	t1 = re.split('[\.\[\]]+',findThisString)		# Basically, we treat the dot operator and the array([]) operator as the variable delimiters
+	t1 = re.split('[\\.\\[\\]]+',findThisString)		# Basically, we treat the dot operator and the array([]) operator as the variable delimiters
 	t1 = [x for x in t1 if x != "" and anonymousStructPrefix not in x and dummyVariableNamePrefix not in x and dummyUnnamedBitfieldNamePrefix not in x and '#dummyVar' not in x]
 	PRINT("findThisString = <"+findThisString+"> has been tokenized into",t1)
-	t2 = re.split('[.\[\]]+',inThisString)
+	t2 = re.split('[.\\[\\]]+',inThisString)
 	t2 = [x for x in t2 if x != "" and anonymousStructPrefix not in x and dummyVariableNamePrefix not in x and dummyUnnamedBitfieldNamePrefix not in x and '#dummyVar' not in x]
 	PRINT("inThisString = <"+inThisString+"> has been tokenized into",t2)
 	if (fullMatchRequiredNotJustSuffix and t1==t2) or (not fullMatchRequiredNotJustSuffix and t1==t2[-len(t1):]):
@@ -6039,7 +6040,7 @@ def tokenizeLines(lines):
 						currentTokenStartCharNum = i
 					currentToken += c
 					currentTokenEndCharNumInclusive = i
-				elif re.search('\s',c):					# Whitespace characters
+				elif re.search('\\s',c):					# Whitespace characters
 					if currentToken != "":
 						currentTokenIndex = tokenIndex
 						if currentToken == "long" and currentLinetokenList and currentLinetokenList[-1]=="long":
@@ -6353,7 +6354,7 @@ def findTokenListInLines(inputLines, inputList, lookFromTokenIndex = 0):
 						tokenCharNum = 0
 				else:
 					tokenCharNum += 1
-			elif re.match("\s",inputLines[lineNum][charNum]):
+			elif re.match("\\s",inputLines[lineNum][charNum]):
 				pass
 			else:
 				PRINT("For tokenNum =",tokenNum,", inputLines[",lineNum,"][",charNum,"] = ",inputLines[lineNum][charNum]," is non-whitespace, non-token char - should never happen")
@@ -8928,7 +8929,7 @@ def defineMacroOnLine(line):
 			errorMessage = "ERROR in line <%s> - Macro must have a valid name -- exiting!"%line
 			errorRoutine(errorMessage)
 			return False
-		elif not re.search("^\s*[a-zA-Z_]+\w*", macroTokenList[2]):
+		elif not re.search("^\\s*[a-zA-Z_]+\\w*", macroTokenList[2]):
 			errorMessage = "ERROR in defineMacroOnLine() - Macro must have a valid name <"+ STR(macroTokenList[2])+ "> -- exiting!" 
 			errorRoutine(errorMessage)
 			return False
@@ -8985,7 +8986,7 @@ def defineMacroOnLine(line):
 				if "(" in temp:
 					newBeginParenthesis = temp.index('(');
 					if newBeginParenthesis < endParenthesis:
-						errorMessage = "ERROR in defineMacroOnLine() : \"\(\" may not appear in macro parameter list"
+						errorMessage = "ERROR in defineMacroOnLine() : \"\\(\" may not appear in macro parameter list"
 						errorRoutine(errorMessage)
 						return False
 				macroArgumentsDefined = "("+temp[:endParenthesis]+")"
@@ -9035,8 +9036,8 @@ def defineMacroOnLine(line):
 					errorRoutine(errorMessage)
 					return False
 				PRINT ("The macro",macroName,"takes the following argument list:",argumentList )
-				PRINT ("We have used argumentList = parseArgumentList(\"(\"+temp[:endParenthesis]+\")\"). If we had used argumentList = re.sub(\"\s*\",\"\",temp[:endParenthesis]).split(\",\"), then we would have gotten" )
-				PRINT (re.sub("\s*","",temp[:endParenthesis]).split(","))	# Remove all the whitespace from the argumentlist first, and then split it 
+				PRINT ("We have used argumentList = parseArgumentList(\"(\"+temp[:endParenthesis]+\")\"). If we had used argumentList = re.sub(\"\\s*\",\"\",temp[:endParenthesis]).split(\",\"), then we would have gotten" )
+				PRINT (re.sub("\\s*","",temp[:endParenthesis]).split(","))	# Remove all the whitespace from the argumentlist first, and then split it 
 				# argumentList = parseArgumentList("("+temp[:endParenthesis]+")")
 				# Check that there are no repeated arguments. For example, we cannot have a macro like #define func1(a,b,a). All arguments must be unique
 				argIndexI = 0
@@ -18104,7 +18105,7 @@ def inputFileIsHexText():
 
 	for n in range(len(data)):
 		PRINT ("data[",n,"] =",data[n],"type(data[n]) =",type(data[n]))
-		if re.match("[,\s]+",data[n:n+1]) and (n<len(data)-1) and re.match("[,\s]+",data[n+1:n+2]):
+		if re.match("[,\\s]+",data[n:n+1]) and (n<len(data)-1) and re.match("[,\\s]+",data[n+1:n+2]):
 			continue
 		elif data[n] == '0' and n<len(data)-1 and data[n+1] == 'x':	# Make sure you do not count the 0 in 0x as part of a valid Hex byte
 			PRINT( "Prefix found")
@@ -18113,7 +18114,7 @@ def inputFileIsHexText():
 		elif countItNextTime == False and charIsValidHex(data[n]) and (n<len(data)-1) and charIsValidHex(data[n+1]):
 			countItNextTime = True
 			continue
-		elif re.match("[,\s]+",data[n:n+1]):
+		elif re.match("[,\\s]+",data[n:n+1]):
 			spaceCount += 1
 		#elif countItNextTime == True and self.charIsValidHex(data[n]) and (n>0) and self.charIsValidHex(data[n-1]):
 		elif countItNextTime == True and charIsValidHex(data[n]) and (n>0) and charIsValidHex(data[n-1]):
@@ -19406,7 +19407,7 @@ def createColoredVarsIdOffsetSizeFromUnraveled():
 			else:
 				PRINT("varname =",varname,"is an array element without a value - skipping unraveledRowNumber",unraveledRowNumber," for coloredDataIdOffsetSize")
 		else:
-			varname = re.split('\.',varname)[-1]
+			varname = re.split('\\.',varname)[-1]
 			if not checkIfIntegral(row[3]) or not checkIfIntegral(row[4]):
 				OUTPUT("Non-Integral start or end address for unraveled[unraveledRowNumber=",unraveledRowNumber,"] =",unraveled[unraveledRowNumber])
 				errorMessage = "Error in createColoredVarsIdOffsetSizeFromUnraveled(): unraveled["+STR(unraveledRowNumber)+"] = "+STR(unraveled[unraveledRowNumber])+" has non-Integral start or end address for variable "+varname
@@ -22610,9 +22611,9 @@ class MainWindow:
 
 			infoMessage = "The folder or library location the tool looks for the included file is the current folder, followed by a system variable called INCLUDE_FILE_PATHS."	\
 						+"\n\nYou can modify this system variable to something like this: "	\
-						+"\n\nINCLUDE_FILE_PATHS = r'C:\Folder1 ; F:\Folder2' "	\
+						+"\n\nINCLUDE_FILE_PATHS = r'C:\\Folder1 ; F:\\Folder2' "	\
 						+"\n\nAlternatively, you can also supply the include library paths while invoking this tool the following way: "	\
-						+"\n\n$ python ParseAndC -i \"C:\Folder1 ; F:\Folder2 \" "	\
+						+"\n\n$ python ParseAndC -i \"C:\\Folder1 ; F:\\Folder2 \" "	\
 						+"\n\n(Observe that the quoted string can contain multiple folders, not just one.)"		
 			infoRoutine(infoMessage)
 
