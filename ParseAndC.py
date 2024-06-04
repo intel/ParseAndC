@@ -956,7 +956,7 @@ cKeywords = ["auto", "break", "case", "char", "const", "continue", "default", "d
 				"extern", "float", "for", "goto", "if", "inline", "int", "long", "register", "return", "short", "signed", 
 				"sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while"]
 integralDataTypes = ["char","short","int","long","long long"]
-treeViewHeadings = ["Variable Name", "Data Type", "Addr Start", "Addr End", "Raw Hex Bytes", "Value (LE)", "Value (BE)"]
+treeViewHeadings = ["Variable Name", "Data Type", "Addr Start", "Addr End", "Raw Hex Bytes", "Value (LE)", "Value (BE)" ]
 
 PACKED_STRING 		= "__packed__"
 ALIGNED_STRING 		= "__aligned__"
