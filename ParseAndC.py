@@ -853,6 +853,16 @@
 # 2023-05-17 - Added snapshot file naming. Improved the verification by initialization for multiple variables.
 # 2024-03-04 - Double-blackslashed the various escape characters since Python now gives warning for unescaped ones like '\s'
 # 2024-03-05 - Changed the demo order.
+# 2024-11-14 - Reimplemented comment removal, introduced preservation of comments
+# 2024-11-28 - After implementing FORMAT. Before adding two separate columns for formatted values in unraveled.
+# 2024-12-01 - After expanding the unraveled to add the formatted LE/BE values.
+# 2024-12-04 - After completing all different FORMATs
+# 2024-12-05 - Before replacing rawData with unraveledRowNum in passed parameter to FOTMATs
+# 2024-12-09 - After rewriting the array handling in evaluateArithmeticExpression()
+# 2024-12-10 - After passing endianness to evaluateArithmeticExpression() and applyFormat()
+# 2024-12-11 - After fixing the header-level printing issues
+# 2024-12-15 - After getting the demo near-ready
+# 2024-12-18 - Demo-ready
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -881,7 +891,8 @@ SNAPSHOT_FILE_NAME = "snapshot.csv"		# This is the output file name where the fo
 MAP_TYPEDEFS_TOO = True	# Usually, we do not create any storage for typedef (so no mapping), but if that's all your structure has and you do not want to create extra declaration, turn it to True
 PRINT_UNDEF_WARNING = True		# If the code wants to undefine a variable that is not defined yet, it throws a warning. But if there are many such instances, you can turn it off
 PRINT_ENUM_LITERALS = True	# When set, it will print enum literals rather than value. Viz, for enum DAYS {SUN, MON, TUE} day=0; it will print day's value as "SUN" rather than 0.
-PRINT_ENUM_LITERALS_MAX_SIZE_CHAR = 20	# When displaying enums, we cannot display it fully if the enum literals are too big. So we display only the first these many chars.
+#PRINT_ENUM_LITERALS_MAX_SIZE_CHAR = 20	# When displaying enums, we cannot display it fully if the enum literals are too big. So we display only the first these many chars.
+FORMATTED_VALUES_MAX_SIZE_CHAR = 20	# When displaying custom formatted values and enums, we cannot display it fully if the final output or enum literals are too big. So we display only the first these many chars.
 WARN_FOR_HASH_ERROR_DIRECTIVES = True	# The tool currently ignores all #error preprocessor commands. Whether it shows a warning in that regard is controlled by this.
 EMULATE_GCC_COMPILATION_ENVIRONMENT = False	# This loads the builtin macros that GCC has
 VERIFICATION_WARNING_COUNT_MAX = 1000000000000000000000000000	# It will show maximum these many warnings after verification fails
@@ -956,7 +967,8 @@ cKeywords = ["auto", "break", "case", "char", "const", "continue", "default", "d
 				"extern", "float", "for", "goto", "if", "inline", "int", "long", "register", "return", "short", "signed", 
 				"sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while"]
 integralDataTypes = ["char","short","int","long","long long"]
-treeViewHeadings = ["Variable Name", "Data Type", "Addr Start", "Addr End", "Raw Hex Bytes", "Value (LE)", "Value (BE)" ]
+#treeViewHeadings = ["Variable Name", "Data Type", "Addr Start", "Addr End", "Raw Hex Bytes", "Value (LE)", "Value (BE)" ]
+treeViewHeadings =  ["Variable Name", "Data Type", "Addr Start", "Addr End", "Raw Hex Bytes", "Value (LE)", "Value (BE)", "Formatted Value (LE)", "Formatted Value (BE)" ]
 
 PACKED_STRING 		= "__packed__"
 ALIGNED_STRING 		= "__aligned__"
@@ -965,6 +977,7 @@ ATTRIBUTE_STRING 	= "__attribute__"
 illegalVariableNames = list(preprocessingDirectives) + list(oneCharOperatorList) + list(twoCharOperatorList) + list(threeCharOperatorList) + cDataTypes + cKeywords + integralDataTypes
 
 lines = []
+comments = []
 enums = {}		# This is a dictionary that holds yet another dictionary inside {enumDataType,{enumLiteral,enumValue}}
 enumFieldValues = {}	# This is a dictionary of ALL enum fields and their values. We can do this because enum field names are globally unique. We keep this separate to cache the enum values
 typedefs = {}
@@ -972,12 +985,12 @@ suDict = {}	# Dictionary that maps a struct or union name (which may not be uniq
 structuresAndUnions = []	# Each value of this array is a dictionary itself, where the key is its suId. The dictionary is of this format: 
 							# "type" : "struct/union", "name": name, "size":size, "components":[[variable1 name, variable size, variable declaration statement, Extended variable description],...]}
 # Below is a list of 6-Tuple. Each list item is pretty much same as the structuresAndUnions["components"] 5-tuple, plus another item which tells where this var name occurs.
-# [variable1 name, variable size, variable declaration statement, variable name relative index within declaration, Extended variable description, absolute Index of variable name in tokenList]							
+# [variable1 name, variable size, variable declaration statement, variable name relative index within declaration, Extended variable description, absolute Index of variable name in tokenList]
 variableDeclarations = []
 macroDefinitions = []		# The ordered dictionary for holding all Macro definitions. This changes over time, as we keep on parsing line by line.
 currentMacroNames = []		# Just a cache of macro names
 # This is just the sizes of the selected variables that would be colored
-gTokenLocationLinesChars = []
+gTokenLocationLinesChars = [] #for each token number, the [<startLineNum,startCharNum>,<endLineNum,endCharNum>]
 unraveled = []
 fileDisplayOffset = 0 	# This is the offset from which the file display window starts
 dataLocationOffset = 0	# This is the offset from which the variables under variablesAtGlobalScopeSelected start to map
@@ -1776,6 +1789,14 @@ builtinMacros = {
 					'__ATOMIC_RELEASE'  					:  ['#define', '__ATOMIC_RELEASE', '3']
 				}
 
+enumData =     "0x0000000000000001000000020000000300000004000000050000000600000007"+"435F50524F46494C4500010100000BE800000000020000006D6E747252474220"		\
+				+"58595A2007D90003001B00150024001F61637370000000000000000000000000"+"000000000000000100000000000000000000F6D6000100000000D32D00000000"		\
+				+"29F83DDEAFF255AE7842FAE4CA83390D00000000000000000000000000000000"+"000000000000000000000000000000106465736300000144000000796258595A"		\
+				+"000001C00000001462545243000001D40000080C646D6464000009E000000088"+"6758595A00000A680000001467545243000001D40000080C6C756D6900000A7C"		\
+				+"000000146D65617300000A9000000024626B707400000AB4000000147258595A"+"00000AC80000001472545243000001D40000080C7465636800000ADC0000000C"		\
+				+"7675656400000AE8000000877774707400000B70000000146370727400000B84"+"000000376368616400000BBC0000002C64657363000000000000001F73524742"		\
+				+"2049454336313936362D322D3120626C61636B207363616C6564000000000000"+"0000000000000000000000000000000000000000000000000000000000000000"		\
+				+"0000000000000000000000000000000000000000000000000000000000000000"+"00000000000000000000000058595A2000000000000024A000000F840000B6CF"		
 
 generalData =  "0xFFD8FFE000104A46494600010200000100010000FFFE00042A00FFE20BF84943"+"435F50524F46494C4500010100000BE800000000020000006D6E747252474220"		\
 				+"58595A2007D90003001B00150024001F61637370000000000000000000000000"+"000000000000000100000000000000000000F6D6000100000000D32D00000000"		\
@@ -2831,6 +2852,326 @@ generalData]
 ],
 networkHdrs]]
 
+],
+##############################################################################################	35
+["Formatted output",
+[
+#0
+[['int i;\n',
+'char c[4];\n',
+'int j;\n'
+],
+networkHdrs],
+
+#1
+[['int i;  //<FORMAT> HEX </FORMAT>\n',
+'char c[4];\n',
+'int j;  //<FORMAT> DEC </FORMAT>\n'
+],
+networkHdrs],
+
+#2
+[['char i; //<FORMAT> HEX </FORMAT>\n',
+'char c;\n',
+'       //<FORMAT> HEX </FORMAT>\n',
+'char j,k; /*\n',
+'         <FORMAT> DEC </FORMAT>\n',
+'       */\n',
+'char m, \n',
+'        n, /*\n',
+'          <FORMAT> HEX </FORMAT>\n',
+'       */ p, \n',
+'             q;\n'
+],
+networkHdrs],
+
+#3
+[['int H;   //<FORMAT> HEX     </FORMAT> \n',
+'int D;   //<FORMAT> DEC     </FORMAT> \n',
+'int O;   //<FORMAT> OCT     </FORMAT> \n',
+'int B;   //<FORMAT> BIN     </FORMAT> \n',
+'float P; //<FORMAT> PERCENT </FORMAT> \n'
+],
+networkHdrs],
+
+#4
+[['int milsec;   //<FORMAT> MILLISECONDS  </FORMAT>\n',
+'int sec;      //<FORMAT> SECONDS       </FORMAT>\n',
+'int unixTS;   //<FORMAT> UNIXDATETIME  </FORMAT>\n',
+'float excelTS;//<FORMAT> EXCELDATETIME </FORMAT>\n'
+],
+networkHdrs],
+
+#5
+[['int unixTS1;    //<FORMAT> UNIXDATETIME("MM/DD/YYYY HH-mm-SS") </FORMAT>\n',
+'\n',
+'int unixTS2;       //<FORMAT> UNIXDATETIME("Date is DD-Mmm of year YYYY, time is HH-mm-SS") </FORMAT>\n',
+'\n',
+'float excelTS; //<FORMAT> EXCELDATETIME ("It happened on HH-th hour, mm-th minute, SS-th second") </FORMAT> \n'
+],
+networkHdrs]
+
+]
+],
+##############################################################################################	36
+["Format PRINTF",
+[
+
+#0
+[['int i; //No format\n',
+'\n',
+'int j;   //<FORMAT> PRINTF("%#x",j) </FORMAT>\n',
+'\n',
+'float F; //<FORMAT> PRINTF("%10.2f",F) </FORMAT>\n',
+'\n',
+'char C;  /* \n',
+'<FORMAT> PRINTF("i=%d, j=%x, C=%c",i,j,C) </FORMAT>\n',
+'*/\n'
+],
+networkHdrs],
+
+#1
+[['int i; //<FORMAT> PRINTF("%#x",i+1) </FORMAT>\n',
+'\n',
+'// Can\'t do string \"multiplication\" using * in C\n',
+'int j; //<FORMAT> PRINTF((j%7)*"="+"%d",j%7) </FORMAT>\n',
+'\n',
+'// Can\'t do string \"concatenation\" using + in C\n',
+'int k; //<FORMAT> PRINTF(((k%2)==0?"Even":"Odd") + " Number %d",k) </FORMAT>\n',
+'\n',
+'int D;  /* \n',
+' <FORMAT> \n',
+'    PRINTF(("%d is "+            (D%7==0?"Sun" :\n',
+'    D%7==1?"Mon" : D%7==2?"Tue" : D%7==3?"Wed" :\n',
+'    D%7==4?"Thu" : D%7==5?"Fri" : D%7==6?"Sat" :\n',
+'    "ERROR")+"-day"),D) \n',
+' </FORMAT>\n',
+' */\n',
+'\n'
+],
+networkHdrs]
+]
+],
+
+##############################################################################################	37
+["Format ENUM",
+[
+
+#0
+[['typedef enum {SUN, MON, TUE, WED, THU, FRI, SAT} DAY_OF_WEEK; \n',
+'struct days {\n',
+'               DAY_OF_WEEK   Day1, Day2, Day3; \n',
+' } S; \n',
+' \n',
+' \n',
+' // Read the datastream into struct S \n',
+'fread(&S, sizeof(struct days), 1, file); \n',
+'\n',
+'// Now print the individual variable values \n',
+' printf("Day1 = %d, Day2 = %d, Day3 = %d", S.Day1, S.Day2, S.Day3);\n',
+'\n'
+],
+enumData],
+
+#1
+[[' typedef enum {SUN, MON, TUE, WED, THU, FRI, SAT} DAY_OF_WEEK; \n',
+' struct days {\n',
+'               DAY_OF_WEEK   Day1, Day2, Day3; \n',
+' } S; \n',
+' \n',
+' \n',
+' // Read the datastream into struct S \n',
+'fread(&S, sizeof(struct days), 1, file); \n',
+'\n',
+'// Now print the individual variable values \n',
+' printf("Day = %d, Day = %d, Day2 = %d", S.Day3, S.Day2, S.Day3);\n',
+'\n',
+'\n',
+'void printDayOfWeek(days){\n',
+' switch(days%7){ \n',
+'      case SUN : printf("SUN"); break;\n',
+'      case MON : printf("MON"); break;\n',
+'      case TUE : printf("TUE"); break;\n',
+'      case WED : printf("WED"); break;\n',
+'      case THU : printf("THU"); break;\n',
+'      case FRI : printf("FRI"); break;\n',
+'      case SAT : printf("SAT"); break;\n',
+'      default  : printf("Error"); break;\n',
+' }\n',
+'}\n',
+'\n'
+],
+enumData],
+
+#2
+[[' typedef enum {SUN, MON, TUE, WED, THU, FRI, SAT} DAY_OF_WEEK; \n',
+' struct days {\n',
+'               DAY_OF_WEEK   Day1, Day2, Day3; \n',
+' } S; \n',
+' \n',
+'/* \n',
+' // Read the datastream into struct S \n',
+'fread(&S, sizeof(struct days), 1, file); \n',
+'\n',
+'// Now print the individual variable values \n',
+' printf("Day = %d, Day = %d, Day2 = %d", S.Day3, S.Day2, S.Day3);\n',
+'\n',
+'\n',
+'void printDayOfWeek(days){\n',
+' switch(days%7){ \n',
+'      case SUN : printf("SUN"); break;\n',
+'      case MON : printf("MON"); break;\n',
+'      case TUE : printf("TUE"); break;\n',
+'      case WED : printf("WED"); break;\n',
+'      case THU : printf("THU"); break;\n',
+'      case FRI : printf("FRI"); break;\n',
+'      case SAT : printf("SAT"); break;\n',
+'      default  : printf("Error"); break;\n',
+' }\n',
+'}\n',
+'*/\n'
+],
+enumData],
+
+#3
+[['char C1;     /* \n',
+'<FORMAT> \n',
+'         ENUM("Sun"=0, "Mon"=1,"Wed","Fri"=1.5)\n',
+'</FORMAT>\n',
+'*/\n',
+'\n',
+'char C2;     /* \n',
+'<FORMAT> \n',
+'         ENUM("Sun"=0, "Sat"=6,"Weekday"="REST")\n',
+'</FORMAT>\n',
+'*/\n',
+'\n',
+'char C3;     /* \n',
+'<FORMAT> \n',
+'   ENUM("Sun"=0, C2*100=C1-76,"Weekday"="REST")\n',
+'</FORMAT>\n',
+'*/\n'
+],
+networkHdrs],
+
+#4
+[['int D;  /* \n',
+' <FORMAT> \n',
+'    PRINTF(("%d is "+            (D%7==0?"Sun" :\n',
+'    D%7==1?"Mon" : D%7==2?"Tue" : D%7==3?"Wed" :\n',
+'    D%7==4?"Thu" : D%7==5?"Fri" : D%7==6?"Sat" :\n',
+'    "ERROR")+"-day"),D) \n',
+' </FORMAT>\n',
+' */\n'
+],
+networkHdrs],
+
+#5
+[['int D;  /* \n',
+' <FORMAT> \n',
+'    PRINTF(("%d is "+            (D%7==0?"Sun" :\n',
+'    D%7==1?"Mon" : D%7==2?"Tue" : D%7==3?"Wed" :\n',
+'    D%7==4?"Thu" : D%7==5?"Fri" : D%7==6?"Sat" :\n',
+'    "ERROR")+"-day"),D) \n',
+' </FORMAT>\n',
+' */\n',
+'\n',
+'\n',
+'int E;  /* \n',
+' <FORMAT> \n',
+'          ENUM("Sun"=E/7*7+0,\n',
+'               "Mon"=E/7*7+1,\n',
+'               "Tue"=E/7*7+2,\n',
+'               "Wed"=E/7*7+3,\n',
+'               "Thu"=E/7*7+4,\n',
+'               "Fri"=E/7*7+5,\n',
+'               "Sat"=E/7*7+6,\n',
+'               "ERROR"="REST")\n',
+' </FORMAT>\n',
+' */ \n'
+],
+networkHdrs]
+]
+],
+
+##############################################################################################	38
+["Format POSTPROCESS",
+[
+
+#0
+[['/*  C code to do this \n',
+' \n',
+'typedef enum {SUN, MON, TUE, WED, THU, FRI, SAT} DAY_OF_WEEK; \n',
+' DAY_OF_WEEK daysRemainder = days % 7; \n',
+' switch(daysRemainder){ \n',
+'      case SUN : printf("Sun"); break;\n',
+'      case MON : printf("Mon"); break;\n',
+'      case TUE : printf("Tue"); break;\n',
+'      case WED : printf("Wed"); break;\n',
+'      case THU : printf("Thu"); break;\n',
+'      case FRI : printf("Fri"); break;\n',
+'      case SAT : printf("Sat"); break;\n',
+'      default  : printf("Error"); break;\n',
+' } \n',
+' */  \n'
+],
+networkHdrs],
+
+#1
+[['/*  C code to do this \n',
+' \n',
+' typedef enum {SUN, MON, TUE, WED, THU, FRI, SAT} DAY_OF_WEEK; \n',
+' DAY_OF_WEEK daysRemainder = days % 7; \n',
+' switch(daysRemainder){ \n',
+'      case SUN : printf("Sun"); break;\n',
+'      case MON : printf("Mon"); break;\n',
+'      case TUE : printf("Tue"); break;\n',
+'      case WED : printf("Wed"); break;\n',
+'      case THU : printf("Thu"); break;\n',
+'      case FRI : printf("Fri"); break;\n',
+'      case SAT : printf("Sat"); break;\n',
+'      default  : printf("Error"); break;\n',
+' } \n',
+' */  \n',
+'\n',
+'\n',
+'\n',
+'char days;     /* \n',
+'<FORMAT> POSTPROCESS(days%7)</FORMAT> \n',
+'<FORMAT> ENUM("Sun", "Mon", "Tue","Wed","Thu","Fri","Sat") </FORMAT>\n',
+'         */ \n'
+],
+networkHdrs],
+
+#2
+[['char C1; //<FORMAT> POSTPROCESS( 0  )</FORMAT>\n',
+'char C2; //<FORMAT> POSTPROCESS(C2+1)</FORMAT>\n',
+'char C3; /*<FORMAT> POSTPROCESS(C3+1)</FORMAT>\n',
+'           <FORMAT> POSTPROCESS(C3+1)</FORMAT>\n',
+'         */ \n'
+],
+networkHdrs],
+
+#3
+[['char C1; //<FORMAT> POSTPROCESS(  0  )</FORMAT>\n',
+'char C2; //<FORMAT> POSTPROCESS(_X_+1)</FORMAT>\n',
+'char C3; /*<FORMAT> POSTPROCESS(_X_+1)</FORMAT>\n',
+'           <FORMAT> POSTPROCESS(_X_+1)</FORMAT>\n',
+'         */ \n'
+],
+networkHdrs],
+
+#4
+[['char A[2]; //<FORMAT>PRINTF("%d",_X_+1)</FORMAT>\n',
+'unsigned char IP[4]; /* \n',
+'               <FORMAT> PRINTF("%d.%d.%d.%d",\n',
+'                        IP[0],IP[1],IP[2],IP[3])\n',
+'               </FORMAT>\n',
+'*/\n'
+],
+networkHdrs]
+
+]
 ]
 
 ]	# End of demos
@@ -2944,10 +3285,23 @@ def checkIfString(inputStr):
 def checkIfIntegral(inputNum):
 #	MUST_PRINT ("inputNum = ", inputNum)
 #	MUST_PRINT ("type(inputNum) = <%s>"%type(inputNum))
-	if checkIfString(inputNum) and re.match("^[0-9]+(L|UL|LU|LL|ULL|LLU|l|ul|lu|ll|ull|llu)$",inputNum):
+
+	'''	
+	# First check if it is a proper number or not just like that
+	if PYTHON2x and (isinstance(inputNum,int) or isinstance(inputNum,long)):
+		return True
+	elif PYTHON3x and isinstance(inputNum,int):
+#		MUST_PRINT("Returning True (as", inputNum,"is integer)")
+		return True
+	else:
+#		MUST_PRINT(inputNum,"is not integral type")
+	'''	
+	# If that did not succeed, try removing any possible compile-time suffix. However, doing this would render 
+	if checkIfString(inputNum) and (re.match("^[0-9]+(L|UL|LU|LL|ULL|LLU|l|ul|lu|ll|ull|llu)$",inputNum) or re.match("^0x[0-9]+(L|UL|LU|LL|ULL|LLU|l|ul|lu|ll|ull|llu)$",inputNum) or re.match("^-0x[0-9]+(L|UL|LU|LL|ULL|LLU|l|ul|lu|ll|ull|llu)$",inputNum)):
 #		MUST_PRINT("Compile-time constant",inputNum)
 		inputNum = re.sub('[lLuU]','',inputNum)
 #		MUST_PRINT("Compile-time constant changed to",inputNum)
+		
 	if PYTHON2x and (isinstance(inputNum,int) or isinstance(inputNum,long)):
 		return True
 	elif PYTHON3x and isinstance(inputNum,int):
@@ -2997,6 +3351,22 @@ def checkIfStringOrListOfStrings(input):
 		return True
 	else:
 		return checkIfString(input)
+
+def HEX2DEC(n):	
+	if not checkIfString(n):
+		sys.stdout.write ("\nInside HEX2DEC: Input is NOT string, Input type = ")
+		sys.stdout.write (str(type(n)))
+		return n
+	elif len(n) < 3:
+		sys.stdout.write ("Inside HEX2DEC: input string",n,"is too short")
+		return n
+	elif n[:2] != "0x" and  n[:3] != "-0x":
+		sys.stdout.write ("Inside HEX2DEC: input string",n,"doesn't start with 0x or -0x")
+		return n
+	else:
+		return int(n,16)
+#print(HEX2DEC("-0x111"))
+#sys.exit()
 
 # Do NOT use this function to convert things that are NOT supposed to be strings (like bytes)
 def convert2Str(input):
@@ -3060,14 +3430,15 @@ def flattenList(inputList):
 
 #inputList = [["a1","+","b2"],"*",["c3","/","d4"],"+","e5"]
 #flattened = flattenList(inputList)
-#print flattened
+#print(flattened)
 
 #sys.exit()
 
 
 	
 #######################################################################################################################################################
-#This returns the string version of an input List (just imagine the list without the surrounding [] and the comma separators)
+# This returns the string version of an input List (just imagine the list without the surrounding [] and the comma separators)
+# So, for an inputList = [["a1","+","b2"],"*",["c3","/","d4"],"+","e5"], it will return "a1 + b2 * c3 / d4 + e5"
 #######################################################################################################################################################
 
 def list2plaintext(inputList, separator = " "):
@@ -3097,6 +3468,14 @@ def list2plaintext(inputList, separator = " "):
 	else:
 		OUTPUT("inputList =",inputList,"is of type",type(inputList))
 		return False
+
+#inputList = [["a1","+","b2"],"*",["c3","/","d4"],"+","e5"]
+#list2plaintexted = list2plaintext(inputList)
+#print(inputList)
+#print(list2plaintexted)
+
+#sys.exit()
+
 
 #######################################################################################################################################################
 #This returns the index of the first occurrence of a contiguous sequence of items in a list (like finding a substring in a string)
@@ -3155,7 +3534,9 @@ def dictionary2string(inputDictionary):
 		return "<unprintable bytestream of type "+str(type(inputDictionary))+" >"
 		
 #######################################################################################################################################################
-#This returns the string version of an input List
+# This returns the string version of an input List. The input and output will look the same when printed, but the input is a list, while the output is a string
+# So, for an inputList = [["a1","+","b2"],"*",["c3","/","d4"],"+","e5"], it will return "[['a1', '+', 'b2'], '*', ['c3', '/', 'd4'], '+', 'e5']"
+# which is the same thing, except Python has converted the double-quote to single quote for holding a string.
 #######################################################################################################################################################
 def list2string(inputList):
 #	PRINT ("inside list2string, inputList =", inputList )
@@ -3185,6 +3566,13 @@ def list2string(inputList):
 	else:
 		print ("ERROR in list2string() - unknown type", inputList, "while expecting a list" )
 		sys.exit()
+
+#inputList = [["a1","+","b2"],"*",["c3","/","d4"],"+","e5"]
+#list2stringed = list2string(inputList)
+#print(inputList)
+#print(list2stringed)
+
+#sys.exit()
 
 ##########################################################################################################################################################
 # We do not know if the output of the str() function would change in different Python versions, hence here is our own custom "convert-to-string" routine
@@ -3254,6 +3642,10 @@ PRINT (sys.version_info )
 def EXIT(errorMessage):
 	OUTPUT(errorMessage)
 	sys.exit()
+
+#x='-0x1F002701'
+#OUTPUT(checkIfIntegral(x))
+#sys.exit()
 	
 #################################################################################################################################################
 # Python changed they way they output the dict.keys() function. In Python 2, the output type is a list. In Python 3, it is a dict_keys object.
@@ -3690,26 +4082,6 @@ class Node (object):
 		if self.type != "struct" and self.type != "union" :
 			return
 		
-# This function takes in an input List, and returns the sum of the elements (assumed to be integers)
-def listItemsSum(inputList):
-	if not isinstance(inputList,list):
-		PRINT ("ERROR: Illegal input array dimension value",arrayDimensions )
-		return False
-	elif len(inputList) == 0:	# Blank
-		return False
-	elif inputList:
-		returnValue = 0
-		for item in inputList:
-			if not checkIfIntegral(item):
-				return False
-			else:
-				if item <= 0:
-					PRINT ("WARNING: non-positive integer",item )
-				returnValue += item
-		return returnValue
-	else:
-		PRINT ("ERROR!!!!" )
-		sys.exit()
 #######################################################################################################################
 # This function takes in an input List, and returns the product of the elements (assumed to be integers).
 # In case the list items contain unresolved variable names, instead of the product, it returns the product expression list.
@@ -3924,6 +4296,7 @@ def printLines(lines):
 			
 	return True
 
+
 #######################################################################################################################################################
 # This function taken in a List, and progressively removes listification until we get a list with at least 2 members.
 # For example, it will reduce the list [[[['a','+','b']]]] to ['a','+','b'].
@@ -4046,6 +4419,7 @@ def isASTvalid(inputList):
 				PRINT ("inputList =",inputList, "is not a valid 2-element AST" )
 				return False
 		elif len(inputList) == 3:
+			PRINT("\n\n3-member inputList=",STR(inputList))
 			if inputList[0] == "function()": 
 				if inputList[1] not in validOperators:
 					# TO-DO - put a check that a function name must be a valid string and not a list (but beware of macro)
@@ -4148,6 +4522,7 @@ def saveExecutionState(identifierRecord, speculativeValue, inputDict = {}):
 	executionState["identifierRecord"]									=	deepCopy(identifierRecord)
 	executionState["speculativeValue"]									=	deepCopy(speculativeValue)
 	executionState["lines"]												=	deepCopy(lines)
+	executionState["comments"]											=	deepCopy(comments)
 	executionState["enums"]												=	deepCopy(enums)
 	executionState["enumFieldValues"]									=	deepCopy(enumFieldValues)
 	executionState["typedefs"]											=	deepCopy(typedefs)
@@ -4205,7 +4580,7 @@ def saveExecutionState(identifierRecord, speculativeValue, inputDict = {}):
 ###################################################################################################################################
 def restoreGlobalsAndReturnLocals():
 #	global executionStateStack	# This is where the context is stored. We do not pop() it here since we may need to restore it again and again. We manually pop it.
-	global lines, enums, enumFieldValues, typedefs, suDict, structuresAndUnions, variableDeclarations, macroDefinitions, currentMacroNames, gTokenLocationLinesChars 
+	global lines, comments, enums, enumFieldValues, typedefs, suDict, structuresAndUnions, variableDeclarations, macroDefinitions, currentMacroNames, gTokenLocationLinesChars 
 	global unraveled, fileDisplayOffset, dataLocationOffset, codeFileName, dataFileName, dataFileSizeInBytes, displayBlock, dataBlock, inputIsHexChar, binaryArray 
 	global hexCharArray, totalBytesToReadFromDataFile, dummyVariableCount, dummyZeroWidthBitfieldVariableCount, totalVariableCount, runtimeStatementLocationsInGlobalScope
 	global runtimeStatementOrGlobalScopedVariableIdOrStructId, variableIdsInGlobalScope, globalScopedBuddies, globalScopedRuntimeBlocks	#, allPossibleQualifiedNames
@@ -4221,6 +4596,9 @@ def restoreGlobalsAndReturnLocals():
 	if( lines != executionState["lines"]):
 		PRINT("lines has changed - restoring it from saved execution state")
 		lines =	deepCopy(executionState["lines"])
+	if( comments != executionState["comments"]):
+		PRINT("comments has changed - restoring it from saved execution state")
+		comments =	deepCopy(executionState["comments"])
 	if( enums != executionState["enums"]):
 		PRINT("enums has changed - restoring it from saved execution state")
 		enums = deepCopy(executionState["enums"])
@@ -4583,10 +4961,16 @@ def getDatatypeSize(inputList):
 		
 	
 def isStringAValidNumber(numericString):
+#	MUST_PRINT("Checking if isStringAValidNumber(numericString=<"+numericString+">) is a valid number")
+	if not checkIfString(numericString):
+		MUST_PRINT("Converting numericString=<"+numericString+">) to a string")
+		numericString = STR(numericString)
 	if numericString.isdigit():
 #		PRINT ("Is digit")
+#		MUST_PRINT("numericString=<"+numericString+"> is indeed a valid number")
 		return True
-	elif checkIfString(numericString):
+	else:
+#		MUST_PRINT("numericString=<"+numericString+"> needs further scrutiny to check if it is indeed a valid number")
 		PRINT ("numericString =",numericString,"is string")
 		if "." in numericString: 
 #			PRINT ("has a decimal point")
@@ -4609,10 +4993,14 @@ def isStringAValidNumber(numericString):
 						return digitParts[0].isdigit() and digitParts[1].isdigit()
 		else:
 			return False
-	else:
-		return False
 
+#x = '0xdeff'
+#y = int(x,16)
+#sys.exit()
 
+#OUTPUT(isStringAValidNumber(1))
+#OUTPUT(isStringAValidNumber(0x1F002701))
+#sys.exit()
 
 # Float numbers are difficult to say that are equal in value. So we say they are equal if they are "close enough"
 def areFloatsCloseEnough (f1, f2, relativeTolerance = RELATIVE_TOLERANCE_FOR_FLOAT, absoluteTolerance = ABSOLUTE_TOLERANCE_FOR_FLOAT):
@@ -4639,6 +5027,114 @@ def areFloatsCloseEnough (f1, f2, relativeTolerance = RELATIVE_TOLERANCE_FOR_FLO
 		PRINT(f1,"and",f2,"are NOT close enough floating point numbers - the relativeDifference (",relativeDifference,") is > relativeTolerance (",relativeTolerance,")")
 		return False
 
+# Thanks to the peculiar way we parse the '[]' operator (where i[a] is parsed as ['i',[ '[]','a']] and i[a][b] is parsed as [['i',[ '[]','a']],['[]','b']],
+# We need a way to convert this AST into something simple like ['i','a','b'] so that we can evaluate it at runtime ALL at one go. Otherwise, if we try
+# to do it recursively, then we might end up in a situation where we are trying to get the value of i[a] which doesn't exist because it a 2-D array. 
+def convertMultidimensionalArrayParsed(parsedArrayAST):
+#	PRINT=OUTPUT
+	PRINT("\n\nInside convertMultidimensionalArrayParsed(): The passed parsedArrayAST is", parsedArrayAST)
+	if not isinstance(parsedArrayAST, list):
+		errorMessage = "ERROR in convertMultidimensionalArrayParsed(): The passed parsedArrayAST is not a list"+STR(parsedArrayAST)
+		errorRoutine(errorMessage)
+		return False
+	elif len(parsedArrayAST) != 2:
+		errorMessage = "ERROR in convertMultidimensionalArrayParsed(): The passed parsedArrayAST is not a list of two entries"+STR(parsedArrayAST)
+		errorRoutine(errorMessage)
+		return False
+	elif len(parsedArrayAST[1]) != 2 or parsedArrayAST[1][0] != '[]':
+		errorMessage = "ERROR in convertMultidimensionalArrayParsed(): The passed parsedArrayAST is not a list of type [a, ['[]',b]]"+STR(parsedArrayAST)
+		errorRoutine(errorMessage)
+		return False
+		
+	if isinstance(parsedArrayAST[0], list):
+		if len(parsedArrayAST[0])==2 and isinstance(parsedArrayAST[0][1],list) and parsedArrayAST[0][1][0]=='[]':
+			LHS = convertMultidimensionalArrayParsed(parsedArrayAST[0])
+		elif len(parsedArrayAST[0])== 1:
+			LHS = parsedArrayAST[0]
+		else:
+			LHS = [parsedArrayAST[0]]
+	else:
+		LHS = [parsedArrayAST[0]]
+
+	if isinstance(parsedArrayAST[1][1], list):
+		if len(parsedArrayAST[1][1])==2 and isinstance(parsedArrayAST[1][1][1],list) and parsedArrayAST[1][1][1][0]=='[]':
+			RHS = convertMultidimensionalArrayParsed(parsedArrayAST[1][1])
+		elif len(parsedArrayAST[1][1])== 1:
+			RHS = parsedArrayAST[1][1]
+		else:
+			RHS = [parsedArrayAST[1][1]]
+	else:
+		RHS = [parsedArrayAST[1][1]]
+	'''
+	if isinstance(parsedArrayAST[1][1], list):
+		if len(parsedArrayAST[1][1])== 1:
+			RHS = parsedArrayAST[1][1]
+		else:
+			RHS = convertMultidimensionalArrayParsed(parsedArrayAST[1][1])
+	else:
+		RHS = [parsedArrayAST[1][1]]
+	'''
+	PRINT("LHS =",LHS,", RHS = ",RHS)
+	return LHS+RHS
+
+#parsedArrayAST = [['i',[ '[]',['a','-','d']]],['[]',['b','+','c']]]
+#res=convertMultidimensionalArrayParsed(parsedArrayAST)
+#OUTPUT(res)
+#sys.exit()
+
+# The way we have written the parser, the expression 1,2,3,4 will be parsed as [[['1', ',', '2'], ',', '3'], ',', '4']
+# This routine takes [[['1', ',', '2'], ',', '3'], ',', '4'] and spits out [1,2,3,4]
+def convertCommaSeparatedArgumentsParsed(parsedAST):
+	PRINT("\n\nInside convertCommaSeparatedArgumentsParsed(): The passed parsedAST is", parsedAST)
+	if not isinstance(parsedAST, list):
+		errorMessage = "ERROR in convertCommaSeparatedArgumentsParsed(): The passed parsedAST is not a list"+STR(parsedAST)
+		errorRoutine(errorMessage)
+		return False
+	elif len(parsedAST)==1:
+		return parsedAST
+	elif len(parsedAST) != 3:
+		errorMessage = "ERROR in convertCommaSeparatedArgumentsParsed(): The passed parsedAST is not a list of 3 entries"+STR(parsedAST)
+		errorRoutine(errorMessage)
+		return False
+	elif parsedAST[1] != ',':
+		errorMessage = "ERROR in convertCommaSeparatedArgumentsParsed(): The passed parsedAST is not a list of type [a, ',', b]]"+STR(parsedAST)
+		errorRoutine(errorMessage)
+		return False
+		
+	if isinstance(parsedAST[0], list):
+		if len(parsedAST[0])==3 and parsedAST[0][1]==',':
+			LHS = convertCommaSeparatedArgumentsParsed(parsedAST[0])
+		elif len(parsedAST[0])==1:
+			LHS = parsedAST[0]
+		else:
+			LHS = [parsedAST[0]]
+	else:
+		LHS = [parsedAST[0]]
+
+	if isinstance(parsedAST[2], list):
+		if len(parsedAST[2])==3 and parsedAST[2][1]==',':
+			RHS = convertCommaSeparatedArgumentsParsed(parsedAST[2])
+		elif len(parsedAST[2])==1:
+			RHS = parsedAST[2]
+		else:
+			RHS = [parsedAST[2]]
+	else:
+		RHS = [parsedAST[2]]
+	'''
+	if isinstance(parsedAST[2], list):
+		if len(parsedAST[2])== 1:
+			RHS = parsedAST[2]
+		else:
+			RHS = convertCommaSeparatedArgumentsParsed(parsedAST[2])
+	else:
+		RHS = [parsedAST[2]]
+	'''
+	return LHS+RHS
+
+#parsedAST = [[['1', ',', '2'], ',', ['3','+','1']], ',', ['4','-','2']]
+#res = convertCommaSeparatedArgumentsParsed(parsedAST)
+#OUTPUT(res)
+#sys.exit()
 
 #######################################################################################################################################################
 #
@@ -4649,7 +5145,7 @@ def areFloatsCloseEnough (f1, f2, relativeTolerance = RELATIVE_TOLERANCE_FOR_FLO
 # The output from this is a Tuple of a boolean value and a result [True/Flase, result]. The reason we do this is because an arithmetic expression result
 # can itself return False as a proper output, so we do not know if that is a true result, or something went wrong.
 #######################################################################################################################################################
-def evaluateArithmeticExpression(inputAST):
+def evaluateArithmeticExpression(inputAST, endianness=DEFAULT_ENDIANNESS):
 #	PRINT=OUTPUT
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
 	inputList = inputAST	# Just to remind that the inputList must be an AST
@@ -4658,14 +5154,18 @@ def evaluateArithmeticExpression(inputAST):
 		PRINT("Returning [True,",inputList,"] since it is a number")
 		return [True,inputList]
 	elif checkIfString(inputList):
-#		PRINT ("It's a string - returning as it is!" )
+		PRINT(inputList,"is a string - calling isStringAValidNumber()")
 		if isStringAValidNumber(inputList):
+#			MUST_PRINT("isStringAValidNumber(",inputList,") is True ------------------------------------------------------------")
 			if '.' in inputList:
 				return [True,float(inputList)]
 			else:
+#				MUST_PRINT(inputList," is integral, returning ",STR([True, int(inputList)]))
 				return [True, int(inputList)]
-		elif len(inputList)>=3 and inputList[:2]=="0x": 
-			if re.match("^[a-fA-F0-9]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[2:]):
+		elif (len(inputList)>=3 and inputList[:2]=="0x") or (len(inputList)>=4 and inputList[:3]=="-0x"): 
+#			MUST_PRINT("isStringAValidNumber(",inputList,") is False ------------------------------------------------------------")
+			if ((len(inputList)>=3 and inputList[:2]== "0x" and re.match("^[a-fA-F0-9]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[2:])) or 
+			    (len(inputList)>=4 and inputList[:3]=="-0x" and re.match("^[a-fA-F0-9]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[3:]))): 
 				if inputList[-3:] in ('ULL','ull'):
 					value2convert = inputList[:-3]
 				elif inputList[-2:] in ('LL','ll', 'ul','UL'):
@@ -4681,8 +5181,9 @@ def evaluateArithmeticExpression(inputAST):
 				errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate HEX undefined constant"%(STR(inputList))
 				errorRoutine(errorMessage)
 				return [False, None]
-		elif len(inputList)>=3 and inputList[:2]=="0o": 
-			if re.match("^[0-7]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[2:]):
+		elif (len(inputList)>=3 and inputList[:2]=="0o") or (len(inputList)>=4 and inputList[:3]=="-0o"): 
+			if ((len(inputList)>=3 and inputList[:2]== "0o" and re.match("^[0-7]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[2:])) or 
+			    (len(inputList)>=4 and inputList[:3]=="-0o" and re.match("^[0-7]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[3:]))): 
 				if inputList[-3:] in ('ULL','ull'):
 					value2convert = inputList[:-3]
 				elif inputList[-2:] in ('LL','ll', 'ul','UL'):
@@ -4696,8 +5197,9 @@ def evaluateArithmeticExpression(inputAST):
 				errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate Octal undefined constant"%(STR(inputList))
 				errorRoutine(errorMessage)
 				return [False, None]
-		elif len(inputList)>=3 and inputList[:2]=="0b": 
-			if re.match("^[01]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[2:]):
+		elif (len(inputList)>=3 and inputList[:2]=="0b") or (len(inputList)>=4 and inputList[:3]=="-0b"): 
+			if ((len(inputList)>=3 and inputList[:2]== "0b" and re.match("^[01]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[2:])) or 
+			    (len(inputList)>=4 and inputList[:3]=="-0b" and re.match("^[01]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList[3:]))): 
 				if inputList[-3:] in ('ULL','ull'):
 					value2convert = inputList[:-3]
 				elif inputList[-2:] in ('LL','ll', 'ul','UL'):
@@ -4711,7 +5213,7 @@ def evaluateArithmeticExpression(inputAST):
 				errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate Binary undefined constant"%(STR(inputList))
 				errorRoutine(errorMessage)
 				return [False, None]
-		elif re.match("^[0-9]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList):
+		elif re.match("^[-]?[0-9]+(u|U|l|L|ll|LL|ul|UL|lu|LU|ull|ULL|LLU|llu)?$",inputList):
 				if inputList[-3:] in ('ULL','ull'):
 					value2convert = inputList[:-3]
 				elif inputList[-2:] in ('LL','ll', 'ul','UL'):
@@ -4753,8 +5255,9 @@ def evaluateArithmeticExpression(inputAST):
 						if unraveledVariableName == runtimeVariableName:
 							foundInUnraveled = True
 							# By default we are taking the LE value. Can change it to BE by setting the DEFAULT_ENDIANNESS parametter to BIG_ENDIAN
-							valueInUnraveled = unraveled[i][6+DEFAULT_ENDIANNESS]	
-							unraveledVariableId = unraveled[i][8][-1]
+							valueInUnraveled = unraveled[i][6+endianness]	
+#							unraveledVariableId = unraveled[i][8][-1]
+							unraveledVariableId = unraveled[i][10][-1]
 							break
 						i -= 1
 					if foundInUnraveled:
@@ -4770,8 +5273,9 @@ def evaluateArithmeticExpression(inputAST):
 							if checkIfSameUnraveledVariable(runtimeVariableName, unraveledVariableName):
 								foundInUnraveled = True
 								# By default we are taking the LE value. Can change it to BE by setting the DEFAULT_ENDIANNESS parametter to BIG_ENDIAN
-								valueInUnraveled = unraveled[i][6+DEFAULT_ENDIANNESS]	
-								unraveledVariableId = unraveled[i][8][-1]
+								valueInUnraveled = unraveled[i][6+endianness]	
+#								unraveledVariableId = unraveled[i][8][-1]
+								unraveledVariableId = unraveled[i][10][-1]
 								break
 							i -= 1
 					if foundInUnraveled:
@@ -4787,8 +5291,9 @@ def evaluateArithmeticExpression(inputAST):
 							if checkIfSameUnraveledVariable(runtimeVariableName, unraveledVariableName, False):
 								foundInUnraveled = True
 								# By default we are taking the LE value. Can change it to BE by setting the DEFAULT_ENDIANNESS parametter to BIG_ENDIAN
-								valueInUnraveled = unraveled[i][6+DEFAULT_ENDIANNESS]	
-								unraveledVariableId = unraveled[i][8][-1]
+								valueInUnraveled = unraveled[i][6+endianness]	
+#								unraveledVariableId = unraveled[i][8][-1]
+								unraveledVariableId = unraveled[i][10][-1]
 								break
 							i -= 1
 					if foundInUnraveled:
@@ -4830,8 +5335,11 @@ def evaluateArithmeticExpression(inputAST):
 				errorMessage = "WARNING - non-numeric character <%s> - cannot evaluate undefined constant"%(STR(inputList))
 				errorRoutine(errorMessage)
 				return [False, None]
+		elif inputList[0] == '"' and inputList[-1] == '"':	# A string - return as it is
+			PRINT(inputList,"is a double-quoted string - return as it is")
+			return [True, inputList] 
 		else:
-			errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate undefined constant"%(STR(inputList))
+			errorMessage = "WARNING - non-numeric string <%s> - cannot evaluate undefined constant."%(STR(inputList))
 			errorRoutine(errorMessage)
 			return [False, None]
 
@@ -4844,7 +5352,7 @@ def evaluateArithmeticExpression(inputAST):
 		# If it is a list of lists, but contains only a single member, remove one level of listification
 		if len(inputList) == 1:
 #			PRINT ("Returning",inputList[0] )
-			result = evaluateArithmeticExpression(inputList[0])
+			result = evaluateArithmeticExpression(inputList[0], endianness)
 			if result[0] == False:
 				errorMessage = "Error in evaluateArithmeticExpression evaluating inputList[0] = <"+STR(inputList[0])+">"
 				errorRoutine(errorMessage)
@@ -4855,20 +5363,24 @@ def evaluateArithmeticExpression(inputAST):
 		# 2-member lists
 		elif len(inputList) == 2:
 
-			if inputList[0] in ['()','~','+','-',"!","*","&","++"]:
+			if inputList[0] in ['()','~','+','-',"!","*","&","++","[]"]:
+				PRINT("Inside evaluateArithmeticExpression(",inputList,")")
 			
-				evaluateArithmeticExpressionOutput1 = evaluateArithmeticExpression(inputList[1])
+				evaluateArithmeticExpressionOutput1 = evaluateArithmeticExpression(inputList[1], endianness)
 				
 				if len(evaluateArithmeticExpressionOutput1) != 2 or evaluateArithmeticExpressionOutput1[0] != True:
 					return [False, None]
 				else:
 					op1 = evaluateArithmeticExpressionOutput1[1]
+				
+				PRINT("op1 =",op1)
 					
 				if op1 == LOGICAL_TEST_RESULT_INDETERMINATE:
 					return [True, LOGICAL_TEST_RESULT_INDETERMINATE]
 					
 				if   inputList[0] == '()':	# Just parenthesized expression
 					result = op1
+					PRINT("result =",result)
 				elif inputList[0] == '~':
 					result = ~op1
 				elif inputList[0] == '+':
@@ -4896,7 +5408,7 @@ def evaluateArithmeticExpression(inputAST):
 					return [False, None]
 					
 			elif inputList[1] == "++":	# TO-DO: Not sure if the interpreter needs to do anything here
-				evaluateArithmeticExpressionOutput0 = evaluateArithmeticExpression(inputList[0])
+				evaluateArithmeticExpressionOutput0 = evaluateArithmeticExpression(inputList[0], endianness)
 				if len(evaluateArithmeticExpressionOutput0) != 2 or evaluateArithmeticExpressionOutput0[0] != True:
 					return [False, None]
 				else:
@@ -4947,6 +5459,40 @@ def evaluateArithmeticExpression(inputAST):
 					errorMessage = "ERROR: unknown argument for sizeof(%s) - expected a list "%(STR(inputList[1]))
 					errorRoutine(errorMessage)
 					return [False, None]
+					
+			elif isinstance(inputList[1], list) and len(inputList[1])==2 and inputList[1][0]=='[]':
+				# An array is LHS[RHS] format, AST is like [LHS,['[]',RHS]]. For multidimensional arrays like i[2][3], it will be like [['i',['[]','2']],['[]','3']]
+				
+				# Now, our problem is that for multidimensional array like i[2][3], we cannot evaluate just i[2]. Yet, the way we have written our parser,
+				# we are using the '[]' from right-to-left. Let's use a program that simply decodes this 
+				
+				# This program will take [['i',['[]','2']],['[]','3']] (the parsed AST for i[2][3]), and spit out ['i', 'a', 'b']
+				varWithDimensions = convertMultidimensionalArrayParsed(inputList)
+				allIndicesEvaluated = True	# We start with a default assumption that each of the array dimensions will be available
+				arrayIndices = varWithDimensions[1:]	
+				arrayIndicesStr = ""
+				for j in range(len(arrayIndices)):
+					indexValOutput = evaluateArithmeticExpression(arrayIndices[j], endianness)
+					if len(indexValOutput) != 2 or indexValOutput[0] != True:
+						return [False, None]
+					elif indexValOutput[1] == LOGICAL_TEST_RESULT_INDETERMINATE:
+						allIndicesEvaluated = False
+					else:
+						arrayIndices[j] = indexValOutput[1]
+					arrayIndicesStr += '['+STR(arrayIndices[j])+']'
+						
+				finalArrayForm = varWithDimensions[0]+arrayIndicesStr
+				PRINT("finalArrayForm =",finalArrayForm)
+				if not allIndicesEvaluated:
+					return [True, LOGICAL_TEST_RESULT_INDETERMINATE]
+				else:
+					evaluateArithmeticExpressionOutputFinal = evaluateArithmeticExpression(finalArrayForm, endianness)
+					if len(evaluateArithmeticExpressionOutputFinal) != 2 or evaluateArithmeticExpressionOutputFinal[0] != True:
+						return [False, None]
+					else:
+						result = evaluateArithmeticExpressionOutputFinal[1]
+						PRINT("finalArrayForm =",finalArrayForm,"evaluates to",result)
+					
 			else:
 				errorMessage = "Cannot evaluate Unknown 2-member expression:<%s> during %s"%(STR(inputList), executionStage)
 				errorRoutine(errorMessage)
@@ -4957,7 +5503,7 @@ def evaluateArithmeticExpression(inputAST):
 
 			if inputList[1] in ['+','-','*','/','%','<<','>>','|','&','^','<','>','<=','>=','||','&&','==','!=']:
 			
-				evaluateArithmeticExpressionOutput0 = evaluateArithmeticExpression(inputList[0])
+				evaluateArithmeticExpressionOutput0 = evaluateArithmeticExpression(inputList[0], endianness)
 				PRINT("inputList =",inputList,",  evaluateArithmeticExpression(inputList[0]=",STR(inputList[0]),") returns evaluateArithmeticExpressionOutput0 (",STR(evaluateArithmeticExpressionOutput0),")")
 				if not isinstance(evaluateArithmeticExpressionOutput0, list):
 					errorMessage = "ERROR: evaluateArithmeticExpressionOutput0 (%s) = evaluateArithmeticExpression(inputList[0]=%s) is NOT a list "%(STR(evaluateArithmeticExpressionOutput0),STR(inputList[0]))
@@ -4986,11 +5532,58 @@ def evaluateArithmeticExpression(inputAST):
 			
 				# Arithmetic operations
 				if   inputList[1] == '+':
-					result =  op0 + op2
+					if checkIfString(op0) or checkIfString(op2):	# If one of them is a string, make both of them string
+						if not checkIfString(op0):
+							PRINT("Converting",op0,"to a string.")
+							op0 = '"'+STR(op0)+'"'
+						if not checkIfString(op2):
+							PRINT("Converting",op2,"to a string.")
+							op2 = '"'+STR(op2)+'"'
+						
+						# Now both operands are strings
+						if op0[0]=='"' and op0[-1]=='"' and op2[0]=='"' and op2[-1]=='"':
+							result = '"'+op0[1:-1]+op2[1:-1]+'"'
+						else:
+							errorMessage = "ERROR: evaluateArithmeticExpression(%s + %s) since both operands are not double-quoted strings"%(STR(op0),STR(op2))
+							errorRoutine(errorMessage)
+							return [False, None]
+					else:		
+						result =  op0 + op2
 				elif inputList[1] == '-':
 					result =  op0 - op2
 				elif inputList[1] == '*':
-					result =  op0 * op2
+#					PRINT("Evaluating",op0,inputList[1],op2)
+					if checkIfString(op0) or checkIfString(op2):	# If one of them is a string, make both of them string
+#						PRINT("evaluateArithmeticExpression(%s * %s) where one of them is a string"%(STR(op0),STR(op2)))
+						if checkIfString(op0) and not checkIfString(op2) and checkIfIntegral(op2):
+							if op2>0:
+								if op0[0]=='"' and op0[-1]=='"':
+									innerString = op0[1:-1]
+								else:
+									innerString = op0
+								result = '"' + innerString * op2 + '"'
+							else:
+								errorMessage = "ERROR: evaluateArithmeticExpression(%s * %s) since neither both operands are double-quoted strings, nor one of them is a positive integer"%(STR(op0),STR(op2))
+								errorRoutine(errorMessage)
+								return [False, None]
+						elif checkIfString(op2) and not checkIfString(op0) and checkIfIntegral(op0):
+							if op0>0:
+								if op2[0]=='"' and op2[-1]=='"':
+									innerString = op2[1:-1]
+								else:
+									innerString = op2
+								result = '"' + innerString * op0 + '"'
+							else:
+								errorMessage = "ERROR: evaluateArithmeticExpression(%s * %s) since neither both operands are double-quoted strings, nor one of them is a positive integer"%(STR(op0),STR(op2))
+								errorRoutine(errorMessage)
+								return [False, None]
+						else:
+							errorMessage = "ERROR: evaluateArithmeticExpression(%s * %s) since neither both operands are double-quoted strings, nor one of them is a positive integer"%(STR(op0),STR(op2))
+							errorRoutine(errorMessage)
+							return [False, None]
+						PRINT("result = ",result)
+					else:
+						result =  op0 * op2
 				elif inputList[1] == '/':
 					if checkIfIntegral(op0) and checkIfIntegral(op2):
 						result = integerDivision(op0, op2)
@@ -5064,7 +5657,7 @@ def evaluateArithmeticExpression(inputAST):
 				qualifiedVariable = "".join(flattenList(inputList))
 #				qualifiedVariable = outputTextArithmeticExpressionFromAST(inputList[0])+inputList[1]+outputTextArithmeticExpressionFromAST(inputList[2])
 				PRINT("For inputList = ",inputList,"qualifiedVariable =",qualifiedVariable)
-				evaluateArithmeticExpressionResult = evaluateArithmeticExpression(qualifiedVariable)
+				evaluateArithmeticExpressionResult = evaluateArithmeticExpression(qualifiedVariable, endianness)
 				if len(evaluateArithmeticExpressionResult) != 2 or evaluateArithmeticExpressionResult[0] != True:
 					errorMessage = "Error in evaluateArithmeticExpression() while evaluating right operand to the dot(.) operator: <%s> during %s"%(STR(inputList), executionStage)
 					errorRoutine(errorMessage)
@@ -5076,7 +5669,7 @@ def evaluateArithmeticExpression(inputAST):
 					and isinstance(inputList[1][1][1], list) and inputList[1][1][1][-1] in cDataTypes and isinstance(inputList[2], list) and isASTvalid(inputList[2]):
 					PRINT("Inside evaluateArithmeticExpression(), for typecast expression, going to evaluate inputList = ",inputList)
 					PRINT("But let's first evaluateArithmeticExpression(inputList[2]=",inputList[2],")")
-					evaluateArithmeticExpressionResult2 = evaluateArithmeticExpression(inputList[2])
+					evaluateArithmeticExpressionResult2 = evaluateArithmeticExpression(inputList[2], endianness)
 					if evaluateArithmeticExpressionResult2[0]!=True:
 						return [evaluateArithmeticExpressionResult2[0], None]
 					elif evaluateArithmeticExpressionResult2[1]==LOGICAL_TEST_RESULT_INDETERMINATE:
@@ -5097,12 +5690,266 @@ def evaluateArithmeticExpression(inputAST):
 							return [True, result]
 						elif inputList[1][1][1][-1] in ('float', 'double'):
 							result = 1.0 * evaluateArithmeticExpressionResult2[1]
-							return [True, result]
+#							return [True, result]
 						else:
 							EXIT("Error in evaluateArithmeticExpression() - not coded yet")
 					sys.exit()
+					
+			elif inputList[0] == 'function()':
+				
+				if checkIfString(inputList[1]) and inputList[1].lower() == 'abs':
+					PRINT("Finding abs(",inputList[2],") during",executionStage)
+					evaluateArithmeticExpressionOutput2 = evaluateArithmeticExpression(inputList[2], endianness)
+					
+					if len(evaluateArithmeticExpressionOutput2) != 2 or evaluateArithmeticExpressionOutput2[0] != True:
+						PRINT("Unfortunately, abs(",inputList[2],") is False during",executionStage,"since evaluateArithmeticExpressionOutput2 =",evaluateArithmeticExpressionOutput2)
+						return [False, None]
+					else:
+						op2 = evaluateArithmeticExpressionOutput2[1]
+					
+					PRINT("Inside abs(",inputList[2],"), op2 = ",op2)
+					if checkIfNumber(op2):
+						result = op2 if op2 >= 0 else -op2 
+						PRINT("op2 (",op2,") is numeric, so result =",result)
+					elif checkIfString(op2):
+						result = op2
+						PRINT("op2 (",op2,") is a string, so result =",result)
+					else:
+						errorMessage = "Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+						errorRoutine(errorMessage)
+						return [False, None]
+						
+				elif checkIfString(inputList[1]) and inputList[1].lower() in ('min', 'max'):
+					minOrMax = "min" if inputList[1].lower() == 'min' else "max"
+					PRINT("Finding",minOrMax+"(",inputList[2],") during",executionStage)
+					if not isinstance(inputList[2],list) or len(inputList[2])!=2 or inputList[2][0]!='()':
+						errorMessage = "For",minOrMax+"() function, illegal inputList[2] ="+STR(inputList[2])
+						errorRoutine(errorMessage)
+					
+					parsedAST = inputList[2][1]
+					argumentList = convertCommaSeparatedArgumentsParsed(parsedAST)
+
+					for j in range(len(argumentList)):
+						evaluateArithmeticExpressionOutput2 = evaluateArithmeticExpression(argumentList[j], endianness)
+						if len(evaluateArithmeticExpressionOutput2) != 2 or evaluateArithmeticExpressionOutput2[0] != True:
+							PRINT("Unfortunately, min(",inputList[2],") is False during",executionStage,"since evaluateArithmeticExpressionOutput2 =",evaluateArithmeticExpressionOutput2)
+							return [False, None]
+						elif evaluateArithmeticExpressionOutput2[1]==LOGICAL_TEST_RESULT_INDETERMINATE:
+							return [True, LOGICAL_TEST_RESULT_INDETERMINATE]
+						else:
+							op2 = evaluateArithmeticExpressionOutput2[1]
+						if j==0:
+							minMaxVal = op2
+						else:
+							if minOrMax == "min":
+								if op2 < minMaxVal:
+									minMaxVal = op2
+							elif minOrMax == "max":
+								if op2 > minMaxVal:
+									minMaxVal = op2
+							else:
+								EXIT("Illegal value of minOrMax =",minOrMax)
+					result = minMaxVal
+					
+				elif checkIfString(inputList[1]) and inputList[1].lower() == 'string':
+					PRINT("Finding string(",inputList[2],") during",executionStage)
+					evaluateArithmeticExpressionOutput2 = evaluateArithmeticExpression(inputList[2], endianness)
+					
+					if len(evaluateArithmeticExpressionOutput2) != 2 or evaluateArithmeticExpressionOutput2[0] != True:
+						PRINT("Unfortunately, string(",inputList[2],") is False during",executionStage,"since evaluateArithmeticExpressionOutput2 =",evaluateArithmeticExpressionOutput2)
+						return [False, None]
+					else:
+						op2 = evaluateArithmeticExpressionOutput2[1]
+					
+					PRINT("Inside string(",inputList[2],"), op2 = ",op2)
+					if checkIfString(op2):
+						result = op2
+						PRINT("op2 (",op2,") is a string, so result =",result)
+					elif checkIfNumber(op2):
+						result = STR(op2) 
+						PRINT("op2 (",op2,") is numeric, so result =",result)
+					else:
+						errorMessage = "Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+						errorRoutine(errorMessage)
+						return [False, None]
+
+				elif checkIfString(inputList[1]) and inputList[1].lower() in ('substr', 'substring'):
+					funcName = "substr" if inputList[1].lower() == 'substr' else "substring"
+					PRINT("Finding",funcName+"(",inputList[2],") during",executionStage)
+					if not isinstance(inputList[2],list) or len(inputList[2])!=2 or inputList[2][0]!='()':
+						errorMessage = "For",funcName+"() function, illegal inputList[2] ="+STR(inputList[2])
+						errorRoutine(errorMessage)
+						return [False, None]
+					
+					parsedAST = inputList[2][1]
+					argumentList = convertCommaSeparatedArgumentsParsed(parsedAST)
+					
+					# The only two accepted versions are substr(string, start, [end])
+					if len(argumentList) != 2 and len(argumentList) != 3: 
+						errorMessage = "For",funcName+"() function, illegal inputList[2] ="+STR(inputList[2])+" - too many or too few arguments."
+						errorRoutine(errorMessage)
+						return [False, None]
+					if not checkIfString(argumentList[0]):
+						errorMessage = "For",funcName+"() function, illegal inputList[2] ="+STR(inputList[2])+" - the first argument is not a string"
+						errorRoutine(errorMessage)
+						return [False, None]
+
+					isDoubleQuotedString = False
+					endIndex = None	# This is optional
+					for j in range(len(argumentList)):
+						evaluateArithmeticExpressionOutput2 = evaluateArithmeticExpression(argumentList[j], endianness)
+						if len(evaluateArithmeticExpressionOutput2) != 2 or evaluateArithmeticExpressionOutput2[0] != True:
+							PRINT("Unfortunately, min(",inputList[2],") is False during",executionStage,"since evaluateArithmeticExpressionOutput2 =",evaluateArithmeticExpressionOutput2)
+							return [False, None]
+						elif evaluateArithmeticExpressionOutput2[1]==LOGICAL_TEST_RESULT_INDETERMINATE:
+							return [True, LOGICAL_TEST_RESULT_INDETERMINATE]
+						else:
+							op2 = evaluateArithmeticExpressionOutput2[1]
+						
+						if (j==0 and not checkIfString(op2)) or (j>0 and not checkIfIntegral(op2)):
+							errorMessage = "For",funcName+"() function, illegal inputList[2] ="+STR(inputList[2])+" - illegal value"
+							errorRoutine(errorMessage)
+							return [False, None]
+						
+						if j==0:
+							string2slice = op2
+							if string2slice[0]=='"' and string2slice[-1]=='"':
+								isDoubleQuotedString = True
+								string2slice = string2slice[1:-1]
+						elif j==1:
+							startIndex = op2
+							if op2 < -len(string2slice):
+								startIndex = 0
+							elif op2 < 0:
+								startIndex = len(string2slice)+op2
+							else:
+								startIndex = op2
+						elif j==2:
+							if op2 < -len(string2slice):
+								endIndex = 0
+							elif op2 < 0:
+								endIndex = len(string2slice)+op2
+							else:
+								endIndex = startIndex + op2
+						else:
+							EXIT("Coding bug in substring implementation")
+					
+					if endIndex == None:
+						PRINT("Returning "+string2slice+"["+STR(startIndex)+":]")
+						result = string2slice[startIndex:]
+					else:
+						PRINT("Returning "+string2slice+"["+STR(startIndex)+":"+STR(endIndex)+"]")
+						result = string2slice[startIndex:endIndex]
+					if isDoubleQuotedString:
+						result = '"'+result+'"'
+					PRINT("Which translates to <"+result+">")	
+					
+				elif (checkIfString(inputList[1]) and inputList[1].lower() == 'int') or inputList[1]==['datatype', ['int']]:
+					PRINT("Finding int(",inputList[2],") during",executionStage)
+					evaluateArithmeticExpressionOutput2 = evaluateArithmeticExpression(inputList[2], endianness)
+					
+					if len(evaluateArithmeticExpressionOutput2) != 2 or evaluateArithmeticExpressionOutput2[0] != True:
+						PRINT("Unfortunately, int(",inputList[2],") is False during",executionStage,"since evaluateArithmeticExpressionOutput2 =",evaluateArithmeticExpressionOutput2)
+						return [False, None]
+					else:
+						op2 = evaluateArithmeticExpressionOutput2[1]
+					
+					PRINT("Inside int(",inputList[2],"), op2 = ",op2)
+					if checkIfIntegral(op2):
+						result = op2
+					elif checkIfNumber(op2) or checkIfString(op2):
+						try:
+							result = int(op2)
+						except ValueError:
+							errorMessage = "ValueError trying to convert "+STR(op2)+" to integer - Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+							errorRoutine(errorMessage)
+							return [False, None]
+							
+						PRINT("op2 (",op2,") is numeric, so result =",result)
+					else:
+						errorMessage = "Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+						errorRoutine(errorMessage)
+						return [False, None]
+					
+				elif (checkIfString(inputList[1]) and inputList[1].lower() == 'float')  or inputList[1]==['datatype', ['float']]:
+					PRINT("Finding float(",inputList[2],") during",executionStage)
+					evaluateArithmeticExpressionOutput2 = evaluateArithmeticExpression(inputList[2], endianness)
+					
+					if len(evaluateArithmeticExpressionOutput2) != 2 or evaluateArithmeticExpressionOutput2[0] != True:
+						PRINT("Unfortunately, float(",inputList[2],") is False during",executionStage,"since evaluateArithmeticExpressionOutput2 =",evaluateArithmeticExpressionOutput2)
+						return [False, None]
+					else:
+						op2 = evaluateArithmeticExpressionOutput2[1]
+					
+					PRINT("Inside float(",inputList[2],"), op2 = ",op2)
+					if isinstance(op2, float):
+						result = op2
+					elif checkIfNumber(op2) or checkIfString(op2):
+						try:
+							result = float(op2)
+						except ValueError:
+							errorMessage = "ValueError trying to convert "+STR(op2)+" to float - Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+							errorRoutine(errorMessage)
+							return [False, None]
+							
+						PRINT("op2 (",op2,") is numeric, so result =",result)
+					else:
+						errorMessage = "Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+						errorRoutine(errorMessage)
+						return [False, None]
+					
+				elif checkIfString(inputList[1]) and inputList[1].lower() == 'round':
+					PRINT("inputList =",inputList)
+					PRINT("Finding round(",inputList[2],") during",executionStage)
+					expression2round = inputList[2][0]
+					if not isinstance(inputList[2], list) or len(inputList[2]) != 2 or inputList[2][0] != '()' or not isinstance(inputList[2][1], list) or len(inputList[2][1]) not in (1,3) or (len(inputList[2][1])==3 and inputList[2][1][1]!=','):
+						errorMessage = "Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+						errorRoutine(errorMessage)
+						return [False, None]
+						
+					evaluateArithmeticExpressionOutput2 = evaluateArithmeticExpression(inputList[2][1][0], endianness)
+					if len(evaluateArithmeticExpressionOutput2) != 2 or evaluateArithmeticExpressionOutput2[0] != True:
+						PRINT("Unfortunately, round(",inputList[2],") is False during",executionStage,"since evaluateArithmeticExpressionOutput2 =",evaluateArithmeticExpressionOutput2)
+						return [False, None]
+					else:
+						op2 = evaluateArithmeticExpressionOutput2[1]
+
+					decimalDigitsToRound = 0
+					if len(inputList[2][1]) == 3:
+						evaluateArithmeticExpressionOutput4 = evaluateArithmeticExpression(inputList[2][1][2], endianness)
+						if len(evaluateArithmeticExpressionOutput4) != 2 or evaluateArithmeticExpressionOutput4[0] != True:
+							PRINT("Unfortunately, round(",inputList[2],") is False during",executionStage,"since evaluateArithmeticExpressionOutput2 =",evaluateArithmeticExpressionOutput2)
+							return [False, None]
+						elif not checkIfIntegral(evaluateArithmeticExpressionOutput4[1]) or evaluateArithmeticExpressionOutput4[1]<0:
+							errorMessage = "Illegal value of number of decimal positions to round to ("+STR(evaluateArithmeticExpressionOutput4[1])+"). Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+							errorRoutine(errorMessage)
+							return [False, None]
+						else:
+							decimalDigitsToRound = evaluateArithmeticExpressionOutput4[1]
+					
+					PRINT("Inside round(",inputList[2],"), op2 = ",op2)
+					if isinstance(op2, float):
+						result = round(op2,decimalDigitsToRound)
+					elif checkIfNumber(op2) or checkIfString(op2):
+						try:
+							result = float(op2)
+						except ValueError:
+							errorMessage = "ValueError trying to convert "+STR(op2)+" to float - Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+							errorRoutine(errorMessage)
+							return [False, None]
+						result = round(result, decimalDigitsToRound)	
+						PRINT("op2 (",op2,") is numeric, so result =",result)
+					else:
+						errorMessage = "Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+						errorRoutine(errorMessage)
+						return [False, None]
+					
+				else:
+					errorMessage = "Cannot evaluate unimplemented function:"+STR(inputList)+"(<%s>)"%STR(list2plaintext(inputList))
+					errorRoutine(errorMessage)
+					return [False, None]
 			else:
-				errorMessage = "Cannot evaluate Unknown 3-member expression:<%s>"%STR(list2plaintext(inputList))
+				errorMessage = "Cannot evaluate Unknown 3-member expression:"+STR(inputList)+"(<%s>)"%STR(list2plaintext(inputList))
 				if inputList[1]=='=':
 					errorMessage += ". \n\nAre you sure you did not mean to use \"==\" (comparison) rather than \"=\" (assignment)?"
 				errorRoutine(errorMessage)
@@ -5114,15 +5961,15 @@ def evaluateArithmeticExpression(inputAST):
 			
 			if inputList[1] == "?" and inputList[3] == ":":
 			
-				evaluateArithmeticExpressionOutput0 = evaluateArithmeticExpression(inputList[0])
+				evaluateArithmeticExpressionOutput0 = evaluateArithmeticExpression(inputList[0], endianness)
 				if len(evaluateArithmeticExpressionOutput0) != 2 or evaluateArithmeticExpressionOutput0[0] != True:
 					return [False, None]
 					
-				evaluateArithmeticExpressionOutput2 = evaluateArithmeticExpression(inputList[2])
+				evaluateArithmeticExpressionOutput2 = evaluateArithmeticExpression(inputList[2], endianness)
 				if len(evaluateArithmeticExpressionOutput2) != 2 or evaluateArithmeticExpressionOutput2[0] != True:
 					return [False, None]
 
-				evaluateArithmeticExpressionOutput4 = evaluateArithmeticExpression(inputList[4])
+				evaluateArithmeticExpressionOutput4 = evaluateArithmeticExpression(inputList[4], endianness)
 				if len(evaluateArithmeticExpressionOutput4) != 2 or evaluateArithmeticExpressionOutput4[0] != True:
 					return [False, None]
 
@@ -5147,7 +5994,8 @@ def evaluateArithmeticExpression(inputAST):
 			errorMessage = "Cannot evaluate: Unknown expression of length"+STR(len(inputList))," = " + STR(inputList)
 			errorRoutine(errorMessage)
 			return [False, None]
-			
+		
+		PRINT("For evaluateArithmeticExpression(",inputList,"), returning [True,", result,"]")
 		return [True, result]
 		
 	else:
@@ -5163,7 +6011,7 @@ def evaluateArithmeticExpression(inputAST):
 #res = evaluateArithmeticExpression(inputList)
 #PRINT(res)
 #sys.exit()
-#PRINT (evaluateArithmeticExpression(["1","+",[[['-','3'],'^','2'],'*','5']]) )
+#OUTPUT (evaluateArithmeticExpression(["X","*",3]) )
 #inputList = ['var1','.',['var2','.',['var3','.','var4']]]
 #evaluateArithmeticExpressionResult = evaluateArithmeticExpression(inputList)
 #MUST_PRINT("evaluateArithmeticExpression(",inputList,") =",evaluateArithmeticExpressionResult)
@@ -5216,6 +6064,7 @@ def setUnion (list1,list2):
 
 #######################################################################################################################################################
 #This function takes in a list of tokens. It finds the ## operators inside them, and then concatenates the tokens accordingly
+# For example, applying applyDoubleHashOperator(['a','##',['b','##','c']]) will return 'abc'
 #######################################################################################################################################################
 def applyDoubleHashOperator(inputList):
 	PRINT("inputList =",inputList)
@@ -5252,7 +6101,7 @@ def applyDoubleHashOperator(inputList):
 # After the matched brace is found, it does not care if there are more items in the list, or the legality of its structure thereafter.
 ######################################################################################################################################################################
 def matchingBraceDistance(inputList):
-	global bracesDict, bracesDictReverse
+#	global bracesDict, bracesDictReverse
 	if inputList[0] not in bracesDict:
 		PRINT ("Error: inputList[0] begins with a ",inputList[0],", not a proper brace like (,{,[,<, or ?" )
 		return -1000000	# An arbitrary large negative number
@@ -5263,7 +6112,7 @@ def matchingBraceDistance(inputList):
 	onlyBraces = []
 	i=0
 	# There is a problem with the < > braces, since "<" and ">" are also valid operators, which means there might be an mismatching number of them
-	# So, we count them only when the inputList[0] is a "<". Same with : and ?
+	# So, we count them only when the inputList[0] is a "<". Same with ":" and "?"
 	while i < len(inputList):
 		if inputList[i] in bracesDict:
 			if (inputList[i]!="<" and inputList[i]!="?") or (inputList[i]=="<" and inputList[0]=="<") or (inputList[i]=="?" and inputList[0]=="?"):
@@ -5345,7 +6194,7 @@ def matchingBraceDistanceReverse(inputList):
 #####################################################################################################################################################
 def braceInterleavingLegal(inputList,omitColons = True):
 #	PRINT ("Checking <",inputList,"> for brace interleaving legality" )
-	global bracesDict, bracesDictReverse
+#	global bracesDict, bracesDictReverse
 	onlyBraces = []
 	i=0
 	while i < len(inputList):
@@ -5441,30 +6290,44 @@ def findSubsequenceInList(subsequence, tokenList):
 # That means, even if the code has anonymous struct declarations and dummy struct variables, inside unraveled there is going to 
 # SOME struct name (that begins with anonymousStructPrefix, like "Anonymous#") and SOME variable name (that begins with dummyVariableNamePrefix,
 # like "dummyUnnamedBitfieldVar#"). While a coder is going to know what are these prefixes going to be, he/she cannot know apriori the exact
-# name, like if it is going to be Anonymous#0 or Anonymous#1, etc. Hence, a #RUNTIME statement cannot possibly have a fully qualified
+# name, like if it is going to be Anonymous#0 or Anonymous#1, etc. Hence, a RUNTIME statement cannot possibly have a fully qualified
 # if condition like 
 
-# #RUNTIME #if Anonymous#0.t1[0].DummyVar#1.salary[6].dummyUnnamedBitfieldVar#0 == somevalue
+#  #if Anonymous#0.t1[0].DummyVar#1.salary[6].dummyUnnamedBitfieldVar#0 == somevalue
 #
 # Instead, it will have something like
 #
-# #RUNTIME #if t1[0].salary[6] == somevalue
+#  #if t1[0].salary[6] == somevalue
 # 
 # Our job is to eliminate the anonymousStructPrefix/dummyVariableNamePrefix etc. stuff from the unraveled variable name and then compare the two.
 # If the supplied fullMatchRequiredNotJustSuffix is True, we need a full match. Or else, if the findThisString is a suffix of inThisString, it will succeed.
 #####################################################################################################################################################
 def checkIfSameUnraveledVariable (findThisString, inThisString, fullMatchRequiredNotJustSuffix = True):
+#	PRINT=OUTPUT
+	PRINT("\nInside checkIfSameUnraveledVariable(findThisString="+STR(findThisString)+"(of type", type(findThisString),"), inThisString ="+STR(inThisString)+" of type", type(inThisString),")")
 	if not (checkIfString(findThisString) and checkIfString(inThisString)):
 		errorMessage = "Error in checkIfSameUnraveledVariable(): Passed inputs are not proper strings. type(findThisString) = "+type(findThisString)+", findThisString ="+STR(findThisString)+", type(inThisString) = "+type(inThisString)+", inThisString ="+inThisString
 		errorRoutine(errorMessage)
 		return False
+	
+	# Hack - for structs and unions, the variable name is not just variable name, rather something like "S is of type struct". So we need to remove that last part.
+	suffix1 = " is of type struct"
+	if inThisString[-len(suffix1):]==suffix1:
+		PRINT("Stripping \""+suffix1+"\" from inThisString = <"+inThisString+">")
+		inThisString = inThisString[:-len(suffix1)]
+		PRINT("After stripping \""+suffix1+"\", new inThisString = <"+inThisString+">")
+	suffix2 = " is of type union"
+	if inThisString[-len(suffix2):]==suffix2:
+		PRINT("Stripping \""+suffix2+"\" from inThisString = <"+inThisString+">")
+		inThisString = inThisString[:-len(suffix2)]
+		PRINT("After stripping \""+suffix2+"\", new inThisString = <"+inThisString+">")
 	
 	t1 = re.split('[\\.\\[\\]]+',findThisString)		# Basically, we treat the dot operator and the array([]) operator as the variable delimiters
 	t1 = [x for x in t1 if x != "" and anonymousStructPrefix not in x and dummyVariableNamePrefix not in x and dummyUnnamedBitfieldNamePrefix not in x and '#dummyVar' not in x]
 	PRINT("findThisString = <"+findThisString+"> has been tokenized into",t1)
 	t2 = re.split('[.\\[\\]]+',inThisString)
 	t2 = [x for x in t2 if x != "" and anonymousStructPrefix not in x and dummyVariableNamePrefix not in x and dummyUnnamedBitfieldNamePrefix not in x and '#dummyVar' not in x]
-	PRINT("inThisString = <"+inThisString+"> has been tokenized into",t2)
+	PRINT("Inside checkIfSameUnraveledVariable(), inThisString = <"+inThisString+"> has been tokenized into",t2)
 	if (fullMatchRequiredNotJustSuffix and t1==t2) or (not fullMatchRequiredNotJustSuffix and t1==t2[-len(t1):]):
 		PRINT("findThisString = <"+findThisString+"> has been found in <"+inThisString+">")
 		return True
@@ -5574,6 +6437,8 @@ def parseArgumentList(inputList, omitColons=False):
 	i=0
 	while i < len(inputList):
 		if omitColons and inputList[i] in ('?',':'):
+			pass
+		elif not omitColons and inputList[i] in ('<','>'):
 			pass
 		elif inputList[i] in bracesDict:
 			onlyBraces.append(inputList[i])
@@ -5803,6 +6668,7 @@ def convertMultiLineStringsIntoSingleLineStrings(inputLines):
 #PRINT("inputLines =",inputLines)
 #MUST_PRINT("outputLines =",outputLines)
 #sys.exit()
+
 
 ###################################################################################
 # Convert Single-Line Strings into Multi-Line Strings	
@@ -6733,7 +7599,14 @@ def convertByteUnits2Decimal(inputString):
 	num = evaluateArithmeticExpressionResult[1]
 	PRINT ("Result = ",num)
 	if isinstance(num,float):
-		result = int(num + 0.01)	# A hack to cover the case when the number is actual very near to an integral value, but just LESS than that value. So, we give it a bit of a push
+		# We have the unique case where a division might result in a value (3.9999999999999999) that should have been an integer (4).
+		pushAmount = 0.0000000000000001
+		# The reason we want to check for the 0.9 is because adding the pushAmount to an almost-integer num doesn't change its value by much,
+		# but if the num itself was very small like 0.000000000000001, then adding this pushAmount is a lot.
+		if num>0.9 and int(num) != int(num+pushAmount):
+			result = int(num + pushAmount)	# A hack to cover the case when the number is actual very near to an integral value, but just LESS than that value. So, we give it a bit of a push
+		elif num<-0.9 and int(num) != int(num-pushAmount):
+			result = int(num - pushAmount)	# A hack to cover the case when the number is actual very near to an integral value, but just LESS than that value. So, we give it a bit of a push
 	else:
 		result = num
 	return [True, result]
@@ -6861,6 +7734,7 @@ def outputTextArithmeticExpressionFromAST (arithmeticExpressionAST):
 #strASTtextified = outputTextArithmeticExpressionFromAST (strAST)
 #PRINT ("strASTtextified = ",strASTtextified )
 #PRINT ("\nThe Original str=<%s>, \nstrTokenized=<%s>, \nstrAST=<%s>, \nstrASTtextified =<%s>"%(str,strTokenized,strAST,strASTtextified) )
+#OUTPUT (evaluateArithmeticExpression(["X","*",3]) )
 #sys.exit()
 
 ############################################################################################################################
@@ -8255,6 +9129,10 @@ def parseVariableDeclaration(inputList):
 #parseVariableDeclaration(inputList)
 #sys.exit()
 
+#lastActionWasInterpret = True
+#OUTPUT (evaluateArithmeticExpression(['"X"',"+",['3','*','"Y"']]) )
+#sys.exit()
+
 #################################################################################################################################
 # Return how many individual data items are there in a non-Dynamic struct
 #################################################################################################################################
@@ -8720,49 +9598,112 @@ def checkPreprocessingDirectivesInterleaving(inputLines, returnMatchingEnd=False
 	# The returnValue is an array of [lineNumber,ifthenelseendif]
 	return returnValue
 	
-########################################################################################################
-# The reason we made it a separate routine is because we will have to call it every time we
-# include a file.
-########################################################################################################	
+######################################################################################################################################
+# The reason we made it a separate routine is because we will have to call it every time we include a file.
+######################################################################################################################################
 def removeComments():
-	global lines
+	global lines, comments
 	# Remove single-line comments
-	i = 0
-	while i < len(lines):
-		if "//" in lines[i]:			
-			lines[i] = lines[i][:lines[i].find("//")]
-		i+= 1
-	PRINT (lines )
-	#PRINT ("len(lines) = ", len(lines) )
+	if len(lines)!=len(comments):
+		EXIT("ERROR in removeComments() - len(lines) =", len(lines)," !=len(comments) =",len(comments))
 	
-	# Remove Multi-line comments
-	commentStartLineIndex = -1000	#Something illegal value
-	commentStartCharIndex = -1000	#Something illegal value
+	# It's not as easy as it sounds. We cannot just remove everything starting from a // since that might be inside a double-quoted string.
+	# So, we find the first occurrence of // that is outside any double-quoted string.
+	# char A[] = "abc // " /*Hi*/, B[]="\"",/*Bye*/c; //comments 
+	
+	# Also, it's not easy to handle multiline comments. So we merge such comments into a single line
 	i = 0
-	ongoingComment = False
-	#TO-DO: Change the code so that commentEndCharIndex is indeed the last char # of the comment, not the char AFTER that
-	while i < len(lines):
-		# End a previously running comment
-		if ongoingComment == True and "*/" not in lines[i]:
-			lines[i]= ""			# Delete whole line; comment still continues
-		else:
-			if ongoingComment == True and "*/" in lines[i]:
-				commentEndCharIndex = lines[i].index("*/")+1
-				if i > commentStartLineIndex:
-					lines[i]=lines[i][commentEndCharIndex+1:]
-					ongoingComment = False
-			if ongoingComment == False:
-				while "/*" in lines[i] and "*/" in lines[i] and (lines[i].index("/*")+2 <=lines[i].index("*/")):	# make sure we do not count /*/ as a valid comment
-					commentStartCharIndex = lines[i].index("/*")
-					commentEndCharIndex = lines[i].index("*/")+1
-					lines[i]=lines[i][:commentStartCharIndex]+lines[i][commentEndCharIndex+1:]
-				if 	"/*" in lines[i]:
-					ongoingComment = True
-					commentStartCharIndex = lines[i].index("/*")
-					lines[i]=lines[i][:commentStartCharIndex]
-		i+= 1
-	return
+	ongoingCommentDoubleSlash=False
+	ongoingCommentSlashStar=False
+	ongoingDoubleQuotedString=False
+	ongoingCommentSlashStarStartLineNum = None		# We need to remember which line the /* comment */ started from
+	while True:
+		if i >= len(lines):
+			if ongoingCommentSlashStar or ongoingCommentSlashStarStartLineNum != None:
+				errorMessage = "ERROR in removeComments() - Missing */"
+				errorRoutine(errorMessage)
+				return
+			if ongoingDoubleQuotedString:
+				errorMessage = "ERROR in removeComments() - Missing \" (end of double-quoted string)"
+				errorRoutine(errorMessage)
+				return			
+			break
+			
+#		MUST_PRINT("Processing comment removal from lines[",i,"] = ",lines[i])
+		currLineWithoutComments = ""
+		comment=""
+		j=0	#Char index within a line
+		while True: 
+			if j>=len(lines[i]):
+#				MUST_PRINT("Removed commemnts from lines[",i,"], which is now =",lines[i])
+#				MUST_PRINT("Without comments =",currLineWithoutComments)
+#				MUST_PRINT("Only comments =",comment)
+				
+				lines[i]=currLineWithoutComments
+				currLineWithoutComments = ""
 
+#				comments[i] += comment	# Observe that we do not overwrite, only append. Because we know removeComments() gets called repeatedly
+#				comment=""
+				break
+			elif ongoingCommentDoubleSlash:
+				comment += lines[i][j]
+				if j == len(lines[i])-1:	# Last character of the line
+					comments[i] += comment	# Observe that we do not overwrite, only append. Because we know removeComments() gets called repeatedly
+					comment = ""
+					ongoingCommentDoubleSlash = False
+					#Give the newline to the lines, not to the comments
+					if comments[i][-1]=='\n':
+						comments[i]=comments[i][:-1]
+						currLineWithoutComments += "\n"
+				j+=1
+			elif ongoingCommentSlashStar:
+				comment += lines[i][j]
+				if lines[i][j-1:j+1] == "*/":
+					comments[ongoingCommentSlashStarStartLineNum] += comment	# Observe that we do not overwrite, only append. Because we know removeComments() gets called repeatedly
+					comment = ""
+					ongoingCommentSlashStar = False
+					ongoingCommentSlashStarStartLineNum = None
+				elif j == len(lines[i])-1:	# Last character of the line
+					if comment[-1]=='\n':
+						comment = comment[:-1]+" "	# Replace it with a space, so that two words do not get unwittingly concatenated
+						currLineWithoutComments += "\n"
+					comments[ongoingCommentSlashStarStartLineNum] += comment	# Observe that we do not overwrite, only append. Because we know removeComments() gets called repeatedly
+					comment = ""
+				j+=1
+			elif ongoingDoubleQuotedString:
+				currLineWithoutComments += lines[i][j]
+				if lines[i][j]=='"' and lines[i][j-1]!="\\":
+					ongoingDoubleQuotedString = False
+				j+=1
+			else:
+				if j+1<len(lines[i]) and lines[i][j:j+2] == "//" : 	# Beginning of a // comment
+					ongoingCommentDoubleSlash = True
+					comment += lines[i][j:j+2]
+					j+=2
+				elif j+1<len(lines[i]) and lines[i][j:j+2] == "/*": 	# Beginning of a /* comment
+					ongoingCommentSlashStar = True
+					ongoingCommentSlashStarStartLineNum = i
+					comment += lines[i][j:j+2]
+					j+=2
+				else:
+					currLineWithoutComments += lines[i][j]
+					if not ongoingDoubleQuotedString and lines[i][j]=='"':
+						ongoingDoubleQuotedString = True
+					j+=1
+		ongoingCommentDoubleSlash=False		#Reset it at the end of every line processing
+		i+=1	
+
+
+	if len(lines)!=len(comments):
+		EXIT("ERROR in removeComments() - len(lines) =", len(lines)," !=len(comments) =",len(comments))
+	'''
+	else:
+		MUST_PRINT("After removeComments(), we have", len(lines),"lines and comments")
+		for i in range(len(lines)):
+			MUST_PRINT("Line    #",i," = ",lines[i])
+			MUST_PRINT("Comment #",i," = ",comments[i],"\n","==="*50)
+		return
+	'''
 ########################################################################################################
 # The reason we made it a separate routine is because we will have to call it every time we
 # include a file.
@@ -8943,7 +9884,7 @@ def defineMacroOnLine(line):
 		macroName = macroTokenList[2]
 		macroProperties = {}
 		
-		OUTPUT("\t\tline =",line)
+		PRINT("\t\tline =",line)
 		if re.search(r'^\s*'+preProcessorSymbol+r'\s*define\s+[a-zA-Z_]+\w*\s*$', line): # No argument, no body (basically, a blank macro)
 			macroArguments = ""		# We do not use [] to differentiate the case when a macro behaves like a function with zero argument, like NEWMACRO()
 			macroExpansionText = ""
@@ -9104,7 +10045,7 @@ def defineMacroOnLine(line):
 					if findIndex >= 0:
 						d = matchingBraceDistance(temp[findIndex+1:])
 						if d < 0:
-							errorMessage = "ERROR in preProcess - no matching ) for __VA_OPT__"
+							errorMessage = "ERROR in defineMacroOnLine() - no matching ) for __VA_OPT__"
 							errorRoutine(errorMessage)
 							return False
 						del temp[findIndex:findIndex+1+d+1]
@@ -9112,7 +10053,7 @@ def defineMacroOnLine(line):
 						break
 						
 				if '__VA_OPT__' in temp:
-					errorMessage = "ERROR in preProcess - illegal __VA_OPT__"
+					errorMessage = "ERROR in defineMacroOnLine() - illegal __VA_OPT__"
 					errorRoutine(errorMessage)
 					return False
 				
@@ -9179,7 +10120,7 @@ def defineMacroOnLine(line):
 
 # This function takes the input lines and applied all possible macros on it
 def invokeMacrosOnLine(i):
-	global lines, srcFileDetails, runtimeStatementLineNumbers	# Keeps a list of which all line numbers are runtime statements. We need this so that we can invoke the interleaving check judiciously.
+	global lines, comments, srcFileDetails, runtimeStatementLineNumbers	# Keeps a list of which all line numbers are runtime statements. We need this so that we can invoke the interleaving check judiciously.
 	
 	######################################################################
 	##																	##
@@ -9561,6 +10502,10 @@ def invokeMacrosOnLine(i):
 		# double-quoted string.
 		# On the other hand, if the include statement is like #include <a.txt>, then the parser would break up <a.txt> as '<','a','.','txt','>'. 
 		# So, you would want to join all the tokens in between the <...>
+		
+		if len(lines)!=len(comments):
+			EXIT("ERROR in invokeMacrosOnLine() - len(lines) =", len(lines)," !=len(comments) =",len(comments))
+		
 		if macroTokenList and macroTokenList[0] == preProcessorSymbol and len(macroTokenList)>= 2 and macroTokenList[1]=='include':
 			PRINT("Processing included files in lines[",i,"] =",lines[i])
 			if "<" not in macroTokenList and len(macroTokenList) != 3:
@@ -9708,9 +10653,13 @@ def invokeMacrosOnLine(i):
 				oldNumberOfLines = len(lines)
 				# Insert the newly included lines in lines
 				tempLines = lines[:i]
+				tempComments = comments[:i]
 				tempLines.extend(includedLines)
+				for includedLinesIndex in includedLines:
+					tempComments.append("")
 				if i<len(lines)-1:
 					tempLines.extend(lines[i+1:])
+					tempComments.extend(comments[i+1:])
 
 #				MUST_PRINT("\nBefore inserting includedFileName =",includedFileName,"at line #",i,"srcFileDetails =")
 #				for row in srcFileDetails:
@@ -9874,8 +10823,9 @@ def preProcess():
 #	InputCodeFile = r"InputStructure.txt"
 #	with open(InputCodeFile, 'r') as f:
 #		lines = f.readlines()
-		PRINT (lines )
+		PRINT("At the beginning of preProcess():")
 		PRINT ("len(lines) = ", len(lines) )
+		PRINT (lines )
 		
 				
 		PRINT ("======================\nGoing to handle preprocessor directives\n======================" )
@@ -9907,6 +10857,9 @@ def preProcess():
 		
 		#while i < len(lines):	#Left for showing bug. since the lines will potentially expand after processing <include "filename"> statement, len(lines) is not constant
 		while True:
+			
+			if len(lines)!=len(comments):
+				EXIT("ERROR in preProcess() - len(lines) =", len(lines)," !=len(comments) =",len(comments))
 			
 			# This line index i will be advanced only when we are 100% sure there is no preprocessing to be done to that line any more.
 			#
@@ -10383,11 +11336,13 @@ def preProcess():
 							i = lastLineNumberWithRuntimeDirective
 			i += 1
 		
-#		PRINT ("======================\nAFTER handling multi-line macros\n======================" )
-#		PRINT ("len(lines) = ", len(lines) )
+		PRINT ("======================\nAFTER handling multi-line macros\n======================" )
+		PRINT ("len(lines) = ", len(lines) )
+		if len(lines) != len(comments):
+			EXIT("ERROR in preProcess(): len(lines) =",len(lines)," != len(comments) =", len(comments))
 		i=0
 		while i < len(lines):
-			PRINT ((" line # %d = <%s>" % (i,lines[i])) )
+			PRINT (" line # %d = <%s>, comment = <%s>" % (i,lines[i],comments[i])) 
 			i = i+1
 
 
@@ -10783,6 +11738,13 @@ def parseEnum(tokenList, i):
 #						variableDescriptionExtended["parentVariableName"]=enumDataType
 						variableId = totalVariableCount
 						variableDescriptionExtended["variableId"] = variableId
+						
+						parseFormatForTokenIndexResult = parseFormatForTokenIndex(globalTokenListIndex)
+						if parseFormatForTokenIndexResult[0]==True:
+							variableDescriptionExtended["FORMAT"] = parseFormatForTokenIndexResult[1]
+						else:
+							PRINT("No format found for",item[0],"at globalTokenListIndex=",globalTokenListIndex)
+						
 						totalVariableCount += 1
 						variableDeclarations.append([item[0],item[1],item[2],item[3],variableDescriptionExtended]) 
 						
@@ -11701,6 +12663,13 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 					variableDescriptionExtended["level"]=level+1 
 					variableDescriptionExtended["variableId"] = totalVariableCount
 					variableDescriptionExtended["structId"] = structId
+					
+					parseFormatForTokenIndexResult = parseFormatForTokenIndex(globalTokenListIndex)
+					if parseFormatForTokenIndexResult[0]==True:
+						variableDescriptionExtended["FORMAT"] = parseFormatForTokenIndexResult[1]
+					else:
+						PRINT("No format found for",item[0],"at globalTokenListIndex=",globalTokenListIndex)
+
 					totalVariableCount += 1
 					variableDeclarations.append([item[0],item[1],item[2],variableNameIndex,variableDescriptionExtended])
 			# END The user used some builtin typedef, handle that case
@@ -11806,6 +12775,12 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 				variableDescriptionExtended["level"]=level+1
 				variableDescriptionExtended["variableId"] = variableId
 				variableDescriptionExtended["structId"] = structId
+				
+				parseFormatForTokenIndexResult = parseFormatForTokenIndex(globalTokenListIndex)
+				if parseFormatForTokenIndexResult[0]==True:
+					variableDescriptionExtended["FORMAT"] = parseFormatForTokenIndexResult[1]
+				else:
+					PRINT("No format found for",item[0],"at globalTokenListIndex=",globalTokenListIndex)
 				
 				# If any of the struct members is Dynamic, that automatically makes the overall struct also Dynamic
 				if "isDynamic" in getDictKeyList(variableDescriptionExtended) and variableDescriptionExtended["isDynamic"]:
@@ -12087,6 +13062,7 @@ while x<10:
 OUTPUT("List =",List)
 sys.exit()
 '''
+
 ################################################################################################################################################
 # calculateStructureLength() does the following:
 # 1) For every struct (Dynamic or not), during Interpret it updates the Global structuresAndUnions with the attributes (like alignments), and for that it considers ALL members.
@@ -13248,10 +14224,10 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 		if executionStage == "Map":	# Means the offset will have real value
 			PRINT("Putting out the struct header row to the unraveled at the given level, although the struct length is unknown at this time and will need to get updated later")
 			# Add the struct to the unraveled at the given level directly (without invoking addVariableToUnraveled() routine). Note that there is no end size since this is Dynamic.
-			PRINT("Executing unraveledSupplied.append([level=",level,",",prefix+" is of type "+structDetails["type"],structName, ",offset =",offset, ", offset+structSizeBytes =",'"", "", "",',STR(ancestry),"]")
+			PRINT("Executing unraveledSupplied.append([level=",level,",",prefix+" is of type "+structDetails["type"],structName, ",offset =",offset, ", offset+structSizeBytes =",'"", "", "","","",',STR(ancestry),"]")
 			
-#			unraveledSupplied.append([level,prefix+" is of type "+structDetails["type"],structName, offset, "","","","",ancestry+[structVariableId]])		# BUG???
-			unraveledSupplied.append([level,prefix+" is of type "+structDetails["type"],structName, offset, "","","","",ancestry])
+#			unraveledSupplied.append([level,prefix+" is of type "+structDetails["type"],structName, offset, "","","","","","",ancestry+[structVariableId]])		# BUG???
+			unraveledSupplied.append([level,prefix+" is of type "+structDetails["type"],structName, offset, "","","","","","",ancestry])
 			
 			PRINT("\nstructName",structName,"is ",structDetails["type"]," - calling addVariableToUnraveled() for each member.")
 			#Keep a note of which # record of unraveled we are adding, since we will have to update it later
@@ -14844,6 +15820,920 @@ def splitName(namedVariable, variableIdOrParentStructName=""):
 
 	PRINT("For namedVariable =",list2plaintext(namedVariable,""),", returning onlyVariableNames =",list2plaintext(onlyVariableNames,""), ", onlyArrayIndices =", list2plaintext(onlyArrayIndices,""), ", onlyVariableIds =",list2plaintext(onlyVariableIds,""))
 	return [onlyVariableNames, onlyArrayIndices, onlyVariableIds]
+
+
+###############################################################################################################
+#
+#
+#        											F O R M A T 
+#
+#
+###############################################################################################################
+
+# Sometimes we want the final display to look exactly like the given format, we have to restore the whitespaces that got deleted during tokenization
+# For example, if the input format string is "MMM DD, YYYY" it will get tokenized as ["MMM","DD",",","YYYY"]. There will be no space between the comma and the YYYY.
+# We want it to get tokenized as ["MMM","DD",","," ", "YYYY"], which has one extra space before the "YYYY" token.
+def insertWhitespace2TokenizeLines(stringWithWhitespaces, stringWithWhitespacesTokenized):
+	j = 0		# Char index within stringWithWhitespaces
+	newListWithWhitespaceTokens = []
+	i = 0	# Token index
+	spaceToken = ""
+	creatingDummyWhitespaceToken = False
+	while (j<len(stringWithWhitespaces)):
+		currentToken = stringWithWhitespacesTokenized[i]
+		if stringWithWhitespaces[j]==currentToken[0]:
+			if creatingDummyWhitespaceToken:
+				newListWithWhitespaceTokens.append(spaceToken)
+				spaceToken = ""
+				creatingDummyWhitespaceToken = False
+			newListWithWhitespaceTokens.append(currentToken)	
+			j+=len(currentToken)
+			i+=1
+		else:
+			if stringWithWhitespaces[j] != " ":
+				errorMessage = "ERROR in insertWhitespace2TokenizeLines() - mismatching <%s> vs. <%s>"%(stringWithWhitespaces,STR(stringWithWhitespacesTokenized))
+				errorRoutine(errorMessage)
+				return False
+			else:	
+				spaceToken += " "
+				creatingDummyWhitespaceToken = True
+				j+= 1
+	
+	MUST_PRINT("stringWithWhitespaces = <"+stringWithWhitespaces+">")
+	MUST_PRINT("Old tokenized list =",STR(stringWithWhitespacesTokenized))
+	MUST_PRINT("New tokenized list =",STR(newListWithWhitespaceTokens))
+	return newListWithWhitespaceTokens
+
+
+####################################################################################################################
+# Input is the number of seconds since 1/1/1970 (could be negative). Returns [YYYY,MM,DD,hh,mm,ss]
+####################################################################################################################
+def convertUnixTimestamp(rawData):
+	if not checkIfIntegral(rawData):
+		return False
+	months = [["Jan",31],["Feb", 28],["Mar", 31],["Apr", 30],["May", 31],["Jun", 30],["Jul", 31],["Aug", 31],["Sep", 30],["Oct", 31],["Nov", 30],["Dec", 31]]
+	secsInDay = 24*60*60
+	numSecsIn4Years = (366+3*365)*secsInDay		
+	fourYearBlockIndex = integerDivision(rawData, numSecsIn4Years)
+	fourYearStartSec = fourYearBlockIndex * numSecsIn4Years
+	fourYearEndSec = fourYearStartSec + numSecsIn4Years
+	baseYear = 1970 + fourYearBlockIndex * 4
+	PRINT("base year = ", baseYear)
+	if baseYear <= 1900:	# Not a leap year
+		fourYearStartSec += secsInDay
+	if baseYear < 1900:		# notice the < rather than <= - not a typo
+		fourYearEndSec += secsInDay
+	if not (fourYearStartSec <= rawData <= fourYearEndSec):
+		EXIT("ERROR in convertUnixTimestamp() - bad logic")
+	# Every four years has the same number of seconds
+	daysPastBase = integerDivision((rawData-fourYearStartSec),secsInDay)
+	PRINT("It has been",daysPastBase,"days since 1/1/%d"%(baseYear))
+	yearIndex = baseYear
+	monthIndex = 0		# Calendar month
+	dayIndex = 0		# Calender day of the month
+	days = 0			# Days passed since the base 
+	while True:
+		PRINT("days past base year =",days, ", yearIndex =",yearIndex,", monthIndex=",monthIndex,", dayIndex =",dayIndex)
+		daysInCurrentYear = 365 if yearIndex%4 != 0 or (yearIndex%100==0 and yearIndex%400!=0) else 366
+		daysInCurrentMonth = 29 if monthIndex==1 and yearIndex%4 == 0 and (yearIndex%100!=0 or yearIndex%400==0) else months[monthIndex][1] 
+				
+		if days > daysPastBase:
+			EXIT("Should never happen")
+		if days == daysPastBase:
+			break
+		if dayIndex == 0 and monthIndex == 0 and days+daysInCurrentYear < daysPastBase:
+			PRINT("Advancing",daysInCurrentYear,"days")
+			days += daysInCurrentYear
+			yearIndex += 1
+		elif dayIndex == 0 and days+daysInCurrentMonth < daysPastBase:
+			PRINT("Advancing",daysInCurrentMonth,"days")
+			days += daysInCurrentMonth
+			monthIndex += 1
+		else:
+			days += 1
+			dayIndex += 1
+			
+		if dayIndex == daysInCurrentMonth:
+			dayIndex = 0
+			monthIndex += 1
+		if monthIndex == 12:
+			monthIndex = 0
+			yearIndex += 1
+
+	remainingSecs = rawData - (fourYearStartSec+daysPastBase*secsInDay)
+	if not (0 <= remainingSecs < secsInDay):
+		EXIT("Illegal value of remainingSecs=",remainingSecs)
+	
+	hourIndex = integerDivision(remainingSecs,3600)
+	minuteIndex = integerDivision(remainingSecs-hourIndex*3600,60)
+	secondIndex = remainingSecs - hourIndex*3600 - minuteIndex*60
+	if (0<=hourIndex<24) and (0<=minuteIndex<60) and (0<=secondIndex<60):
+		pass
+	else:
+		EXIT("Illegal timestamp value of %d-%02d-%02d %02d:%02d:%02d"%(yearIndex, monthIndex+1, dayIndex+1, hourIndex, minuteIndex, secondIndex))
+	dateString = "%d-%02d-%02d %02d:%02d:%02d"%(yearIndex, monthIndex+1, dayIndex+1, hourIndex, minuteIndex, secondIndex)
+	return [yearIndex, monthIndex+1, dayIndex+1, hourIndex, minuteIndex, secondIndex]
+
+
+def displayDATETIME(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+	MUST_PRINT("Entered displayDATETIME(unraveledRowNum=",unraveledRowNum,", rawData="+STR(rawData)+", parameters="+STR(parameters)+")")
+	
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	
+	if not checkIfIntegral(rawData):
+		return rawData
+	
+	if parameters==[]:
+		parameters =[[ 'YYYY', '-', 'MM', '-', 'DD',' ', 'HH', ':', 'mm', ':', 'SS']]
+	
+	if isinstance(parameters,list):
+		if len(parameters) !=1:
+			return rawData
+		else:
+			if not isinstance(parameters[0],list):
+				return rawData
+			else:
+				dateTimeFormatStringTokenized = parameters[0]
+				# Now, here is the problem. The user may have typed the timestamp format parameter as (YYYY-MM-DD) or ("YYYY-MM-DD").
+				# In the first  case, we will have parameters = [['YYYY','-','MM','-','DD']] since applyFormat would already tokenize it.
+				# In the second case, we will have parameters = [["YYYY-MM-DD"]], so we will need to remove the double quotes and tokenize it again.
+				if len(dateTimeFormatStringTokenized)==1 and checkIfString(dateTimeFormatStringTokenized[0]) and dateTimeFormatStringTokenized[0][0]=='"' and dateTimeFormatStringTokenized[0][-1]=='"': 
+						dateTimeFormatString = dateTimeFormatStringTokenized[0][1:-1]
+						tokenizeLinesResult = tokenizeLines(dateTimeFormatString)
+						if tokenizeLinesResult == False:
+							errorMessage = "ERROR in displayDATETIME() tokenizing <%s>"%(dateTimeFormatString)
+							errorRoutine(errorMessage)
+							return rawData
+						else:
+							dateTimeFormatStringTokenized = tokenizeLinesResult[0]	# Replace the original format operation string with a tokenized list
+							# Since we want the final display to look exactly like the given format, we have to restore the whitespaces that got deleted during tokenization
+							# For example, if the input format string is "MMM DD, YYYY" it will get tokenized as ["MMM","DD",",","YYYY"].
+							# We want it to get tokenized as ["MMM","DD",","," ", "YYYY"], which has one extra space before the "YYYY" token.
+							insertWhitespace2TokenizeLinesResult = insertWhitespace2TokenizeLines(dateTimeFormatString, dateTimeFormatStringTokenized)
+							if insertWhitespace2TokenizeLinesResult == False:
+								errorMessage = "ERROR in displayDATETIME() after calling insertWhitespace2TokenizeLines(<%s>,<%s>)"%(dateTimeFormatString,STR(dateTimeFormatStringTokenized))
+								errorRoutine(errorMessage)
+								return rawData
+							else:
+								dateTimeFormatStringTokenized = insertWhitespace2TokenizeLinesResult
+					
+				else:
+					# In this case, the user did not bother to double-quote the input parameters, so the intermediate whitespaces would be lost in applyFormat() itself
+					dateTimeFormatString = list2plaintext(dateTimeFormatStringTokenized,"")
+				
+	
+	dateTimeFields = convertUnixTimestamp(rawData)	# Return value is a list of [YYYY,MM,DD,HH,mm,ss]
+	MUST_PRINT("datetime format string <"+dateTimeFormatString+"> is tokenized as", STR(dateTimeFormatStringTokenized))
+	
+
+	dateTimeOutputString = ""
+	for i in range(len(dateTimeFormatStringTokenized)):
+		MUST_PRINT("Handling format token #",i," = ",dateTimeFormatStringTokenized[i])
+			
+		if dateTimeFormatStringTokenized[i].upper() == "YYYY":
+			YYYY = STR(dateTimeFields[0])
+			dateTimeOutputString += YYYY
+		elif dateTimeFormatStringTokenized[i].upper() == "YY":
+			YY = "%02d"%(dateTimeFields[0]%100)
+			dateTimeOutputString += YY
+		elif dateTimeFormatStringTokenized[i] == "MM":
+			MM = "%02d"%(dateTimeFields[1])
+			dateTimeOutputString += MM
+		elif dateTimeFormatStringTokenized[i] == "MMM":
+			MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+			MMM = MONTHS[dateTimeFields[1]-1]
+			dateTimeOutputString += MMM
+		elif dateTimeFormatStringTokenized[i] == "Mmm":
+			Months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+			Mmm = Months[dateTimeFields[1]-1]
+			dateTimeOutputString += Mmm
+		elif dateTimeFormatStringTokenized[i].upper() == "DD":
+			DD = "%02d"%(dateTimeFields[2])
+			dateTimeOutputString += DD
+		elif dateTimeFormatStringTokenized[i].upper() == "HH":
+			HH = "%02d"%(dateTimeFields[3])
+			dateTimeOutputString += HH
+		elif dateTimeFormatStringTokenized[i] == "mm":
+			mm = "%02d"%(dateTimeFields[4])
+			dateTimeOutputString += mm
+		elif dateTimeFormatStringTokenized[i].upper() == "SS":
+			SS = "%02d"%(dateTimeFields[5])
+			dateTimeOutputString += SS
+		else:	
+			dateTimeOutputString += STR(dateTimeFormatStringTokenized[i])
+			MUST_PRINT("After adding "+STR(i)+"-th item <"+dateTimeOutputString[i]+">, dateTimeOutputString = <"+dateTimeOutputString+">")
+
+	MUST_PRINT(STR(dateTimeFields)+" formatted as per datetime format string \n<"+dateTimeFormatString+">, and it is displayed as \n<"+ dateTimeOutputString+">")
+	return dateTimeOutputString
+
+def displayEXCELDATETIME(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+	# MS Excel stores timestamp as number of days passed since 1899-12-31, with fractions representing the fraction of a day (86400 seconds)
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	if executionStage == "Interpret":
+		return rawData
+
+	if not checkIfString(rawData) or checkIfStringIsNumeric(rawData):
+		rawDataNumeric = float(rawData)
+	elif isinstance(rawData,float) or checkIfIntegral(rawData):
+		rawDataNumeric = rawData
+	else:
+		errorMessage = "ERROR in displayEXCELDATETIME() - input value of <"+STR(rawData)+"> is not a valid numeric format."
+		errorRoutine(errorMessage)
+		return rawData
+	numDaysSince18991231 = int(round(rawDataNumeric,0))
+#	check = int(numDaysSince18991231)
+#	MUST_PRINT("rawDataNumeric =",rawDataNumeric, ", rounded numDaysSince18991231 =",numDaysSince18991231,", int(numDaysSince18991231)=",check)
+	differenceInDaysBetweenExcelAndUnix = 365*(1970-1900)+integerDivision(1970-1900,4)+1	# The +1 is because in Excel 1/1/1900 is day #1, while in Unix 1/1/1970 is day #0
+	numDaysSince19700101 = 	numDaysSince18991231 - differenceInDaysBetweenExcelAndUnix
+
+	timeAsFrationOfDay = rawDataNumeric - numDaysSince18991231
+	secondsInADay = 24 * 60 * 60
+	seconds = int(round(timeAsFrationOfDay * secondsInADay,0))
+	MUST_PRINT("\n\nThe fractional part of",rawData,"(",timeAsFrationOfDay,") translates to",seconds,"seconds!\n\n")
+	unixDateTime = round(numDaysSince19700101 * secondsInADay + seconds, 0)
+	MUST_PRINT("For Excel rawData =", rawData,", corresponding Unix timestamp =",unixDateTime)
+	return displayDATETIME(endianness, variableId, unraveledRowNum, unixDateTime, parameters)
+
+def convertSecond2HH_MM_SS(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	if executionStage == "Interpret":
+		return rawData
+	if not checkIfIntegral(rawData) or rawData<0:
+		return False
+	HH = integerDivision(rawData,3600)
+	MM = integerDivision(rawData-HH*3600,60)
+	SS = rawData-HH*3600-MM*60
+	
+	if HH>=24:
+		days = integerDivision(HH,24)
+		HH = HH%24	# We ignore the 
+		return "%d days %d:%02d:%02d"%(days, HH,MM,SS)
+	else:
+		return "%d:%02d:%02d"%(HH,MM,SS)
+			
+def convertMilliSecond2HH_MM_SS_mmm(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	if executionStage == "Interpret":
+		return rawData
+	if not checkIfIntegral(rawData) or rawData<0:
+		return False
+	HH = integerDivision(rawData,3600000)
+	MM = integerDivision(rawData-HH*3600000,60000)
+	SS = integerDivision(rawData-HH*3600000-MM*60000,1000)
+	mmm = rawData % 1000
+	
+	if HH>=24:
+		days = integerDivision(HH,24)
+		HH = HH%24	# We ignore the 
+		return "%d days %d:%02d:%02d.%03d"%(days, HH,MM,SS,mmm)
+	else:
+		return "%d:%02d:%02d.%03d"%(HH,MM,SS,mmm)
+
+def convertIntegralString2Int(rawData):
+	if checkIfString(rawData): 
+		if len(rawData)>=2 and ((rawData[0:2] in ["0b", "0o", "0x"]) or (rawData[0:3] in ["-0b", "-0o", "-0x"])):
+			if rawData[0:2]=="0b" or rawData[0:3]=="-0b":
+				rawDataNum = int(rawData,2)
+			elif rawData[0:2]=="0o" or rawData[0:3]=="-0o":
+				rawDataNum = int(rawData,8)
+			elif rawData[0:2]=="0x" or rawData[0:3]=="-0x":
+				rawDataNum = int(rawData,16)
+		else:
+			rawDataNum = int(rawData)
+		return rawDataNum
+	elif checkIfIntegral(rawData):
+		return rawData
+	else:
+		EXIT("cannot process convertIntegralString2Int("+STR(rawData)+") - exiting")
+
+def convert2Hex(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	if executionStage == "Interpret":
+		return rawData
+	if checkIfString(rawData) and (rawData.startswith("0x") or rawData.startswith("-0x")):	# Already HEX
+		return rawData
+	elif not checkIfIntegral(rawData):
+		return False
+	else:
+		rawDataNum = convertIntegralString2Int(rawData)
+		try:
+			rawDataFormatted = HEX(rawDataNum)
+		except TypeError:
+			EXIT("Failed to format the numeric value "+STR(rawDataNum)+" corresponding to rawData="+rawData+" inside convert2Hex()")
+		return rawDataFormatted
+		
+			
+def convert2Oct(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	if executionStage == "Interpret":
+		return rawData
+	if checkIfString(rawData) and (rawData.startswith("0o") or rawData.startswith("-0o")):	# Already Binary
+		return rawData
+	elif not checkIfIntegral(rawData):
+		return False
+	else:
+		rawDataNum = convertIntegralString2Int(rawData)
+		try:
+			rawDataFormatted = oct(rawDataNum)
+		except TypeError:
+			EXIT("Failed to format the numeric value "+STR(rawDataNum)+" corresponding to rawData="+rawData+" inside convert2Oct()")
+		return rawDataFormatted
+
+def convert2Bin(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	if executionStage == "Interpret":
+		return rawData
+	if checkIfString(rawData) and (rawData.startswith("0b") or rawData.startswith("-0b")):	# Already Binary
+		return rawData
+	elif not checkIfIntegral(rawData):
+		return False
+	else:
+		rawDataNum = convertIntegralString2Int(rawData)
+		try:
+			rawDataFormatted = bin(rawDataNum)
+		except TypeError:
+			EXIT("Failed to format the numeric value "+STR(rawDataNum)+" corresponding to rawData="+rawData+" inside convert2Bin()")
+		return rawDataFormatted
+
+def convert2Dec(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	if executionStage == "Interpret":
+		return rawData
+	rawDataNum = convertIntegralString2Int(rawData)
+	try:
+		rawDataFormatted = "%d"%(rawDataNum)
+	except TypeError:
+		EXIT("Failed to format the numeric value "+STR(rawDataNum)+" corresponding to rawData="+rawData+" inside convert2Dec()")
+	return rawDataFormatted
+		
+def convert2percent(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	if executionStage == "Interpret":
+		return rawData
+	elif checkIfString(rawData): 
+		if rawData[-1]=="%":	# Already percent
+			return rawData
+		else:
+			try:
+				rawData = float(rawData)
+			except ValueError:
+				errorMessage = "ERROR in convert2percent() - cannot convert <"+STR(rawData)+"> to float"
+				errorRoutine(errorMessage)
+				return rawData
+				
+	elif not checkIfNumber(rawData):
+		return False
+	else:
+		pctString = "%.2f%%"%(rawData*100.0)
+		return pctString
+		
+
+
+def formatPRINTF(endianness, variableId, unraveledRowNum, rawData, parameters=[]):	# emulates the C printf() function.
+	
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	PRINT("During", executionStage,", inside formatPRINTF(rawData =",rawData, ", parameters =",parameters)
+	
+	if not isinstance(parameters,list):
+		return rawData if executionStage == "Map" else False
+	
+	printfFormatString = ""	
+	values2formatEvaluated = []	# These are the values (NOT expressions) that will be formatted as per the printfFormatString. If none mentioned, it's just the rawData
+
+	# Evaluate each of the values to be formatted. Remember, they can be expressions.
+	
+	# make a list of the variable names
+	variableNames = [ x[0] for x in variableDeclarations]
+	
+	for i in range(len(parameters)):
+		PRINT("During",executionStage,", checking the validity of format value/expression #",i," =",parameters[i])
+
+		# The routine parseArithmeticExpression() expects either a string or a list as its input. It cannot handle raw numbers
+		if isinstance(parameters[i],list):
+			value2evaluate = parameters[i] 
+		elif checkIfString(parameters[i]): 
+			value2evaluate = [parameters[i]]
+		else:
+			PRINT("WARNING - input parameters[",i,"] =",parameters[i],"is neither string nor a list")
+			value2evaluate = [parameters[i]]
+
+		if executionStage == "Interpret":
+			for j in range(len(value2evaluate)):
+				PRINT("value2evaluate[",j,"] = ",value2evaluate[j])
+				if (value2evaluate[j] in ('_X_','__X__','___X___','____X____','_____X_____','______X______','_______X_______') or
+					value2evaluate[j] in ('_x_','__x__','___x___','____x____','_____x_____','______x______','_______x_______') ):
+						if value2evaluate[j] in variableNames:
+							warningMessage = "Symbol "+value2evaluate[j]+" is already an existing variable. Consider using an alternate symbol."
+							warningRoutine(warningMessage)
+
+		
+		if executionStage == "Map":
+			# Replace the '_x_' tokens with the rawData
+			for j in range(len(value2evaluate)):
+				PRINT("value2evaluate[",j,"] = ",value2evaluate[j])
+				if (value2evaluate[j] in ('_X_','__X__','___X___','____X____','_____X_____','______X______','_______X_______') or
+					value2evaluate[j] in ('_x_','__x__','___x___','____x____','_____x_____','______x______','_______x_______') ):
+					PRINT("Replacing it with rawData=",rawData)
+					value2evaluate[j] = rawData
+				else:
+					PRINT("value2evaluate[",j,"] = ",value2evaluate[j],"not replaced")
+		
+		# This step will be done for both Interpret and Map
+		parseArithmeticExpressionResult = parseArithmeticExpression(value2evaluate)
+		if parseArithmeticExpressionResult == False:
+			errorMessage = "ERROR in formatPRINTF() parsing <%s>"%STR(value2evaluate)
+			errorRoutine(errorMessage)
+			return rawData if executionStage == "Map" else False
+			
+		if executionStage == "Map":
+			# From this onwards only happens during Map stage
+			evaluateArithmeticExpressionResult = evaluateArithmeticExpression(parseArithmeticExpressionResult, endianness)
+			if evaluateArithmeticExpressionResult[0] == False: # We know that for bytearray it will fail
+				if value2evaluate == rawData and isinstance(rawData,list):
+					PRINT("Putting the whole <"+STR(value2evaluate)+"> as a printf parameter")
+					num = value2evaluate
+				else:
+					errorMessage = "ERROR in formatPRINTF() during Map evaluating <%s>"%parseArithmeticExpressionResult
+					errorRoutine(errorMessage)
+					return rawData
+			else:
+				num = evaluateArithmeticExpressionResult[1]
+				PRINT ("For",value2evaluate,", evaluation result = ",num)
+		
+			if i==0:	# The very first parameter is the printf format string
+				printfFormatString = num
+				PRINT("The printfFormatString =",printfFormatString)
+				# Kludge
+				if printfFormatString[0]=='"' and printfFormatString[-1]=='"':
+					printfFormatString = printfFormatString[1:-1]
+					PRINT("The new value of printfFormatString =",printfFormatString)
+			else:
+				values2formatEvaluated.append(num)
+
+		
+	if executionStage == "Interpret":
+		return True
+	else:
+		PRINT("The values to be formatted as per format string <"+printfFormatString+"> are "+STR(values2formatEvaluated))
+		try:
+			formattedString = printfFormatString % tuple(values2formatEvaluated)
+		except TypeError:
+			errorMessage = "ERROR in formatPRINTF() - cannot apply format <"+formattedString+"> on raw data = <"+STR(rawData)+">"
+			errorRoutine(errorMessage)
+			return "%s"%(rawData)
+			
+		PRINT("printf(\""+printfFormatString+"\","+STR(values2formatEvaluated)+") = <"+formattedString+">")
+		return formattedString
+#x=[3,4]
+#s1 = "abc"%x
+
+#OUTPUT(formatPRINTF(4,"$05.2f 'C"))
+#sys.exit()
+#OUTPUT(formatDATETIME(-1,"Mmm    DD, YY"))
+#sys.exit()
+#values = [1,2,3]
+#P = "%d %d %d"%tuple(values)
+#OUTPUT (P)
+#sys.exit()
+
+
+def formatOPERATION(endianness, variableId, unraveledRowNum, rawData, parameters=[]):	# Perform whatever operation is supplied
+	
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	
+	PRINT("Entered formatOPERATION(unraveledRowNum =",unraveledRowNum,", rawData =",rawData,", parameters=",STR(parameters),")")
+	
+	# We know that the parameters is a list of lists, but we are still covering the case in case it is a string, or a list of a single string
+	if checkIfString(parameters) or (isinstance(parameters,list) and len(parameters)==1 and checkIfString(parameters[0])):
+		inputString = parameters if checkIfString(parameters) else parameters[0]
+		if not inputString:
+			return rawData
+		
+		if re.match(r'^\s*$',inputString):
+			return rawData
+			
+		tokenizeLinesResult = tokenizeLines(inputString)
+		if tokenizeLinesResult == False:
+			errorMessage = "ERROR in formatOPERATION() tokenizing <%s>"%(inputString)
+			errorRoutine(errorMessage)
+			return rawData
+		else:
+			tokenizeLinesResult = tokenizeLinesResult[0]	# Replace the original format operation string with a tokenized list
+				
+	elif isinstance(parameters,list) and isinstance(parameters[0],list):
+		tokenizeLinesResult = parameters[0]
+				
+	# make a list of the variable names
+	variableNames = [ x[0] for x in variableDeclarations]
+	if executionStage == "Interpret":
+		for i in range(len(tokenizeLinesResult)):
+			PRINT("tokenizeLinesResult[",i,"] = ",tokenizeLinesResult[i])
+			if ((tokenizeLinesResult[i] in ('_X_','__X__','___X___','____X____','_____X_____','______X______','_______X_______') or
+				 tokenizeLinesResult[i] in ('_x_','__x__','___x___','____x____','_____x_____','______x______','_______x_______') ) and
+				 tokenizeLinesResult[i] in variableNames):
+						warningMessage = "Symbol "+tokenizeLinesResult[i]+" is already an existing variable. Consider using an alternate symbol."
+						warningRoutine(warningMessage)
+	
+	if executionStage == "Map":
+		PRINT("Checking if any of _X_ token need to be replaced with",rawData,"in the",tokenizeLinesResult)
+		# Replace the 'x' token with the rawData
+		for i in range(len(tokenizeLinesResult)):
+			PRINT("Checking tokenizeLinesResult[",i,"] =",tokenizeLinesResult[i])
+			if (tokenizeLinesResult[i] in ('_X_','__X__','___X___','____X____','_____X_____','______X______','_______X_______') or
+				tokenizeLinesResult[i] in ('_x_','__x__','___x___','____x____','_____x_____','______x______','_______x_______')):
+				PRINT("Found - replacing it with rawData =",rawData)
+				tokenizeLinesResult[i] = rawData
+
+	parseArithmeticExpressionResult = parseArithmeticExpression(tokenizeLinesResult)
+	if parseArithmeticExpressionResult == False:
+		errorMessage = "ERROR in formatOPERATION() parsing <%s>"%tokenizeLinesResult
+		errorRoutine(errorMessage)
+		return rawData if executionStage == "Map" else False
+		
+	if executionStage == "Interpret":
+		return True
+	
+	# From this onwards only happens during Map stage
+	
+	evaluateArithmeticExpressionResult = evaluateArithmeticExpression(parseArithmeticExpressionResult, endianness)
+	if evaluateArithmeticExpressionResult[0] == False:
+		errorMessage = "ERROR in formatOPERATION() evaluating <%s>"%evaluateArithmeticExpressionResult
+		errorRoutine(errorMessage)
+		return rawData
+		
+	num = evaluateArithmeticExpressionResult[1]
+	PRINT ("Result = ",num)
+	
+	result = num
+
+#	I am not sure if we really need this hack	
+#	if isinstance(num,float):
+#		result = int(num + 0.00001)	# A hack to cover the case when the number is actual very near to an integral value, but just LESS than that value. So, we give it a bit of a push
+	return result
+		
+#OUTPUT(formatOPERATION(4,"x+(2*x)"))
+#OUTPUT(formatOPERATION(4,[['x','+','(',2,'*','x',')']]))
+#sys.exit()
+
+# Format a custom ENUM. <FORMAT=ENUM("Mon","Tue"=1,"Wed","Other day"=rest/default/other)>
+def formatENUM(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	# We know that the parameters is a list of arguments
+	if isinstance(parameters,list): 
+		for i in range(len(parameters)):
+			if checkIfString(parameters[i]):
+				parameters[i] = [parameters[i]]		# A hack to avoid the case where single-item lists are sent as a single string rather than [a signle string]
+			if not isinstance(parameters[i],list):
+				errorMessage = "ERROR in formatENUM() - illegal enum parameters["+STR(i)+"] = "+STR(parameters)+" - not a list"
+				errorRoutine(errorMessage)
+				return rawData if executionStage == "Map" else False
+	
+	MUST_PRINT("Inside formatENUM(), the passed parameters are")
+	for i in range(len(parameters)):
+		MUST_PRINT("parameters[",i,"]=",parameters[i])
+
+	# make a list of the variable names
+	variableNames = [ x[0] for x in variableDeclarations]
+	
+	REST_LITERAL = '"REST"'
+	enumDict = {}
+	nextEnumValue = 0
+	# We now know that this is a valid enum
+	for i in range(len(parameters)):
+		enumTerm = parameters[i]
+		MUST_PRINT("Handling enumTerm =",enumTerm)
+		if '=' in enumTerm:	# An enum must be either an valueExpression by itself, or valueExpression (LHS) = keyExpression (RHS)
+			equalityIndex = enumTerm.index('=')
+			LHS = enumTerm[:equalityIndex]
+			RHS = enumTerm[equalityIndex+1:]
+		else:
+			LHS = enumTerm
+			equalityIndex = LARGE_NEGATIVE_NUMBER
+			RHS = []
+		MUST_PRINT("While decoding enumTerm =",enumTerm,"valueExpression (LHS) is",LHS, ", and keyExpression (RHS) =",RHS)
+
+		valueLHS = None
+		valueRHS = None
+
+		if executionStage == "Interpret":
+			for i in range(len(LHS)):
+				MUST_PRINT("Checking LHS[",i,"] =",LHS[i])
+				if ((LHS[i] in ('_X_','__X__','___X___','____X____','_____X_____','______X______','_______X_______') or
+					 LHS[i] in ('_x_','__x__','___x___','____x____','_____x_____','______x______','_______x_______')) and
+					 LHS in variableNames):
+						if value2evaluate[j] in variableNames:
+							warningMessage = "Symbol "+LHS[i]+" is already an existing variable. Consider using an alternate symbol."
+							warningRoutine(warningMessage)
+			for i in range(len(RHS)):
+				MUST_PRINT("Checking RHS[",i,"] =",RHS[i])
+				if ((RHS[i] in ('_X_','__X__','___X___','____X____','_____X_____','______X______','_______X_______') or
+					 RHS[i] in ('_x_','__x__','___x___','____x____','_____x_____','______x______','_______x_______')) and
+					 RHS in variableNames):
+						if value2evaluate[j] in variableNames:
+							warningMessage = "Symbol "+LHS[i]+" is already an existing variable. Consider using an alternate symbol."
+							warningRoutine(warningMessage)
+		
+		# Decode LHS
+		modifiedLHS = LHS
+		if executionStage == "Map":
+			PRINT("Checking if any of _X_ token need to be replaced with",rawData,"in the LHS = ",LHS)
+			# Replace the 'x' token with the rawData
+			for i in range(len(LHS)):
+				PRINT("Checking LHS[",i,"] =",LHS[i])
+				if (LHS[i] in ('_X_','__X__','___X___','____X____','_____X_____','______X______','_______X_______') or
+					LHS[i] in ('_x_','__x__','___x___','____x____','_____x_____','______x______','_______x_______')):
+					PRINT("Found - replacing it with rawData =",rawData)
+					modifiedLHS[i] = rawData
+		
+		enumValueExpression = modifiedLHS
+		PRINT("Evaluating LHS",enumValueExpression)
+		parseArithmeticExpressionResult = parseArithmeticExpression(enumValueExpression)
+		if parseArithmeticExpressionResult == False:
+			errorMessage = "ERROR in formatENUM() parsing LHS in <%s>"%enumValueExpression
+			errorRoutine(errorMessage)
+			return rawData if executionStage == "Map" else False
+			
+		evaluateArithmeticExpressionResult = evaluateArithmeticExpression(parseArithmeticExpressionResult,endianness)
+		if evaluateArithmeticExpressionResult[0] == False:
+			errorMessage = "ERROR in formatENUM() evaluating LHS in <%s>"%evaluateArithmeticExpressionResult
+			errorRoutine(errorMessage)
+			return rawData if executionStage == "Map" else False
+		valueLHS = evaluateArithmeticExpressionResult[1]
+		PRINT ("Result = ",valueLHS)
+
+		# Decode RHS
+		modifiedRHS = RHS
+		if executionStage == "Map" and RHS:
+			PRINT("Checking if any of _X_ token need to be replaced with",rawData,"in the RHS = ",RHS)
+			# Replace the 'x' token with the rawData
+			for i in range(len(RHS)):
+				PRINT("Checking RHS[",i,"] =",RHS[i])
+				if (RHS[i] in ('_X_','__X__','___X___','____X____','_____X_____','______X______','_______X_______') or
+					RHS[i] in ('_x_','__x__','___x___','____x____','_____x_____','______x______','_______x_______')):
+					PRINT("Found - replacing it with rawData =",rawData)
+					modifiedRHS[i] = rawData
+
+		if RHS:
+			enumValueExpression = modifiedRHS
+			PRINT("Evaluating RHS",enumValueExpression)
+			parseArithmeticExpressionResult = parseArithmeticExpression(enumValueExpression)
+			if parseArithmeticExpressionResult == False:
+				errorMessage = "ERROR in formatENUM() parsing RHS in <%s>"%enumValueExpression
+				errorRoutine(errorMessage)
+				return rawData if executionStage == "Map" else False
+				
+			evaluateArithmeticExpressionResult = evaluateArithmeticExpression(parseArithmeticExpressionResult, endianness)
+			if evaluateArithmeticExpressionResult[0] == False:
+				errorMessage = "ERROR in formatENUM() evaluating RHS in <%s>"%evaluateArithmeticExpressionResult
+				errorRoutine(errorMessage)
+				return rawData if executionStage == "Map" else False
+			valueRHS = evaluateArithmeticExpressionResult[1]
+			PRINT ("Result = ", valueRHS)
+			if checkIfString(valueRHS) and valueRHS.upper().strip() in ['"REST"','"OTHER"', '"OTHERS"', '"DEFAULT"']:
+				valueRHS = REST_LITERAL
+				nextEnumValue = None
+			elif checkIfIntegral(valueRHS):
+				PRINT(valueRHS,"is integral - continuing automatic assignment")
+				nextEnumValue = valueRHS+1
+			else:
+				PRINT(valueRHS,"is not integral - stopping automatic assignment from here")
+				nextEnumValue = None
+		else:	# No key given, get from autonum
+			if nextEnumValue != None:
+				valueRHS = nextEnumValue
+				nextEnumValue += 1
+			else:
+				errorMessage = "ERROR in formatENUM() parsing RHS in <%s>"%enumValueExpression
+				errorRoutine(errorMessage)
+				return rawData if executionStage == "Map" else False
+
+		enumDict[valueRHS] = valueLHS
+
+	# Print the dictionary
+	if enumDict:
+		PRINT("The custom ENUM dictionary is")
+		restValue = None
+		for key in getDictKeyList(enumDict):
+			if key == REST_LITERAL:
+				restValue = enumDict[key]
+			else:
+				PRINT(key,":",enumDict[key])
+		if restValue != None:
+			PRINT(REST_LITERAL,":",enumDict[REST_LITERAL])
+		PRINT("The keylist for enum is", getDictKeyList(enumDict))
+		
+	if executionStage == "Interpret":
+		return True
+		
+	# From this, only happens during Map stage
+	if enumDict:
+		if rawData in getDictKeyList(enumDict):
+			PRINT("Found key rawData =",rawData," in enum dictionary")
+			result = enumDict[rawData]
+#		elif  "REST" in getDictKeyList(enumDict):	# Do not remove - kept here to show the bug
+		elif '"REST"' in getDictKeyList(enumDict):
+			result = enumDict[REST_LITERAL]
+			PRINT("No ENUM match found for rawData =",rawData," - returning the DEFAULT value of",result)
+		else:
+			PRINT("No ENUM match found for rawData =",rawData," - returning the rawData as it is")
+			result = rawData
+	else:
+		result = rawData
+	return result
+
+formats = {	"HEX"				:	convert2Hex,
+			"HEXADECIMAL"		:	convert2Hex,
+			"OCT"				:	convert2Oct, 
+			"OCTAL"				:	convert2Oct, 
+			"BIN"				:	convert2Bin, 
+			"BINARY"			:	convert2Bin, 
+			"DEC"				:	convert2Dec, 
+			"DECIMAL"			:	convert2Dec, 
+			"PCT"				:	convert2percent,
+			"PERCENT"			:	convert2percent,
+			"UNIXDATETIME"		:	displayDATETIME,
+			"EXCELDATETIME"		:	displayEXCELDATETIME,
+			"POSTPROCESS"		: 	formatOPERATION, 
+			"OPERATION"			: 	formatOPERATION, 
+			"PRINTF"			: 	formatPRINTF, 
+			"ENUM"				: 	formatENUM, 
+			"SECOND"			:	convertSecond2HH_MM_SS,
+			"SECONDS"			:	convertSecond2HH_MM_SS,
+			"MILLISECOND"		:	convertMilliSecond2HH_MM_SS_mmm,
+			"MILLISECONDS"		:	convertMilliSecond2HH_MM_SS_mmm}
+
+
+###############################################################################
+# This routine applies various display formats to the raw value of a data item
+###############################################################################
+def applyFormat(endianness, variableId, unraveledRowNum, rawData, displayFormatList=[]):
+#	PRINT=OUTPUT
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	
+	PRINT("\n\nInside applyFormat(variableId=",variableId,",unraveledRowNum=",unraveledRowNum,", rawData=",rawData,", displayFormatList=",displayFormatList,"\n")
+	if endianness != LITTLE_ENDIAN and endianness != BIG_ENDIAN:
+		EXIT("Coding error in applyFormat() - endianness must be either little endian or big endian")
+		
+	if not isinstance(displayFormatList,list):
+		return rawData if executionStage == "Map" else False
+	else:
+		for i in range(len(displayFormatList)):
+			if not checkIfString(displayFormatList[i]):
+				return rawData if executionStage == "Map" else False
+				
+	if executionStage == "Map" and variableId != unraveled[unraveledRowNum][10][-1]:
+		EXIT("Mismatching variableId(",variableId,") with ancestry unraveled[unraveledRowNum=",unraveledRowNum,"][10]=",unraveled[unraveledRowNum][10])
+	variableName = "" if variableId == None else variableDeclarations[variableId][0]
+
+	if executionStage == "Map":
+		variableName = variableDeclarations[variableId][0]
+		variableDescriptionExtended = variableDeclarations[variableId][4]
+		datatype = variableDescriptionExtended["datatype"]
+		isArray = variableDescriptionExtended["isArray"]
+		isStruct = True if datatype in getDictKeyList(suDict) else False
+
+		if isArray:
+			isArrayHeaderRow = False
+			if unraveledRowNum == 0:
+				isArrayHeaderRow = True
+			elif unraveled[unraveledRowNum][10] != unraveled[unraveledRowNum-1][10]:
+				isArrayHeaderRow = True
+
+
+	# There might be multiple post-processing OPERATION, so we keep a copy of rawData
+	result = rawData
+	for i in range(len(displayFormatList)):
+		
+		# Suppose we have this kind of formatting prescribed:
+		#
+		# int i[4];  // <FORMAT> HEX 				</FORMAT> 		<FORMAT> PRINTF("%d",i[3])		</FORMAT>
+		# int j[4];  // <FORMAT> PRINTF("%d",_X_) 	</FORMAT> 		<FORMAT> PRINTF("i[3]=%d",i[3])	</FORMAT>
+		#
+		# In the case above, we want the first format (HEX or PRINTF) to apply to every individual array element, and the seond PRINTF to apply to ONLY the header level
+		#
+		# So, this is the logic that we follow:
+		#
+		# A. If it is not an array, apply all formats regardless. If it is an array, use the following rules:
+		# 	1. When it is an array header,  skip the formatting unless it has specifically the variableName it it
+		# 	2. When it is an array element, skip the formatting if it has specifically the variableName it it
+		
+		skipThisFormat = False
+		'''
+		if executionStage == "Map":
+			variableName = variableDeclarations[variableId][0]
+			variableDescriptionExtended = variableDeclarations[variableId][4]
+			datatype = variableDescriptionExtended["datatype"]
+			isArray = variableDescriptionExtended["isArray"]
+			isStruct = True if datatype in getDictKeyList(suDict) else False
+
+			if isArray:
+				isArrayHeaderRow = False
+				if unraveledRowNum == 0:
+					isArrayHeaderRow = True
+				elif unraveled[unraveledRowNum][10] != unraveled[unraveledRowNum-1][10]:
+					isArrayHeaderRow = True
+		'''			
+		isArrayLevelFormat = False
+		
+		displayFormatString = displayFormatList[i]
+		PRINT("Currently tokenizing", displayFormatString,", skipThisFormat =",skipThisFormat)
+		tokenizeLinesResult = tokenizeLines(displayFormatString)
+		if tokenizeLinesResult == False:
+			errorMessage = "ERROR in applyFormat() tokenizing <%s>"%(displayFormatString)
+			errorRoutine(errorMessage)
+			return rawData if executionStage == "Map" else False
+		else:
+			tokenizeLinesResult = tokenizeLinesResult[0]	# Replace the original format operation string with a tokenized list
+			PRINT(displayFormatString,"was tokenized as",STR(tokenizeLinesResult))
+			displayFormat = tokenizeLinesResult[0]
+			if displayFormat not in getDictKeyList(formats):
+				errorMessage = "ERROR in applyFormat() - format", displayFormat,"is not currently supported"
+				errorRoutine(errorMessage)
+				return rawData if executionStage == "Map" else False
+			if tokenizeLinesResult[-1]==';':	# Ignore any semicolon at the end
+				tokenizeLinesResult = tokenizeLinesResult[:-1]
+			
+		parameters = []
+		
+		#Kludge - somehow the tokenizer does not split the '()' into two tokens
+		if len(tokenizeLinesResult)==2 and tokenizeLinesResult[-1]=='()':
+			tokenizeLinesResult = [tokenizeLinesResult[0],'(',')']
+		
+		if len(tokenizeLinesResult)==1 or (len(tokenizeLinesResult)==3 and tokenizeLinesResult[1]=="(" and tokenizeLinesResult[2]==")"):
+			if executionStage == "Map" and isArray and isArrayHeaderRow:
+				skipThisFormat = True
+		if not (len(tokenizeLinesResult)==1 or (len(tokenizeLinesResult)>1 and tokenizeLinesResult[1]=="(" and tokenizeLinesResult[-1]==")")):
+			errorMessage = "ERROR in applyFormat() tokenizing <%s> - the only allowed formats are 1) format, 2) format(), and format(parameters). "%(displayFormatString)
+			errorRoutine(errorMessage)
+			return rawData if executionStage == "Map" else False
+		elif len(tokenizeLinesResult)>1:
+			parseArgumentListResult = parseArgumentList(tokenizeLinesResult[1:])
+			'''
+			# For OPERATION(), we can have a ":" operator. Like OPERATION(x>0?x:-x). So, the ":" should be tokenized
+			# However, for others, there might be custom format string containing a ":". Like "YYYY-MM-DD, HH:mm:SS"
+			if tokenizeLinesResult[0] == "DATETIME":
+				parseArgumentListResult = parseArgumentList(tokenizeLinesResult[1:], True)
+			else:
+				parseArgumentListResult = parseArgumentList(tokenizeLinesResult[1:])
+			'''	
+			if parseArgumentListResult == False:
+				errorMessage = "ERROR in applyFormat() attempting to parse the argument list for %s."%(displayFormatString)
+				errorRoutine(errorMessage)
+				return rawData if executionStage == "Map" else False
+			else:
+				parameters = parseArgumentListResult
+				PRINT("Parameters passed to FORMAT %s is <%s>"%(displayFormat,STR(parameters)))
+
+				
+				# parseArgumentList() returns single-term arguments as single terms, without making it a list. So make every term a list.
+				for i in range(len(parameters)):
+					if checkIfString(parameters[i]):
+						parameters[i] = [parameters[i]]		# A hack to avoid the case where single-item lists are sent as a single string rather than [a signle string]
+					if not isinstance(parameters[i],list):
+						errorMessage = "ERROR in applyFormat() - illegal argument parameters["+STR(i)+"] = "+STR(parameters)+" - not a list"
+						errorRoutine(errorMessage)
+						return rawData if executionStage == "Map" else False
+					
+					if executionStage == "Map" and isArray:
+						# check if the variableName is there in the format
+						flattenedParameters = flattenList(parameters[i])
+						PRINT("parameters[",i,"]=",parameters[i],", flattenedParameters =",flattenedParameters)
+						for item in flattenedParameters:
+							if item == variableName:
+								isArrayLevelFormat = True
+								break
+
+				if executionStage == "Map" and isArray:
+					PRINT("unraveledRowNum =",unraveledRowNum)
+					PRINT("isArrayHeaderRow =",isArrayHeaderRow)
+					PRINT("isArrayLevelFormat =",isArrayLevelFormat)
+					PRINT("skipThisFormat =",skipThisFormat," (originally)")
+					
+					if isArrayHeaderRow and (not isArrayLevelFormat):
+						PRINT("Condition 1 succeeded")
+						skipThisFormat = True
+					elif (not isArrayHeaderRow) and isArrayLevelFormat:
+						PRINT("Condition 2 succeeded")
+						skipThisFormat = True
+					PRINT("skipThisFormat =",skipThisFormat,"(new value)")
+
+		
+		if skipThisFormat:
+			PRINT("Skipping",displayFormatString,"on rawData=",rawData," for  the variableName=",variableName,"since it an array level formatting.\n\n")
+		else:
+			PRINT("Applying format",displayFormatString,"on rawData=",rawData," for  the variableName=",variableName)
+			result = formats[displayFormat](endianness, variableId, unraveledRowNum, result,parameters)
+			PRINT("After applying",displayFormatString,"on rawData=",rawData,", the result is",result,"\n\n")
+		
+	return result
+
+#l="char c[]=\"abc\";"
+#MUST_PRINT(l,"is tokenized as",tokenizeLines(l))
+#MUST_PRINT(applyFormat(-1, ["DATETIME(\"YYYY-MM-DD HH:mm:SS\")"]))
+#sys.exit()
+
+
+
 	
 ######################################################################################################################################################
 # This routine verifies if the actual value of the variable in a certain row of unraveled matches its supposed initialization value (if any).
@@ -14865,7 +16755,8 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 		errorMessage = "ERROR in verifyInitialization() - supplied rowNum "+STR(rowNum)+" is bigger than unraveled length"
 		errorRoutine(errorMessage)
 		return [False, False]
-	elif not isinstance(unraveledSupplied, list) or not isinstance(unraveledSupplied[rowNum], list) or not len(unraveledSupplied[rowNum])==9 or not isinstance(unraveledSupplied[rowNum][8], list):
+#	elif not isinstance(unraveledSupplied, list) or not isinstance(unraveledSupplied[rowNum], list) or not len(unraveledSupplied[rowNum])==9 or not isinstance(unraveledSupplied[rowNum][8], list):
+	elif not isinstance(unraveledSupplied, list) or not isinstance(unraveledSupplied[rowNum], list) or not len(unraveledSupplied[rowNum])==11 or not isinstance(unraveledSupplied[rowNum][10], list):
 		OUTPUT("unraveledSupplied =\n", unraveledSupplied)
 		errorMessage = "ERROR in verifyInitialization() - supplied unraveled is not a proper list"
 		errorRoutine(errorMessage)
@@ -14909,7 +16800,8 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 		else:
 			PRINT("unraveledVariableText <%s> does start with commonPrefix <%s> - it is acceptable"%(unraveledVariableText, commonPrefix))
 		
-	variableId = unraveledSupplied[rowNum][8][-1]	# Top of ancestry stack
+#	variableId = unraveledSupplied[rowNum][8][-1]	# Top of ancestry stack
+	variableId = unraveledSupplied[rowNum][10][-1]	# Top of ancestry stack
 	variableName = variableDeclarations[variableId][0]
 	variableDescriptionExtended = variableDeclarations[variableId][4]
 	datatype = variableDescriptionExtended["datatype"]
@@ -14944,10 +16836,12 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 		if indicatorStringInHeaderForArray in unraveledSupplied[rowNum][1]:
 			arrayHeaderRowNum = rowNum
 		else:
-			ancestryOfSuppliedRow = unraveledSupplied[rowNum][8]
+#			ancestryOfSuppliedRow = unraveledSupplied[rowNum][8]
+			ancestryOfSuppliedRow = unraveledSupplied[rowNum][10]
 			arrayHeaderRowNum = rowNum
 			while True:	# Keep going up until you find the row above the Array header row
-				if arrayHeaderRowNum < 0 or unraveledSupplied[arrayHeaderRowNum][8][:len(ancestryOfSuppliedRow)] != ancestryOfSuppliedRow:
+#				if arrayHeaderRowNum < 0 or unraveledSupplied[arrayHeaderRowNum][8][:len(ancestryOfSuppliedRow)] != ancestryOfSuppliedRow:
+				if arrayHeaderRowNum < 0 or unraveledSupplied[arrayHeaderRowNum][10][:len(ancestryOfSuppliedRow)] != ancestryOfSuppliedRow:
 					break
 				arrayHeaderRowNum -= 1
 			arrayHeaderRowNum += 1	# This is our array header row
@@ -14961,14 +16855,17 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 		elif isArray:	# If it both array and struct, the struct header comes one right after the array header
 			structHeaderRowNum = arrayHeaderRowNum + 1
 		else:
-			ancestryOfSuppliedRow = unraveledSupplied[rowNum][8]
+#			ancestryOfSuppliedRow = unraveledSupplied[rowNum][8]
+			ancestryOfSuppliedRow = unraveledSupplied[rowNum][10]
 			PRINT("Since ancestryOfSuppliedRow = ",ancestryOfSuppliedRow,", we will look for a row with ancestry =",ancestryOfSuppliedRow[:-1])
 			structHeaderRowNum = rowNum
 			while True:	# Keep going up until you find the row above the struct header row
 				if structHeaderRowNum < 0:
 					EXIT("Coding bug in verifyInitialization() while determining the struct header row")
-				PRINT("Looking at row #",structHeaderRowNum,"with ancestry =",unraveledSupplied[structHeaderRowNum][8])
-				if unraveledSupplied[structHeaderRowNum][8] == ancestryOfSuppliedRow[:-1]:
+#				PRINT("Looking at row #",structHeaderRowNum,"with ancestry =",unraveledSupplied[structHeaderRowNum][8])
+				PRINT("Looking at row #",structHeaderRowNum,"with ancestry =",unraveledSupplied[structHeaderRowNum][10])
+#				if unraveledSupplied[structHeaderRowNum][8] == ancestryOfSuppliedRow[:-1]:
+				if unraveledSupplied[structHeaderRowNum][10] == ancestryOfSuppliedRow[:-1]:
 					break
 				structHeaderRowNum -= 1
 		PRINT("The structHeaderRowNum =",structHeaderRowNum)
@@ -14977,7 +16874,8 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 
 	arrayDimensions = None		# Will only be updated if it is an array variable
 	if isArray:
-		if indicatorStringInHeaderForArray in unraveledSupplied[arrayHeaderRowNum][1] and unraveledSupplied[rowNum][8] == unraveledSupplied[arrayHeaderRowNum][8]:
+#		if indicatorStringInHeaderForArray in unraveledSupplied[arrayHeaderRowNum][1] and unraveledSupplied[rowNum][8] == unraveledSupplied[arrayHeaderRowNum][8]:
+		if indicatorStringInHeaderForArray in unraveledSupplied[arrayHeaderRowNum][1] and unraveledSupplied[rowNum][10] == unraveledSupplied[arrayHeaderRowNum][10]:
 			temp = unraveledSupplied[arrayHeaderRowNum][1]	# Here temp should be something like "STUDENT_TYPE.INT - Array of 2 X 3 X 2 ints"
 			PRINT("unraveledSupplied[arrayHeaderRowNum][1] =",unraveledSupplied[arrayHeaderRowNum][1])
 			i = temp.find(indicatorStringInHeaderForArray)	# We are guaranteed to find it
@@ -15013,16 +16911,17 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 	# All zeroes test is done differently
 	if re.match(r'{}|{0(,0)*}',list2plaintext(initializationValue,"")):
 		PRINT("Initialization value is all zeroes")
-#		ancestryForSuppliedVariable = unraveledSupplied[rowNum][8]
+#		ancestryForSuppliedVariable = unraveledSupplied[rowNum][10]
 		for N in range(rowNum,len(unraveledSupplied),1):
 			row = unraveledSupplied[N]
-#			ancestry = row[8]
+#			ancestry = row[10]
 #			if ancestry[:len(ancestryForSuppliedVariable)] != ancestryForSuppliedVariable:	# Do not go beyond current variable
 #				break
 			if not row[1].startswith(commonPrefix):
 				break
 			lastRowNumConsumed = N
-			rowVariableName = variableDeclarations[row[8][-1]][0]	# For structs, this will be different
+#			rowVariableName = variableDeclarations[row[8][-1]][0]	# For structs, this will be different
+			rowVariableName = variableDeclarations[row[10][-1]][0]	# For structs, this will be different
 			rowVariableValue = row[6+DEFAULT_ENDIANNESS]
 			if rowVariableValue not in ("",0,0.0):
 				warningMessage = "Variable "+rowVariableName+" in unraveled["+STR(N)+"] is not initialized to zero - it has a value of "+STR(rowVariableValue)
@@ -15146,7 +17045,8 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 				# Now find the corresponding entry in unraveled. Remember, it is possible that the variable name is indeed one of the struct members, but the 
 				# struct is a dynamic one, and for this instance the struct member is not there. We check it by looking at the ancestry.
 				PRINT("The structHeaderRowNum =",structHeaderRowNum)
-				ancestryOfStructHeaderRow = unraveledSupplied[structHeaderRowNum][8]
+#				ancestryOfStructHeaderRow = unraveledSupplied[structHeaderRowNum][8]
+				ancestryOfStructHeaderRow = unraveledSupplied[structHeaderRowNum][10]
 				targetAncestry = ancestryOfStructHeaderRow + namedVariableIds
 				targetVariableName = commonPrefix+"."+list2plaintext(namedVariable,"")
 				PRINT("ancestryOfStructHeaderRow =",ancestryOfStructHeaderRow)
@@ -15157,8 +17057,10 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 					if r>=len(unraveledSupplied):
 						OUTPUT("Bad coding - must have other rows after the header row")
 						sys.exit()
-					PRINT("Row #",r,"variable name = <"+unraveledSupplied[r][1]+">, ancestry = ",unraveledSupplied[r][8])
-					ancestryOfCurrentRow = unraveledSupplied[r][8]
+#					PRINT("Row #",r,"variable name = <"+unraveledSupplied[r][1]+">, ancestry = ",unraveledSupplied[r][8])
+					PRINT("Row #",r,"variable name = <"+unraveledSupplied[r][1]+">, ancestry = ",unraveledSupplied[r][10])
+#					ancestryOfCurrentRow = unraveledSupplied[r][8]
+					ancestryOfCurrentRow = unraveledSupplied[r][10]
 					if len(ancestryOfCurrentRow)<len(ancestryOfStructHeaderRow) or ancestryOfStructHeaderRow != ancestryOfCurrentRow[:len(ancestryOfStructHeaderRow)]:
 						PRINT("Giving up at row #",r)
 						break	# Give up, we did not find the named variable row
@@ -15269,13 +17171,15 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 			# Now go down the unraveledSupplied from the rowNum, looking for the variableNameToSearch string in the unraveledVariableText field (element #1 in each row).
 			# Now find the corresponding entry in unraveled
 			PRINT("\nNow we are going to look for variableNameToSearch = <%s> in 2nd item of every subsequent row (from row # %d onwards"%(variableNameToSearch, rowNum))
-			ancestryOfArrayHeaderRow = unraveledSupplied[rowNum][8]
+#			ancestryOfArrayHeaderRow = unraveledSupplied[rowNum][8]
+			ancestryOfArrayHeaderRow = unraveledSupplied[rowNum][10]
 			targetRowNumber = None
 			r = rowNum + 1
 			while True:
 				if r>=len(unraveledSupplied):
 					EXIT("Bad coding - must have other rows after the header row")
-				ancestryOfCurrentRow = unraveledSupplied[r][8]
+#				ancestryOfCurrentRow = unraveledSupplied[r][8]
+				ancestryOfCurrentRow = unraveledSupplied[r][10]
 				unraveledVariableTextOfCurrentRow = unraveledSupplied[r][1]
 				if len(ancestryOfCurrentRow)<len(ancestryOfArrayHeaderRow) or ancestryOfArrayHeaderRow != ancestryOfCurrentRow[:len(ancestryOfArrayHeaderRow)]:
 					PRINT("Crossed the rows pertaining to this array")
@@ -15428,8 +17332,10 @@ def verifyInitialization(unraveledSupplied, rowNum=-1, silent = False, initializ
 			elif unraveledSupplied[targetRowNumber][6+DEFAULT_ENDIANNESS] == "":	# Next blank header - will only work for new structs and arrays
 				PRINT("Found a row with blank value, so resetting lastRowNumConsumed to",targetRowNumber-1)
 				break
-			ancestryOfCurrentRow = unraveledSupplied[targetRowNumber][8]
-			if len(ancestryOfCurrentRow)<len(unraveledSupplied[rowNum][8]) or unraveledSupplied[rowNum][8] != ancestryOfCurrentRow[:len(unraveledSupplied[rowNum][8])]:
+#			ancestryOfCurrentRow = unraveledSupplied[targetRowNumber][8]
+			ancestryOfCurrentRow = unraveledSupplied[targetRowNumber][10]
+#			if len(ancestryOfCurrentRow)<len(unraveledSupplied[rowNum][8]) or unraveledSupplied[rowNum][8] != ancestryOfCurrentRow[:len(unraveledSupplied[rowNum][8])]:
+			if len(ancestryOfCurrentRow)<len(unraveledSupplied[rowNum][10]) or unraveledSupplied[rowNum][10] != ancestryOfCurrentRow[:len(unraveledSupplied[rowNum][10])]:
 				PRINT("For rowNum",targetRowNumber,"crossed the rows pertaining to this array or struct")
 				break	# Give up, we did not find the named variable row
 			if isArray and not unraveledSupplied[targetRowNumber][1].startswith(commonPrefix):
@@ -15598,9 +17504,9 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 		# So, the length of each array element might be different and it is impossible to know beforehand what it's going to be.
 		# Therefore, the total length of the overall array is also going to be "TBD"
 		if checkIfIntegral(arrayElementSize) and not variableIsDynamic:
-			unraveledSupplied.append([level,arrayDescriptionText,variableDescription, offset, offset+arrayElementSize*totalNumberOfArrayElements,"","","", ancestry+[variableId]])
+			unraveledSupplied.append([level,arrayDescriptionText,variableDescription, offset, offset+arrayElementSize*totalNumberOfArrayElements,"","","","","", ancestry+[variableId]])
 		else:
-			unraveledSupplied.append([level,arrayDescriptionText,variableDescription, offset, "","","","", ancestry+[variableId]])	# Must be updated later.
+			unraveledSupplied.append([level,arrayDescriptionText,variableDescription, offset, "","","","", "","", ancestry+[variableId]])	# Must be updated later.
 		rowNumberOfArrayHeaderRowWithBlankEndAddr = len(unraveledSupplied)-1	# We need to note this so that we can come back later to update this row
 		PRINT("Kept a note of the header row #",rowNumberOfArrayHeaderRowWithBlankEndAddr,"for  variable" + variableName)
 
@@ -15692,10 +17598,18 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				EXIT("Coding bug in addVariableToUnraveled(): Exiting")
 			initResult = False if initResult == False else verifyInitializationResult[1] if verifyInitializationResult[1] in (True, False) else initResult
 		
+		# After all the individual members are added to unraveled, check if there is any Array-level formatting
 	
 	# For Dynamic structs, all the updation of unraveledSupplied happens inside the calculateStructLength() routine
 	elif variableDatatype in getDictKeyList(suDict) and structuresAndUnions[suDict[variableDatatype][-1]]["isDynamic"]:	# Dynamic structs
+		structName = variableDatatype
 		PRINT("The datatype of variable", variableName,"is Dynamic structure",variableDatatype," - calling calculateStructureLength() to update unraveled")
+		# Unlike the regular structs, the top header row for dynamic structs are added inside the calculateStructureLength() routine.
+		# So, we know that the structHeaderRowNum is going to be the NEXT row number, which has not been created yet.
+		# Thus, do NOT try to display or update this unraveledSupplied[structHeaderRowNum], you will get an IndexError
+		structHeaderRowNum = len(unraveledSupplied)	# We need this in case this struct is initialized with named variables
+		PRINT("structHeaderRowNum =",structHeaderRowNum)
+#		MUST_PRINT("unraveledSupplied[",structHeaderRowNum,"] =", unraveledSupplied[structHeaderRowNum])	# Kept to show the bug
 		
 		# This is to handle a special case where it is an array of struc. If it is array, then we know that array unraveling takes precedence over struc unraveling,
 		# and after array unvaleing there is no need to re-add the variable name. Otherwise, it may look something like var1[0][1].var1
@@ -15753,7 +17667,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 		PRINT("Executing unraveledSupplied.append([level=",level,",dottedPrefixOrBlank+variableName =",dottedPrefixOrBlank+variableName+" is of type "+structOrUnionType,structName, ",offset =",offset, ",offset+structSizeBytes =",offset+structSizeBytes,"]")
 #		unraveledSupplied.append([level,dottedPrefixOrBlank+variableName+" is of type "+structOrUnionType,structName, offset, offset+structSizeBytes,"","",""])
 		PRINT("Before adding the struct header record for variableDatatype =",variableDatatype,", the ancestry+[variableId=",variableId,"] =",ancestry+[variableId])
-		unraveledSupplied.append([level,modifiedPrefix+" is of type "+structOrUnionType,structName, offset, offset+structSizeBytes,"","","",ancestry+[variableId]])
+		unraveledSupplied.append([level,modifiedPrefix+" is of type "+structOrUnionType,structName, offset, offset+structSizeBytes,"","","","","",ancestry+[variableId]])
 		structHeaderRowNum = len(unraveledSupplied)-1	# We need this in case this struct is initialized with named variables
 		PRINT("\ndatatype",variableDatatype,"is ",structOrUnionType," - calling addVariableToUnraveled() for each member.")
 		
@@ -15814,7 +17728,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				sys.exit()
 			initResult = False if initResult == False else verifyInitializationResult[1] if verifyInitializationResult[1] in (True, False) else initResult
 
-		
+	
 	elif variableDescription["isBitField"]:
 		if ("offsetWithinStruct" not in getDictKeyList(variableDescription)) or ("bitOffsetWithinStruct" not in getDictKeyList(variableDescription)) or ("bitFieldWidth" not in getDictKeyList(variableDescription)):
 			missingFields = "" 
@@ -15930,12 +17844,39 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 	
 	PRINT("\nNow going to add value for the variableName",variableName,"to the unraveled")
 
-	if variableDatatype in getDictKeyList(suDict):
-		pass	# Blank values have already been added
-	elif variableDescription["isArray"] and not arrayAlreadyUnraveled:
-		pass	# Blank values have already been added
+	# Remember that for for array and structs, whose length can be dynamic, after we add individual records for each array elements or struct members, 
+	# we need to update the "header" row with any array-level or struct-level formatted values
+	if (variableDescription["isArray"] and not arrayAlreadyUnraveled) or (variableDatatype in getDictKeyList(suDict)):
+		# If it is both array and a struct (there are header rows for both), array gets the priority over struct
+		if variableDescription["isArray"] and not arrayAlreadyUnraveled: 
+			headerRowNum = rowNumberOfArrayHeaderRowWithBlankEndAddr
+			arrayOrStructName = "array "+ variableName
+		else:
+			headerRowNum = structHeaderRowNum
+			arrayOrStructName = "struct "+structName
+		# Blank values have already been added, but if there is any array-level formatting to be done, do it here
+		if "FORMAT" in getDictKeyList(variableDescription) and variableDescription["FORMAT"]!="":
+			PRINT("We need to format the",variableName,"with FORMAT=",variableDescription["FORMAT"])
+#			headerRowNum = rowNumberOfArrayHeaderRowWithBlankEndAddr
+			variableStartOffset = unraveledSupplied[headerRowNum][3]
+			variableEndOffset = unraveledSupplied[headerRowNum][4]
+			numBytesToRead = int(variableEndOffset)-int(variableStartOffset)+1
+			valueBytes = readBytesFromFile(variableStartOffset,numBytesToRead)
+			if len(valueBytes) != numBytesToRead:	# Full data is not there
+				warningMessage = "For " + arrayOrStructName +" we needed to read "+STR(numBytesToRead)+" bytes but got only "+STR(len(valueBytes))+" bytes"
+				warningRoutine(warningMessage)
+			# Update the raw byte array as the "values" for array or struct. This does not get printed or shown. Only way to do that is by formatting
+			unraveledSupplied[headerRowNum][5] = printHexStringWord(valueBytes)
+			unraveledSupplied[headerRowNum][6] = valueBytes
+			unraveledSupplied[headerRowNum][7] = valueBytes
+				
+			valueLEformatted = applyFormat(LITTLE_ENDIAN, variableId, headerRowNum, valueBytes,variableDescription["FORMAT"])
+			valueBEformatted = applyFormat(BIG_ENDIAN,    variableId, headerRowNum, valueBytes,variableDescription["FORMAT"])
+			PRINT("Updating the struct-level formatting as valueLEformatted=<%s>, valueBEformatted=<%s>"%(valueLEformatted,valueBEformatted))
+			unraveledSupplied[headerRowNum][8] = valueLEformatted
+			unraveledSupplied[headerRowNum][9] = valueBEformatted
 	elif variableDatatype.startswith("function"):
-		unraveledSupplied[-1].extend(["","","",ancestry+[variableId]])
+		unraveledSupplied[-1].extend(["","","","","",ancestry+[variableId]])
 	else:
 		if variableDescription["isBitField"]:
 	
@@ -16009,7 +17950,52 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 			PRINT ("Calling internalValueLittleEndian()/internalValueBigEndian() for variable ",unraveledSupplied[-1][0],"datatype =",datatype, "bitFieldWidth =",bitFieldWidth,"bitIndexStart =",bitIndexStart)
 			valueLE = calculateInternalValue(valueBytes, LITTLE_ENDIAN, datatype, signedOrUnsigned,bitFieldWidth,bitIndexStart)
 			valueBE = calculateInternalValue(valueBytes, BIG_ENDIAN, datatype, signedOrUnsigned,bitFieldWidth,bitIndexStart)
-			unraveledSupplied[-1].extend([printHexStringWord(valueBytes),valueLE,valueBE,ancestry+[variableId]])
+
+			# There is a very interesting situation where the formatted value requires to know the current valueLE and valueBE
+			# So, we first populate the valueLE and valueBE. We keep the formatted value as blank, which we will populate later.
+			unraveledSupplied[-1].extend([printHexStringWord(valueBytes),valueLE,valueBE,"","",ancestry+[variableId]])
+
+			# By default, unless it gets overwritten by an ENUM literal or formatting
+			valueLE2Display = valueLE	
+			valueBE2Display = valueBE
+
+#			if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][8][-1]][4]["enumType"]!=None:
+			if PRINT_ENUM_LITERALS and variableDeclarations[variableId][4]["enumType"]!=None:
+#				variableId = unraveled[N][8][-1]
+#				variableId = unraveledSupplied[n][10][-1]
+				
+#				valueLE = unraveled[N][6]
+				PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
+				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
+				if returnEnumLiteralForValueResult[0]==False:
+					errorMessage = "Error in addVariableToUnraveled(): Cannot enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
+					errorRoutine(errorMessage)
+					return False
+				else:
+					valueLE2Display = returnEnumLiteralForValueResult[1]
+
+#				valueBE = unraveled[N][7]
+				PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
+				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
+				if returnEnumLiteralForValueResult[0]==False:
+					errorMessage = "Error in addVariableToUnraveled(): Cannot enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
+					errorRoutine(errorMessage)
+					return False
+				else:
+					valueBE2Display = returnEnumLiteralForValueResult[1]
+
+			# If the original value was overwritten by a ENUM literal, here it will get overwritten again
+			valueLEformatted = valueLE2Display	
+			valueBEformatted = valueBE2Display
+			if "FORMAT" in getDictKeyList(variableDescription) and variableDescription["FORMAT"]!="":
+				PRINT("We need to format the",variableName,"with FORMAT=",variableDescription["FORMAT"])
+				unraveledRowNum = len(unraveledSupplied)-1
+				valueLEformatted = applyFormat(LITTLE_ENDIAN, variableId, unraveledRowNum, valueLE,variableDescription["FORMAT"])
+				valueBEformatted = applyFormat(BIG_ENDIAN,    variableId, unraveledRowNum, valueBE,variableDescription["FORMAT"])
+				
+			unraveledSupplied[-1][8] = valueLEformatted
+			unraveledSupplied[-1][9] = valueBEformatted
+
 			# There is a subtle difference by which struct and array variables are initialized.
 			#
 			# For a struct, individual members can be initialized in 3 ways (the first two ways are similar, the last one is extra for struct for obvious reason):
@@ -16045,10 +18031,10 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				initResult = False if initResult == False else verifyInitializationResult[1] if verifyInitializationResult[1] in (True, False) else initResult
 		elif 0 < len(valueBytes) < numBytesToRead:	# Partial data is there
 			PRINT("\nFor variable ",variableName," (variableId =",variableId,"), variableStartOffset =",variableStartOffset,"dataLocationOffset =",dataLocationOffset,", we have partial data of",len(valueBytes), "bytes instead of the intended", numBytesToRead,"bytes")
-			unraveledSupplied[-1].extend([printHexStringWord(valueBytes),"Incomplete","Incomplete",ancestry+[variableId]])
+			unraveledSupplied[-1].extend([printHexStringWord(valueBytes),"Incomplete","Incomplete","Incomplete","Incomplete",ancestry+[variableId]])
 		else:
 			PRINT("\nFor variable ",variableName," (variableId =",variableId,"), variableStartOffset =",variableStartOffset,"dataLocationOffset =",dataLocationOffset,", we have no data")
-			unraveledSupplied[-1].extend(["No data","Unknown","Unknown",ancestry+[variableId]])
+			unraveledSupplied[-1].extend(["No data","Unknown","Unknown","Unknown","Unknown",ancestry+[variableId]])
 		
 		
 		
@@ -16352,7 +18338,109 @@ def parseRegularNonDeclarationCode(tokenList):
 		else:
 			PRINT("Returning",i+tokenList[i:].index(";"))
 			return [True, i+tokenList[i:].index(";")]
-		
+
+###########################################################################################################
+# Parse Comment for custom display formats.
+###########################################################################################################
+def parseCommentForFormats(inputString):
+#	PRINT=OUTPUT
+	if not checkIfString(inputString):
+		errorMessage("ERROR in parseCommentForFormats(): The inputString is not a valid string")
+		errorRoutine(errorMessage)
+	formatPrefixTokens = ["<","FORMAT",">"]
+	formatSuffixTokens = ["<","/","FORMAT",">"]
+	if re.match(r'^.*<\w*FORMAT\w*>.*<\w*/\w*FORMAT\w*>', inputString):
+		PRINT("inputString = %s contains FORMAT" %(inputString))
+		tokenizeLinesResult = tokenizeLines(inputString)
+		if tokenizeLinesResult == False:
+			errorMessage = "ERROR in parseCommentForFormats() tokenizing <%s>"%(inputString)
+			errorRoutine(errorMessage)
+			return [False, None]
+		else:
+			formatTokensStringList = []
+			inputList = tokenizeLinesResult[0]	# Replace the original format string with a tokenized list
+			PRINT("Tokenized inputList=",inputList)
+			i = 0
+			while i<=len(inputList)-len(formatPrefixTokens):
+				if inputList[i:i+len(formatPrefixTokens)] == formatPrefixTokens:	# Format prefix found
+					j = i + len(formatPrefixTokens)	# Start looking for the format suffix from here
+					formatSuffixFound = False
+					while j<=len(inputList)-len(formatSuffixTokens):
+						if inputList[j:j+len(formatSuffixTokens)] == formatSuffixTokens:	# Format suffix found
+							PRINT("Found",inputList[j:j+len(formatSuffixTokens)],"tokens from j=",j)
+							formatSuffixFound = True
+							formatTokens = inputList[i+len(formatPrefixTokens):j]
+							if formatTokens:
+								formatTokens[0]=formatTokens[0].upper()
+								formatTokensString = list2plaintext(formatTokens, "")
+								PRINT("The custom format is", STR(formatTokens),", basically", formatTokensString)
+								PRINT("inputString = %s contains FORMAT <%s>" %(inputString, formatTokensString))
+								formatTokensStringList.append(formatTokensString)
+							else:
+								PRINT("Blank format")
+							i = j+len(formatSuffixTokens)-1
+							PRINT("Resetting i to",i)
+							break
+						j+=1
+					if not formatSuffixFound:
+						errorMessage = "ERROR in parseCommentForFormats(): The supplied string "+inputString+" has no </FORMAT>"
+						errorRoutine(errorMessage)
+						return [False, None]
+				i+=1
+				PRINT("Incrementing i to",i)
+			if len(formatTokensStringList)==0:
+				errorMessage = "ERROR in parseCommentForFormats() tokenizing <%s>"%(inputString)
+				errorRoutine(errorMessage)
+				return [False, None]
+			else:
+				# Check the validity of that format. We have no known value of the rawData, hence we pass "DUMMY" (otherwise, parseArithmeticExpression() doesn't like None
+				applyFormatResult = applyFormat(LITTLE_ENDIAN, None, None,"DUMMY", formatTokensStringList)
+				if applyFormatResult == False:
+					errorMessage = "ERROR in parseCommentForFormats(): Illegal format(s) " + STR(formatTokensStringList)
+					errorRoutine(errorMessage)
+					return [False, None]
+				else:	
+					return [True, formatTokensStringList]
+	else:
+		PRINT("inputString = <%s> contains no user-specified FORMAT"%(inputString)) 
+		return [False, None]
+
+#inputString = "<FORMAT=DATE()> <FORMAT=TIME()>"
+#parseCommentForFormats(inputString)
+#sys.exit()
+
+###########################################################################################################
+# Parse line for custom display formats.
+###########################################################################################################
+def parseFormatForLineNum(lineNum):
+	if len(lines) != len(comments):
+		EXIT("ERROR in parseFormatForLineNum("+STR(lineNum)+") - the len(lines) = "+ STR(len(lines))+" != len(comments)="+ STR(len(comments)))
+		return [False, None]
+	if lineNum >= len(comments):
+		EXIT("ERROR in parseFormatForLineNum("+STR(lineNum)+") - lineNum ="+ STR(lineNum)+" is >= than len(comments)="+ STR(len(comments)))
+		return [False, None]
+	commentString = comments[lineNum]
+	PRINT("Going to extract format from comment <",commentString,"> from line #",lineNum)
+	parseCommentForFormatsResult = parseCommentForFormats(commentString)
+	if parseCommentForFormatsResult[0]==True:
+		return [True, parseCommentForFormatsResult[1]]
+	return [False, None]
+
+###########################################################################################################
+# Find custom display format for global token index 
+###########################################################################################################
+def parseFormatForTokenIndex(tokenIndex):
+	if not checkIfIntegral(tokenIndex) or tokenIndex<0 or tokenIndex>=len(gTokenLocationLinesChars):
+		ERROR("ERROR in parseFormatForTokenIndex() - the tokenIndex =", tokenIndex,"is invalid")
+		return [False, None]
+	startLineNum = gTokenLocationLinesChars[tokenIndex][0][0]
+	endLineNum   = gTokenLocationLinesChars[tokenIndex][1][0]	# not using this, just kept for reference
+	PRINT("Going to extract format from comment on line #",startLineNum)
+	parseFormatForLineNumResult = parseFormatForLineNum(startLineNum)
+	if parseFormatForLineNumResult[0]==True:
+		return [True, parseFormatForLineNumResult[1]]
+	return [False, None]
+	
 ###########################################################################################################
 # This function takes in a tokenList and parses it	
 # parseCodeSnippet() is called from mainWork(), after calling preProcess() and tokenizeLines(lines)
@@ -16850,6 +18938,13 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 						variableDescriptionExtended["level"] = 0
 						variableDescriptionExtended["variableId"] = variableId
 						variableDescriptionExtended["DataOverlapWithStructMembers"] = True if not variableFoundWithDataOverlapWithStructMembers and structDefinedHere and variableDescriptionExtended["datatype"] == structName else False
+
+						parseFormatForTokenIndexResult = parseFormatForTokenIndex(globalTokenListIndex)
+						if parseFormatForTokenIndexResult[0]==True:
+							variableDescriptionExtended["FORMAT"] = parseFormatForTokenIndexResult[1]
+						else:
+							PRINT("No format found for",item[0],"at globalTokenListIndex=",globalTokenListIndex)
+						
 						item2add = [variableName,variableSize,variableDeclarationStatement,variableNameIndex,variableDescriptionExtended]
 						variableDeclarations.append(item2add) 
 						totalVariableCount += 1
@@ -16965,6 +19060,13 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 				variableDescriptionExtended["level"] = 0
 				variableDescriptionExtended["variableId"] = variableId
 				variableDescriptionExtended["DataOverlapWithStructMembers"] = False
+				
+				parseFormatForTokenIndexResult = parseFormatForTokenIndex(globalTokenListIndex)
+				if parseFormatForTokenIndexResult[0]==True:
+					variableDescriptionExtended["FORMAT"] = parseFormatForTokenIndexResult[1]
+				else:
+					PRINT("No format found for",item[0],"at globalTokenListIndex=",globalTokenListIndex)
+					
 				totalVariableCount += 1
 				variableDeclarations.append([item[0],item[1],item[2],variableNameIndex,variableDescriptionExtended])
 				
@@ -17339,6 +19441,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 		sys.exit()
 	else:
 		PRINT("\n\n\n","==="*50,"\n!!!! NO MISMATCH !!!!\n","==="*50,"\n\n")
+
 	return True
 
 
@@ -17364,7 +19467,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 
 def mainWork():	
 #	global PRINT_DEBUG_MSG		# MannaManna
-	global lines, gTokenLocationLinesChars
+	global lines, comments, gTokenLocationLinesChars
 
 	# Pre-process (remove comment etc.)
 	
@@ -17377,11 +19480,17 @@ def mainWork():
 	PRINT ("After calling preProcess()" )
 #	PRINT_DEBUG_MSG = False		# MannaManna
 
+	if len(lines) != len(comments):
+		EXIT("ERROR in mainWork() - the len(lines) = "+ STR(len(lines))+" != len(comments)="+ STR(len(comments)))
+		
 	nonBlankLines = []
+	nonBlankComments = []
 	for n in range(len(lines)):
-		if lines[n].strip() != "":
+		if lines[n].strip() != "" or comments[n].strip() != "":
 			nonBlankLines.append(lines[n])
+			nonBlankComments.append(comments[n])
 	lines = nonBlankLines
+	comments = nonBlankComments
 	
 	# Tokenize and resolve macros
 	
@@ -18226,6 +20335,7 @@ def returnEnumLiteralForValue(variableId, inputValue):
 # This function does a pretty printing of the unraveled list
 ##############################################################################################
 def prettyPrintUnraveled(displayAncestry=False):
+#	PRINT=OUTPUT
 	PRINT("\n\n\n","==="*50,"\nInside prettyPrintUnraveled()\n","==="*50)
 	if unraveled == []:
 		return True
@@ -18240,10 +20350,17 @@ def prettyPrintUnraveled(displayAncestry=False):
 	
 	treeViewAllRowsValues = []
 	
+	#							0				1			2				3			4				5			6					7					8
+	# treeViewHeadings = ["Variable Name", "Data Type", "Addr Start", "Addr End", "Raw Hex Bytes", "Value (LE)", "Value (BE)", "Formatted Value (LE)", "Formatted Value (BE)" ]
+	#	unraveled[N] = [level, prefix.variableName, variableDescription, offsetStart, offsetEnd, rawBytes, valueLE, valueBE, valueLEformatted, valueBEformatted, ancestry] 
+	#						0			1					2					3			4		5			6		7			8				9				10
+
 	# Right now, we have a added a new column at the end - the ancestry. This does not get displayed in the Tree view.
+	# We also adeed two new columns for displaying the FORMATted value. If they exist, it is those which will get displayed 
 	maxNumberOfColumns = len(treeViewHeadings)
 	for N in range(len(unraveled)):
 		# The first column is the level #, which we do not display. We do not display the last column etiher, which is the Ancestry
+		
 		maxNumberOfColumns = len(unraveled[N])-1 if len(unraveled[N])-2 > maxNumberOfColumns else maxNumberOfColumns
 	
 	if maxNumberOfColumns > len(treeViewHeadings):
@@ -18253,23 +20370,38 @@ def prettyPrintUnraveled(displayAncestry=False):
 				PRINT ("unraveled[",N,"] = ",unraveled[N])
 		sys.exit()
 		
-	#PRINT ("maxNumberOfColumns =",maxNumberOfColumns)
+	PRINT ("maxNumberOfColumns =",maxNumberOfColumns)
 	
 	for c in range(maxNumberOfColumns):
 		unraveledColumnMaxWidths.append(len(treeViewHeadings[c]))
+		
+	# We do not want to print the "formatted" columns if there was no formatting done at all
+	unraveledVariablesHaveEnums = False		# This the C enum, not any Formatting ENUM
+	unraveledVariablesHaveFormatting = False
+	doNotPrintTheseManyLastColumns = 2
+	for N in range(len(unraveled)):
+		if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][10][-1]][4]["enumType"]!=None:
+			unraveledVariablesHaveEnums = True
+		if 'FORMAT' in getDictKeyList(variableDeclarations[unraveled[N][10][-1]][4]):
+			unraveledVariablesHaveFormatting = True
+	if unraveledVariablesHaveEnums or unraveledVariablesHaveFormatting:
+		PRINT("Has C enum or user-defined formatting - All formatted valued will be displayed")
+		doNotPrintTheseManyLastColumns = 0		# Basically, the two columns containing formatted values
+	else:
+		PRINT("Contains no C enum or user-defined formatting - no formatted valued will be displayed")
 
 	for N in range(len(unraveled)):
-		PRINT("Hi")
 		PRINT ("\nN =",N, "unraveled[",N,"][2] =",unraveled[N][2],"\n\n")
-		PRINT ("BYE")
 		levelIndent = "    " * unraveled[N][0]
 
 		if not isinstance(unraveled[N][2],dict):
 			dataTypeText = unraveled[N][2]
 		elif unraveled[N][2]["datatype"].startswith("function "):	# Hardcode it for functions
 			dataTypeText = "function"
-		elif variableDeclarations[unraveled[N][8][-1]][4]["enumType"]:
-			dataTypeText = variableDeclarations[unraveled[N][8][-1]][4]["enumType"]
+#		elif variableDeclarations[unraveled[N][8][-1]][4]["enumType"]:
+		elif variableDeclarations[unraveled[N][10][-1]][4]["enumType"]:
+#			dataTypeText = variableDeclarations[unraveled[N][8][-1]][4]["enumType"]
+			dataTypeText = variableDeclarations[unraveled[N][10][-1]][4]["enumType"]
 		else:
 			dataTypeText = unraveled[N][2]["datatype"] if unraveled[N][2]["signedOrUnsigned"] != "unsigned" or unraveled[N][2]["datatype"] == "pointer" else unraveled[N][2]["signedOrUnsigned"] + " " + unraveled[N][2]["datatype"]
 			
@@ -18301,34 +20433,27 @@ def prettyPrintUnraveled(displayAncestry=False):
 				'''
 			else:
 				addrStart = hex(unraveled[N][3])
-				addrEnd = hex(unraveled[N][4]-1)
-				
-			if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][8][-1]][4]["enumType"]!=None:
-				variableId = unraveled[N][8][-1]
-				
-				valueLE = unraveled[N][6]
-				PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
-				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
-				if returnEnumLiteralForValueResult[0]==False:
-					errorMessage = "Error in prettyPrintUnraveled(): Cannot enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
-					errorRoutine(errorMessage)
-					return False
-				else:
-					valueLE2Display = returnEnumLiteralForValueResult[1]
+				addrEnd = hex(unraveled[N][4]-1)	# inclusive
 
-				valueBE = unraveled[N][7]
-				PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
-				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
-				if returnEnumLiteralForValueResult[0]==False:
-					errorMessage = "Error in prettyPrintUnraveled(): Cannot enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
-					errorRoutine(errorMessage)
-					return False
+			# Added for the expanded unraveled
+			valueLE = unraveled[N][6]
+			valueBE = unraveled[N][7]
+			
+			# For struct and unions, we overwrite the values with blanks
+			
+			valueLE2Display = unraveled[N][8]
+			valueBE2Display = unraveled[N][9]
+			
+			# For array and struct headers, unless there is no formatting, don't display the LE/BE values
+			if "- Array of " in unraveled[N][1] or " is of type " in unraveled[N][1]: 
+				if valueLE==valueLE2Display and valueBE==valueBE2Display :
+					treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5],"","","",""]
 				else:
-					valueBE2Display = returnEnumLiteralForValueResult[1]
-
-				treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5], valueLE2Display, valueBE2Display]
+					treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5],"","", STR(valueLE2Display), STR(valueBE2Display)]
 			else:
-				treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5],STR(unraveled[N][6]),STR(unraveled[N][7])]
+				treeViewSingleRowValues = [levelIndent+unraveled[N][1], dataTypeText,addrStart,addrEnd,unraveled[N][5],STR(valueLE),STR(valueBE), STR(valueLE2Display), STR(valueBE2Display)]
+			
+			
 			treeViewAllRowsValues.append(treeViewSingleRowValues)
 		except IndexError:
 			OUTPUT ("IndexError in prettyPrintUnraveled(): List index out of range for N = ",N)
@@ -18341,14 +20466,17 @@ def prettyPrintUnraveled(displayAncestry=False):
 			unraveledColumnMaxWidths[c] = newLength if newLength > unraveledColumnMaxWidths[c] else unraveledColumnMaxWidths[c]
 
 	# Now that we have gotten the maximum length, let's print it
+	PRINT("Now we are going to print the header. maxNumberOfColumns =",maxNumberOfColumns,", doNotPrintTheseManyLastColumns =",doNotPrintTheseManyLastColumns)
 	headerString = ""
 	bottomLine = ""
-	for c in range(maxNumberOfColumns):
-		# The last 3 column headers need to be right-justified
-		if c < maxNumberOfColumns-5:
+	for c in range(maxNumberOfColumns-doNotPrintTheseManyLastColumns):
+		# The last 5 (or 3, if no formatting) column headers need to be right-justified
+#		if c < maxNumberOfColumns-5:
+#		if c < maxNumberOfColumns-5-doNotPrintTheseManyLastColumns:	# These first 
+		if c < 2:	# Left-justified
 			headerString +=         treeViewHeadings[c] +" "* (unraveledColumnMaxWidths[c]-len(treeViewHeadings[c])) + "   "
 			bottomLine   += "="*len(treeViewHeadings[c])+" "* (unraveledColumnMaxWidths[c]-len(treeViewHeadings[c])) + "   "
-		else:
+		else:	# Right justified
 			headerString += " "* (unraveledColumnMaxWidths[c]-len(treeViewHeadings[c])) +         treeViewHeadings[c] + "   "
 			bottomLine   += " "* (unraveledColumnMaxWidths[c]-len(treeViewHeadings[c])) + "="*len(treeViewHeadings[c])+ "   "
 	OUTPUT (bottomLine)
@@ -18357,16 +20485,18 @@ def prettyPrintUnraveled(displayAncestry=False):
 		
 	for N in range(len(treeViewAllRowsValues)):
 		rowText = ""
-		for c in range(len(treeViewAllRowsValues[N])):
+#		for c in range(len(treeViewAllRowsValues[N])):
+		for c in range(len(treeViewAllRowsValues[N])-doNotPrintTheseManyLastColumns):
 			lengthCurrentItem = len(treeViewAllRowsValues[N][c]) if not checkIfBoolean(treeViewAllRowsValues[N][c]) else 5 
 			currentItem = treeViewAllRowsValues[N][c] if not checkIfBoolean(treeViewAllRowsValues[N][c]) else "True " if treeViewAllRowsValues[N][c] else "False"
-			if c <= 1:
+			if c < 2:
 				rowText += currentItem + " "* (unraveledColumnMaxWidths[c]-lengthCurrentItem) + "   "
 			else:
 				rowText += " "* (unraveledColumnMaxWidths[c]-lengthCurrentItem) + currentItem + "   "
 				
 		if displayAncestry:
-			currentRowAncestryVariableIds = unraveled[N][8]
+#			currentRowAncestryVariableIds = unraveled[N][8]
+			currentRowAncestryVariableIds = unraveled[N][10]
 			currentRowAncestryVariableNames = [variableDeclarations[x][0] for x in currentRowAncestryVariableIds]
 			currentRowAncestryText = STR(currentRowAncestryVariableIds)+ " "*(30-len(STR(currentRowAncestryVariableIds))) + STR(currentRowAncestryVariableNames)+" "*(30-len(STR(currentRowAncestryVariableNames))) + "<"+unraveled[N][1]+">"
 			rowText = rowText + currentRowAncestryText
@@ -18384,15 +20514,15 @@ def prettyPrintUnraveled(displayAncestry=False):
 			warningRoutine(warningMessage)
 #			return False
 	headerString = ""
-	for c in range(maxNumberOfColumns):
-		headerString += treeViewHeadings[c] + ("," if c < maxNumberOfColumns-1 else "\n")
+	for c in range(maxNumberOfColumns-doNotPrintTheseManyLastColumns):
+		headerString += treeViewHeadings[c] + ("," if c < maxNumberOfColumns-doNotPrintTheseManyLastColumns-1 else "\n")
 	outputFile.write(headerString)
 			
 	for N in range(len(treeViewAllRowsValues)):
 		rowText = ""
-		for c in range(maxNumberOfColumns):
+		for c in range(maxNumberOfColumns-doNotPrintTheseManyLastColumns):
 			currentItem = treeViewAllRowsValues[N][c] if not checkIfBoolean(treeViewAllRowsValues[N][c]) else "True " if treeViewAllRowsValues[N][c] else "False"
-			rowText += currentItem + ("," if c < maxNumberOfColumns-1 else "\n")
+			rowText += currentItem + ("," if c < maxNumberOfColumns-doNotPrintTheseManyLastColumns-1 else "\n")
 		outputFile.write(rowText)
 		
 	outputFile.close()
@@ -19386,14 +21516,19 @@ def populateUnraveledReadDataBlockCalculateColoredVarsIdOffsetSize():
 def createColoredVarsIdOffsetSizeFromUnraveled():
 	global coloredVarsIdOffsetSize, coloredDataIdOffsetSize
 	# The format of unraveled is like this below (with element index given for easy reading):
-	#   0		1				2						3							4						5				6			7			8
-	# level, variable, datatype/{Description}, starting offset (inclusive), ending offset+1 (exclusive), Raw Hex Bytes, Value (LE), Value (BE), [Ancestry list ending with current variableId]
+	#   0		1				2						3							4						5				6			7			8						9					10
+	# level, variable, datatype/{Description}, starting offset (inclusive), ending offset+1 (exclusive), Raw Hex Bytes, Value (LE), Value (BE), formatted Value (LE), formatted Value (BE), [Ancestry list ending with current variableId]
 	coloredVarsIdOffsetSize = []
 	coloredDataIdOffsetSize = []
 	for unraveledRowNumber in range(len(unraveled)):
 		row = unraveled[unraveledRowNumber]
 		varname = row[1]
-		ancestry = row[8]
+#		ancestry = row[8]
+		try:
+			ancestry = row[10]
+		except IndexError:
+			OUTPUT("For unraveled[",unraveledRowNumber,"], len(row)=",len(row))
+			OUTPUT("row =",row)
 		suffixes2strip = [ " is of type struct", " is of type union", " - Array of "]	# Remove the part of the variable name starting from this
 		for x in suffixes2strip:
 			if x in varname:
@@ -19535,7 +21670,7 @@ def checkIfColoredVarsIdOffsetSizeIsInSyncWithTotalBytesToReadFromDataFile():
 ############################################################################################
 
 def processBatch():
-	global lines, variablesAtGlobalScopeSelected, PRINT_DEBUG_MSG, lastActionWasInterpret, lastActionWasMap
+	global lines, comments, variablesAtGlobalScopeSelected, PRINT_DEBUG_MSG, lastActionWasInterpret, lastActionWasMap
 	global coloredVarsIdOffsetSize, totalBytesToReadFromDataFile, dataBlock, unraveled
 	PRINT("Inside processBatch()")
 	
@@ -19551,7 +21686,8 @@ def processBatch():
 					errorMessage = "ERROR in coding: input code file content is NOT string - type(lines) = "+STR(type(asciiLines))
 					errorRoutine(errorMessage)
 					return False
-				
+				for line in lines:
+					comments.append("")
 			except ValueError: # Empty file
 				return False
 	else:
@@ -20217,7 +22353,8 @@ class MainWindow:
 		# Special treatment for the Expand/Collapse function
 		self.treeView.heading("#0", text="Expand/Collapse")					
 
-		for c in range(len(treeViewHeadings)):
+#		Pay special attention to the "-2". We added two more columns to the unraveled that we print on the console and CSV but NOT on the Tree window.
+		for c in range(len(treeViewHeadings)-2):
 #			self.treeView.heading(STR(c+1), text=self.treeViewHeadings[c])
 			self.treeView.heading(STR(c+1), text=treeViewHeadings[c])
 			
@@ -20544,7 +22681,8 @@ class MainWindow:
 						# Anchor the treeView to the first instance of the current variable
 						unraveledRowNum = None
 						for N in range(len(unraveled)):
-							if unraveled[N][8][-1]==doubleClickLocationVariableIndex:
+#							if unraveled[N][8][-1]==doubleClickLocationVariableIndex:
+							if unraveled[N][10][-1]==doubleClickLocationVariableIndex:
 								unraveledRowNum = N
 								break
 						if unraveledRowNum != None:
@@ -21026,38 +23164,18 @@ class MainWindow:
 				dataLengthValue = STR(variableDeclarations[variableId][4]["bitFieldWidth"]) + " bits"
 			else:
 				dataLengthValue = STR(coloredDataIdOffsetSize[j][2])+" byte" + ("s" if coloredDataIdOffsetSize[j][2] > 1 else "")
-			
-			valueLE = unraveled[unraveledRowNumber][6]
-			valueBE = unraveled[unraveledRowNumber][7]
-			valueLEStr = str(valueLE)
-			valueBEStr = str(valueBE)
-			
-			if PRINT_ENUM_LITERALS and variableDeclarations[variableId][4]["enumType"]!=None:
-				
-				PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
-				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
-				if returnEnumLiteralForValueResult[0]==False:
-					errorMessage = "Error in displayAndColorDataWindows(): Cannot find enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
-					errorRoutine(errorMessage)
-					return False
-				else:
-					valueLEStr = returnEnumLiteralForValueResult[1]
-					#if the valueLEStr is too big to show, we truncate it
-					if len(valueLEStr) > PRINT_ENUM_LITERALS_MAX_SIZE_CHAR:
-						valueLEStr = valueLEStr[0:PRINT_ENUM_LITERALS_MAX_SIZE_CHAR] + "..."
 
-				PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
-				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
-				if returnEnumLiteralForValueResult[0]==False:
-					errorMessage = "Error in displayAndColorDataWindows(): Cannot find enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
-					errorRoutine(errorMessage)
-					return False
-				else:
-					valueBEStr = returnEnumLiteralForValueResult[1]
-					#if the valueBEStr is too big to show, we truncate it
-					if len(valueBEStr) > PRINT_ENUM_LITERALS_MAX_SIZE_CHAR: 
-						valueBEStr = valueBEStr[0:PRINT_ENUM_LITERALS_MAX_SIZE_CHAR] + "..."
+			valueLEStr = STR(unraveled[unraveledRowNumber][8])
+			valueBEStr = STR(unraveled[unraveledRowNumber][9])
 
+			#if the valueLEStr is too big to show, we truncate it
+			if len(valueLEStr) > FORMATTED_VALUES_MAX_SIZE_CHAR:
+				valueLEStr = valueLEStr[0:FORMATTED_VALUES_MAX_SIZE_CHAR] + "..."
+			#if the valueBEStr is too big to show, we truncate it
+			if len(valueBEStr) > FORMATTED_VALUES_MAX_SIZE_CHAR: 
+				valueBEStr = valueBEStr[0:FORMATTED_VALUES_MAX_SIZE_CHAR] + "..."
+
+			
 #			if isArray:	# We need to add the proper array indices in case it is an array
 			if '[' in unraveledFullyQualifiedVariableName or '.' in unraveledFullyQualifiedVariableName:	# Display full hierary
 				variableDescription = unraveledFullyQualifiedVariableName +", where "+ variableDescription
@@ -21491,7 +23609,8 @@ class MainWindow:
 				errorRoutine(errorMessage)
 				return False
 			levelIndent = "    " * unraveled[N][0]
-			enumType = variableDeclarations[unraveled[N][8][-1]][4]["enumType"]
+#			enumType = variableDeclarations[unraveled[N][8][-1]][4]["enumType"]
+			enumType = variableDeclarations[unraveled[N][10][-1]][4]["enumType"]
 #			dataTypeText = unraveled[N][2] if not isinstance(unraveled[N][2],dict) else unraveled[N][2]["datatype"] if unraveled[N][2]["signedOrUnsigned"] != "unsigned" or unraveled[N][2]["datatype"] == "pointer" else unraveled[N][2]["signedOrUnsigned"] + " " + unraveled[N][2]["datatype"]
 			dataTypeText = unraveled[N][2] if not isinstance(unraveled[N][2],dict) else enumType if enumType else unraveled[N][2]["datatype"] if unraveled[N][2]["signedOrUnsigned"] != "unsigned" or unraveled[N][2]["datatype"] == "pointer" else unraveled[N][2]["signedOrUnsigned"] + " " + unraveled[N][2]["datatype"]
 			if N<len(unraveled)-1 and unraveled[N][0]==unraveled[N+1][0]-1 and isinstance(unraveled[N][2],dict) and unraveled[N][2]["isArray"]:	# The current node is a parent - an array 
@@ -21507,7 +23626,8 @@ class MainWindow:
 					addrEnd   = hex(unraveled[N][3]+bit2Byte((unraveled[N][2]["bitOffsetWithinStruct"]%BITS_IN_BYTE)+unraveled[N][2]["bitFieldWidth"]-1))+"." + STR((unraveled[N][2]["bitOffsetWithinStruct"]+unraveled[N][2]["bitFieldWidth"]-1)%BITS_IN_BYTE)
 					
 					PRINT("\n\n\n\n\n\n\n","===="*50,"\n","***"*50,"\n","===="*50,"\n\n\n\n")
-					PRINT("For variable",variableDeclarations[unraveled[N][8][-1]][0],"unraveled[N][3] =",unraveled[N][3], "unraveled[N][4] =",unraveled[N][4], "addrStart =",addrStart,", addrEnd =",addrEnd)
+#					PRINT("For variable",variableDeclarations[unraveled[N][8][-1]][0],"unraveled[N][3] =",unraveled[N][3], "unraveled[N][4] =",unraveled[N][4], "addrStart =",addrStart,", addrEnd =",addrEnd)
+					PRINT("For variable",variableDeclarations[unraveled[N][10][-1]][0],"unraveled[N][3] =",unraveled[N][3], "unraveled[N][4] =",unraveled[N][4], "addrStart =",addrStart,", addrEnd =",addrEnd)
 					'''
 					addrStartOld = hex(unraveled[N][3]+integerDivision(unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexStart"],BITS_IN_BYTE)) + "." + STR(unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexStart"]%BITS_IN_BYTE)
 					addrEndOld = hex(unraveled[N][3]+integerDivision(unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexEndInclusive"],BITS_IN_BYTE)) + "." + STR(unraveled[N][2]["bitFieldInfo"]["currentBitFieldSequenceCurrentContainerBitIndexEndInclusive"]%BITS_IN_BYTE)
@@ -21518,35 +23638,27 @@ class MainWindow:
 					'''
 				else:
 					addrStart = hex(unraveled[N][3])
-					addrEnd = hex(unraveled[N][4]-1)
+					addrEnd = hex(unraveled[N][4]-1)	# inclusive
 
-				# Possibly, convert the values into enum literals.
-				valueLE = unraveled[N][6]
-				valueBE = unraveled[N][7]
-				
-				valueLE2Display = valueLE
-				valueBE2Display = valueBE
-				
-				if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][8][-1]][4]["enumType"]!=None:
-					variableId = unraveled[N][8][-1]
-					
-					PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
-					returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
-					if returnEnumLiteralForValueResult[0]==False:
-						errorMessage = "Error in populateTreeView(): Cannot enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
-						errorRoutine(errorMessage)
-						return False
-					else:
-						valueLE2Display = returnEnumLiteralForValueResult[1]
+				valueLE = STR(unraveled[N][6])
+				valueBE = STR(unraveled[N][7])
+				valueLE2Display = STR(unraveled[N][8])
+				valueBE2Display = STR(unraveled[N][9])
 
-					PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
-					returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
-					if returnEnumLiteralForValueResult[0]==False:
-						errorMessage = "Error in populateTreeView(): Cannot enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
-						errorRoutine(errorMessage)
-						return False
-					else:
-						valueBE2Display = returnEnumLiteralForValueResult[1]
+				
+				# For array and struct headers, unless there is no formatting, don't display the LE/BE values
+				if "- Array of " in unraveled[N][1] or " is of type " in unraveled[N][1]: 
+					if valueLE==valueLE2Display and valueBE==valueBE2Display :
+						valueLE2Display = ""
+						valueBE2Display = ""
+
+				
+				#if the valueLE2Display is too big to show, we truncate it
+				if len(valueLE2Display) > FORMATTED_VALUES_MAX_SIZE_CHAR:
+					valueLE2Display = valueLE2Display[0:FORMATTED_VALUES_MAX_SIZE_CHAR] + "..."
+				#if the valueBE2Display is too big to show, we truncate it
+				if len(valueBE2Display) > FORMATTED_VALUES_MAX_SIZE_CHAR: 
+					valueBE2Display = valueBE2Display[0:FORMATTED_VALUES_MAX_SIZE_CHAR] + "..."
 
 				PRINT("In populateTreeView(), unraveled[",N,"][1]=",unraveled[N][1])
 				treeViewRowValues = (levelIndent+unraveled[N][1],dataTypeText,addrStart,addrEnd,unraveled[N][5],valueLE2Display,valueBE2Display)
@@ -21595,7 +23707,7 @@ class MainWindow:
 	############################################################################################################################
 
 	def interpret(self, event=None):
-		global lines, lastActionWasInterpret, lastActionWasMap
+		global lines, comments, lastActionWasInterpret, lastActionWasMap
 		
 		PRINT("\n\n\n","==="*50,"\nInside interpret()\n","==="*50)
 		
@@ -21638,12 +23750,14 @@ class MainWindow:
 		
 		# Empty the global variables
 		lines=[]
+		comments=[]
 
 		lastActionWasInterpret = True
 		lastActionWasMap = False
 		
 		for line in asciiLines:
 			lines.append(line+'\n')
+			comments.append("")
 
 		interpretBatchResult = interpretBatch()
 
@@ -21803,6 +23917,12 @@ class MainWindow:
 		self.performInterpretedCodeColoring()
 		self.displayAndColorDataWindows()
 		self.displayBottomTreeWindow()
+		
+		# If there are only 7 rows max, expand the whole treeview 
+		if not IN_DEMO and len(unraveled)<=7:
+			for i in range(len(unraveled)):
+				self.showUnraveledRowNumInTreeView(i)
+			
 		
 		# does not seem to select anything :-(		MANNA_MANNA
 #		self.interpretedCodeText.tag_add(tk.SEL, "2.1", "2.3")		
@@ -22089,38 +24209,16 @@ class MainWindow:
 				actualDataAddrStart = "0x{:010X}".format(unraveled[unraveledRowNumber][3])
 				actualDataAddrEnd = "0x{:010X}".format(unraveled[unraveledRowNumber][4]-1)		# This byte is INCLUDED
 				dataLengthValue = STR(coloredVarsIdOffsetSize[i][2])+" byte" + ("s" if coloredVarsIdOffsetSize[i][2] > 1 else "")
-			
-			valueLE = unraveled[unraveledRowNumber][6]
-			valueBE = unraveled[unraveledRowNumber][7]
-			valueLEStr = str(valueLE)
-			valueBEStr = str(valueBE)
 
-			if PRINT_ENUM_LITERALS and variableDeclarations[variableId][4]["enumType"]!=None:
-				
-				PRINT("Printing enum literals for variableId",variableId,", valueLE=",valueLE)
-				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueLE)
-				if returnEnumLiteralForValueResult[0]==False:
-					errorMessage = "Error in performInterpretedCodeColoring(): Cannot find enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
-					errorRoutine(errorMessage)
-					return False
-				else:
-					valueLEStr = returnEnumLiteralForValueResult[1]
-					#if the valueLEStr is too big to show, we truncate it
-					if len(valueLEStr) > PRINT_ENUM_LITERALS_MAX_SIZE_CHAR:
-						valueLEStr = valueLEStr[0:PRINT_ENUM_LITERALS_MAX_SIZE_CHAR] + "..."
+			valueLEStr = STR(unraveled[unraveledRowNumber][8])
+			valueBEStr = STR(unraveled[unraveledRowNumber][9])
 
-				PRINT("Printing enum literals for variableId",variableId,", valueBE=",valueBE)
-				returnEnumLiteralForValueResult = returnEnumLiteralForValue(variableId, valueBE)
-				if returnEnumLiteralForValueResult[0]==False:
-					errorMessage = "Error in performInterpretedCodeColoring(): Cannot find enum literals for variableId "+STR(variableId)+", valueBE="+STR(valueBE)
-					errorRoutine(errorMessage)
-					return False
-				else:
-					valueBEStr = returnEnumLiteralForValueResult[1]
-					#if the valueBEStr is too big to show, we truncate it
-					if len(valueBEStr) > PRINT_ENUM_LITERALS_MAX_SIZE_CHAR: 
-						valueBEStr = valueBEStr[0:PRINT_ENUM_LITERALS_MAX_SIZE_CHAR] + "..."
-
+			#if the valueLEStr is too big to show, we truncate it
+			if len(valueLEStr) > FORMATTED_VALUES_MAX_SIZE_CHAR:
+				valueLEStr = valueLEStr[0:FORMATTED_VALUES_MAX_SIZE_CHAR] + "..."
+			#if the valueBEStr is too big to show, we truncate it
+			if len(valueBEStr) > FORMATTED_VALUES_MAX_SIZE_CHAR: 
+				valueBEStr = valueBEStr[0:FORMATTED_VALUES_MAX_SIZE_CHAR] + "..."
 
 
 
@@ -23683,16 +25781,16 @@ class MainWindow:
 			infoRoutine(infoMessage)
 
 			infoMessage = "Hence, within this tool, we try to have builtin macros that we have come across. Some examples:\n\n"	\
-							+"\n#define __SSP_STRONG__, 3]"	\
-							+"\n#define __DBL_MIN_EXP__, (-1021)]"	\
-							+"\n#define __FLT32X_MAX_EXP__, 1024]"	\
-							+"\n#define __UINT_LEAST16_MAX__, 0xffff]"	\
-							+"\n#define __ATOMIC_ACQUIRE, 2]"	\
-							+"\n#define __FLT128_MAX_10_EXP__, 4932]"	\
-							+"\n#define __GCC_IEC_559_COMPLEX, 2]"	\
-							+"\n#define __UINT_LEAST8_TYPE__, unsigned char]"	\
-							+"\n#define __SIZEOF_FLOAT80__, 16]"		\
-							+"\n#define __FLT_MIN__, 1.17549435082228750796873653722224568e-38F]"	
+							+"\n#define __SSP_STRONG__ 3"	\
+							+"\n#define __DBL_MIN_EXP__ (-1021)"	\
+							+"\n#define __FLT32X_MAX_EXP__ 1024"	\
+							+"\n#define __UINT_LEAST16_MAX__ 0xffff"	\
+							+"\n#define __ATOMIC_ACQUIRE 2"	\
+							+"\n#define __FLT128_MAX_10_EXP__ 4932"	\
+							+"\n#define __GCC_IEC_559_COMPLEX 2"	\
+							+"\n#define __UINT_LEAST8_TYPE__ unsigned char"	\
+							+"\n#define __SIZEOF_FLOAT80__ 16"		\
+							+"\n#define __FLT_MIN__ 1.17549435082228750796873653722224568e-38F"	
 			infoRoutine(infoMessage)
 
 			infoMessage = "It's very tedious to know all such builtin macros for all C compilers, especially since not every one of them is open-sourced." 	\
@@ -24165,7 +26263,7 @@ class MainWindow:
 			self.deHighlightCodeWindow(dataInput, self.originalCodeText)
 			self.endFeatureDemoMessage()
 		
-		elif self.demoIndex == 34:
+		elif self.demoIndex == 34:		# Network packet header
 			self.clearDemo()
 			infoMessage = "OK, enough with all these \"test\" data. Let's see this tool in action on some REAL data (network packet headers captured via Wireshark)."					
 			infoRoutine(infoMessage)
@@ -24183,6 +26281,308 @@ class MainWindow:
 			self.mapStructureToData()
 			infoMessage = "Et voila!! (Pardon my French)"	
 			infoRoutine(infoMessage)
+			self.endFeatureDemoMessage()
+			
+		elif self.demoIndex == 35:		# Formatted output
+			self.clearDemo()
+			infoMessage = "Now that we know how to read in the input data, let's see how we can display it in a user-customized fashion."					
+			infoRoutine(infoMessage)
+			self.openCodeFile([self.demoIndex,0])
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "Suppose we want to read the datastream using the struct on the code file. We have not shown them inside an actual C struct, "	\
+							+ "but it would have not meant any difference.\n\nHit OK to see how the stuct will get mapped to the datastream and what the parsed "	\
+							+ "data would look like."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "As you see, currently it is showing all the values in Decimal. If we want to see the value of integer i in Hex, we can always click on the "	\
+							+ "\"Dec/Hex\" button on the top right. Press OK to see what happens then."
+			infoRoutine(infoMessage)
+			self.toggleHexDec()
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "Now you can see the value of integer i displayed in Hex. However, the problem is that ALL the values (integer i, char array c[ ] and integer j "	\
+							+ "are being displayed in Hex, not just the integer i.\n\nHow do we display the Hex format for int i but Dec for int j?\n\n"	\
+							+ "In other words, how we do have variable-level custom display?"
+			infoRoutine(infoMessage)
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			infoMessage = "This is where we introduce custom formats per variable. And since we do not want to change the C syntax at all, we achieve this by "	\
+							+ "putting the <FORMAT> custom-format </FORMAT> in the comment of the same line. If the format desciption gets too long, instead of using "	\
+							+ "// comment, we can use /* comment */ that can span over multiple lines. The only constraint is that the comment must START from the same "	\
+							+ "line where the original variable declaration took place. Also note that if multiple variables are declared on the same line, the format "	\
+							+ "applies to ALL those variables.\n\nHit Enter to see the results."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "You can see that now int i is now displayed as Hex, char c[4] is Dec (default) and int j is Decimal. "	\
+							+ "\n\nNow, what happens when we press the Dec/Hex button from here? Press OK see."
+			infoRoutine(infoMessage)
+			self.toggleHexDec()
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "Now, observe the switching the Hex/Dec had no effect on variables i and j for which we mentioned a custom format. \n\n"		\
+							+ "For char i and j, it remained as Hexadecimal, However, for char array c[4], where there was no user-specified format, "	\
+							+"all of the values now got displayed as Hex."
+			infoRoutine(infoMessage)
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,2])
+			self.openDataFile([self.demoIndex,2])
+			infoMessage = "Now, observe the code window.\n\nFor variable i, we have declared its format to be Hexadecimal.\n\n For char c, we mentioned a HEX format, "	\
+							+ "but it will be ignored since the comment containing the format did NOT start on the same line.\n\n"	\
+							+ "For variables j and k, the Decimal format applies to both since the comment containing the format started in the same line .\n\n"	\
+							+ "For char variables m, n, p and q, even though they were declared using a single declaration statement, the HEX format only applies to the "	\
+							+ "variable n (not m, p or q) since the HEX format was contained inside a comment that started on the same line as declaration of ONLY n. \n\n"		\
+							+ "Let's see what happens when we mention the format this way."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "Now, observe the Tree window.\n\nFor char i, it's indeed formatted as Hexadecimal.\n\n For char c, it's the default value (Decimal).\n\n"	\
+							+ "For chars j and k, both are formatted as Decimal. Among variables m, n, p and q, only the n is formatted as HEX."
+			infoRoutine(infoMessage)
+			infoMessage = "OK, so HEX and DEC are the only custom variable-level formats we can control? Press OK see."
+			infoRoutine(infoMessage)
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,3])
+			self.openDataFile([self.demoIndex,3])
+			infoMessage = "We offer the following built-in simple integer formats that the user can specify:\n\n"	\
+							+ "HEX (for displaying the data in hexadecimal) \n"	\
+							+ "DEC (for displaying the data in decimal) \n"	\
+							+ "OCT (for displaying the data in octal) \n"	\
+							+ "BIN (for displaying the data in binary) \n"	\
+							+"\n\nWe also have a PERCENT (or PCT) format for displaying a float data in percentage.\n"	\
+							+ "\n\nPress OK to see how the output looks."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "Observe that we have the outputs exactly the way we wanted!"	
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,4])
+			self.openDataFile([self.demoIndex,4])
+			infoMessage = "We also offer some specialized built-in formats for date and times:\n\n"	\
+							+ "MILLISECONDS (for displaying it in HH:MM:SS.mmm format) \n\n"	\
+							+ "SECONDS (for displaying it in HH:MM:SS format) \n\n"	\
+							+ "UNIXDATETIME (for displaying the number of seconds past 1/1/70 00:00:00, in YYYY-MM-DD HH:MM:SS format) \n\n"	\
+							+ "EXCELDATETIME (for displaying the number of days past 12/31/1899 00:00:00, in YYYY-MM-DD HH:MM:SS format) \n\n"	\
+							+ "\n\nPress OK to see how the output looks."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+
+			infoMessage = "Now, what if you are not happy with the default parameters for the two timestamp formats (UNIXDATETIME and EXCELDATETIME), "	\
+							+ "We also offer the user to optionally pass ANY combination of the year(YY or YYYY), month (MM or MMM), day (DD), hour (HH), "	\
+							+ "minute (mm), and second (SS).\n\n"		\
+							+ "\nPress OK to see how it will look like."
+			infoRoutine(infoMessage)
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,5])
+			self.openDataFile([self.demoIndex,5])
+			infoMessage = "As you can see, one really powerful aspect is not only the format string for the timestamp can have the individual time unit components "	\
+							+ "strewn in any order, but also you can add in any text you like in between.\n\nPress OK to see the results"
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "If this still does not serve your need, you can always use the PRINTF() format, which works exactly like the printf() in C. "	\
+							+ "\n\nPress OK to see how it will look like."
+			infoRoutine(infoMessage)
+			self.endFeatureDemoMessage()
+							
+		elif self.demoIndex == 36:		# Format PRINTF
+
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,0])
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "As you can see, not only you can custom-print the variable declared on that line, but also you can print the values of "	\
+							+ "other variables declared before.\n\nPress OK to see the output."		
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "Looks neat, isn't it?"
+			infoRoutine(infoMessage)
+							
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			infoMessage = "Now, here we see the real power of this tool when it comes to PRINTF. Not only you can use an expression (instead of just a "	\
+							+ "variable name), but also the format string itself (the very first parameter to PRINTF) can also be an expression. "	\
+							+ "This makes the tool as powerful as a C parser program.\n\nPress OK to see the results."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+
+			infoMessage = "However, creating huge programs involving \"Condition ? Do_if_True : Do_if_False\" (C-version of if-then-else) inside the format "	\
+							+ "string of a PRINTF can get tedious. Sometimes we do not want to print the value directly, but rather want to print something "	\
+							+ "else corresponding to the value. "	\
+							+ "Think it as the inverse of enum in C. In C, when you use ENUM literals in your code, they get interpreted as integers. " \
+							+ "Here, we do the inverse - when a variable matches a certain value, its corresponding ENUM literal gets printed instead. " \
+							+ "\n\nWe have <FORMAT> ENUM(\"string_1\"=value1, \"string_2\"=value2, ..., \"stringN\"=\"REST\")</FORMAT> ."				\
+							+ "\n\nPress OK to see how it will look like."
+			infoRoutine(infoMessage)
+			self.endFeatureDemoMessage()
+			
+		elif self.demoIndex == 37:		# Format ENUM
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,0])
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "Suppose we have the following C code that uses the enum for code clarity.\n\n "	\
+							+ "What do you think the printf( ) would produce? Will it produce \"SUN\", \"MON\", \"TUE\" etc.? "	
+			infoRoutine(infoMessage)
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			infoMessage = "The truth is that enum only converts a literal into a constant, not vice versa. \n\nSo, the printf( ) would produce integers only - " \
+							+ "it will not produce \"SUN\", \"MON\", \"TUE\" etc..\n\nIf we wanted to achieve that, we would need a switch( ) statement like this. "	
+			infoRoutine(infoMessage)
+
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,2])
+			self.openDataFile([self.demoIndex,2])
+			infoMessage = "However, our tool is intelligent enough that whenever it sees enum, it converts a constants value into its corresponding literal " \
+							+ "it automatically shows \"SUN\", \"MON\", \"TUE\" etc., without needing an explicit switch( ) statement. "	\
+							+"\n\nPress Enter to see it in action."
+			infoRoutine(infoMessage)
+			
+			self.toggleMapTypedefsToo()
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+
+			infoMessage = "However, That was all good, but what if the code did not include an enum, and we still want one? " \
+							+"\n\nPress Enter to see it in action."
+			infoRoutine(infoMessage)
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,3])
+			self.openDataFile([self.demoIndex,3])
+			infoMessage = "We have three ENUM examples here. And unlike C enums, which can only handle integers, here we can accommodate any value. "	\
+							+ "\nPlus, unlike C enum, we also have a \"REST\" values, which covers the \"rest\" of the values. Think of it more as "	\
+							+ "the \"default\" keyword in C switch cases. In fact, you can use \"REST\" / \"DEFAULT\" / \"OTHERS\" also."	\
+							+ "\n\nPress OK to see how the tool interprets the ENUMS."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "As you can see, the very first ENUM did not replace the value of C1 with a literal, because none of the conditions matched, and "	\
+							+ "there was no \"REST\" keyword. However, in case of C2, there was a \"REST\" keyword, so the literal corresponding to the "	\
+							+ "\"REST\" (\"Weekday\") gets printed instead."
+			infoRoutine(infoMessage)
+			infoMessage = "And last but not the least, BOTH the value and the ENUM literal parts can be expressions, even including other variables. "	\
+							+ "For example, we have this C1*100=C1 term here, which means that if the value of C3 matches the value of C1, print 100*C1 "	\
+							+ "instead of the value of C3.\n\nCool, ain\'t it?"	
+			infoRoutine(infoMessage)
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,4])
+			self.openDataFile([self.demoIndex,4])
+			infoMessage = "Now, let's revisit the simple task of displaying which day of the week a day is (0-th day was a Sunday).\n\n"	\
+							+ "As we say earlier, we could use the PRINTF( ) format to do this, by choosing different format strings for different days of the week.\n\n"	\
+							+ "But this is rather painful to do and not very elegant.\n\nCan we do it with ENUM?"
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,5])
+			self.openDataFile([self.demoIndex,5])
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "Apparently by using cleverly written code (using properties of integer division), we can do it using ENUM too.\n\n"	\
+							+ "But again, this approach too is rather painful and not elegant by a mile.\n\n"
+			infoRoutine(infoMessage)
+			self.endFeatureDemoMessage()
+							
+		elif self.demoIndex == 38:		# Format PREPROCESS
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,0])
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "Suppose we have the variable days, which represents the number of days from a certain Sunday, and we are interested in displaying "	\
+							+"the day of the week corresponding to that day rather than just the number.  \n\n"	\
+							+ "Ideally what we want is the following: Without destroying the original value of the variable, just get the remainder "	\
+							+ "when divided by 7, and THEN use the format ENUM on that remainder. In C or any programming language, this is very easy to do. \n\n"
+			infoRoutine(infoMessage)
+							
+			infoMessage = "For example, we could easily write a single line of code \"daysRemainder = days % 7;\", and then using the ENUM on \"daysRemainder\" instead."	\
+							+ "\n\nTo know how we get around this issue, press Enter."
+			infoRoutine(infoMessage)
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			infoMessage = "Do you see that we have TWO formats for the days variable?\n\n"	\
+							+ "Yes indeed, just like you can write multiple lines of code in C, you can apply multiple formats to a single variable's value. "	\
+							+ "They will all execute one after another. \n\nPress enter to see how this works."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "This <FORMAT> POSTPROCESS( )</FORMAT> is one of THE most powerful tools you have at your disposal. This essentially allows you to mimic C programs. "	\
+							+ "Hit enter to see how."
+			infoRoutine(infoMessage)
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,2])
+			self.openDataFile([self.demoIndex,2])
+			infoMessage = "We have applied this POSTPROCESS() format one three char variables (C1, C2, and C3). \n\n"	\
+							+ "For C1, we are hardcoding it to Zero.\n"	\
+							+ "For C2, we are adding 1 to its value.\n"	\
+							+ "For C3, we are adding 1 to its value - twice.\n\n"	\
+							+ "Can you guess what the formatted value of C3 will be? Look at the console, it might surprise you."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "After applying this POSTPROCESS() format(s), on variables C1, C2, and C3, here is the result: \n\n"	\
+							+ "For C1, the original value of 72 has indeed been hardcoded to Zero.\n"	\
+							+ "For C2, the original value of 78 its value has been incremented by 1.\n"	\
+							+ "For C3, the original value of -4 its value has been incremented by only 1, not 2.\n\n"	\
+							+ "What happened? Press OK to find out."
+			infoRoutine(infoMessage)
+			infoMessage = "What happens is that this tool works by substituing the variable symbols with its value read. It does not really alter the value of the variable.\n\n"	\
+							+ "So, for C3, it indeed calculated the value of C3+1 twice. Because it was not \"replacing\" the value of C3, the output remained the same.\n\n"	\
+							+ "So, we designed a new way to facilitate this symbolic execution of multiple formats.\n\n"	\
+							+ "Hit enter to find out."
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,3])
+			self.openDataFile([self.demoIndex,3])
+			infoMessage = "You will see that we are using a new symbol \"_X_\". This represents the value of the variable. \n\n"	\
+							+ "If there is a single FORMAT for a variable, then this _X_ is no different than the variable name. However, if there are multiple "	\
+							+ "formats to be executed on the same variable one after another, then one should absolutely use _X_ to get the intended result. " 	\
+							+ "The internal value of _X_ actually gets overwritten with execution of every format.\n\n"	\
+							+ "Hit enter to see the results."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "As you now see, we are indeed getting the right result.\n\n"	\
+							+ "There is also another massive benefit of using _X_, and that is in case of arrays. \n\n "	\
+							+ "Suppose we have an array of integers, and for each array element we want to PRINTF. \n\n " 	\
+							+ "Since the array index change with every element, in a C program, it is not possible to print each array element without using a loop.\n\n"	\
+							+ "However, here we can use the same _X_ variable inside the PRINTF format, and its value will get printed.\n\n"	\
+							+ "Hit OK to see an example."
+			infoRoutine(infoMessage)
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,4])
+			self.openDataFile([self.demoIndex,4])
+			infoMessage = "Let's look at the first 2-char array A[2].\n\n"	\
+							+ "We are using _X_ to add 1 to each of the array elements, and then printing it. \n\n "	\
+							+ "However, pay special attention to the second char array IP[4], which suppose represents the 4 octates of an IP address. \n\n " 	\
+							+ "Since the arguments contain specific array elements, the tool will understand that this is an array-level printf, not an "	\
+							+ "array-element-level printf statement. So, it will execute it only ONCE for the whole array, and display the results in the "	\
+							+ "array header row (recall that for every struct and array, we have a header row). \n\n"		\
+							+ "Hit OK to see it in action."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+			self.showUnraveledRowNumInTreeView(6)
+			
 			self.endFeatureDemoMessage()
 			
 		elif 0 <= self.demoIndex < len(demoFeatureCodeData):
@@ -24280,7 +26680,12 @@ class MainWindow:
 		self.addressColumnText.delete("1.0", "end")
 		self.viewDataHexText.delete("1.0", "end")
 		self.viewDataAsciiText.delete("1.0", "end")
-
+		
+		if DISPLAY_INTEGRAL_VALUES_IN_HEX:
+			self.toggleHexDec()
+		if MAP_TYPEDEFS_TOO == False:
+			self.toggleMapTypedefsToo()
+			
 		# Just to make doubly sure
 		self.colorTagsFG = []	
 		self.colorTagsData = []
