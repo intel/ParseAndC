@@ -2857,9 +2857,11 @@ networkHdrs]]
 ["Formatted output",
 [
 #0
-[['int i;\n',
-'char c[4];\n',
-'int j;\n'
+[['//struct {\n',
+'  int i;\n',
+'  char c[4];\n',
+'  int j;\n',
+'//};\n'
 ],
 networkHdrs],
 
@@ -3100,6 +3102,7 @@ networkHdrs]
 
 #0
 [['/*  C code to do this \n',
+'int days; \n',
 ' \n',
 'typedef enum {SUN, MON, TUE, WED, THU, FRI, SAT} DAY_OF_WEEK; \n',
 ' DAY_OF_WEEK daysRemainder = days % 7; \n',
@@ -3119,6 +3122,7 @@ networkHdrs],
 
 #1
 [['/*  C code to do this \n',
+'int days; \n',
 ' \n',
 ' typedef enum {SUN, MON, TUE, WED, THU, FRI, SAT} DAY_OF_WEEK; \n',
 ' DAY_OF_WEEK daysRemainder = days % 7; \n',
@@ -3163,11 +3167,45 @@ networkHdrs],
 
 #4
 [['char A[2]; //<FORMAT>PRINTF("%d",_X_+1)</FORMAT>\n',
+'\n',
+'\n',
 'unsigned char IP[4]; /* \n',
 '               <FORMAT> PRINTF("%d.%d.%d.%d",\n',
 '                        IP[0],IP[1],IP[2],IP[3])\n',
 '               </FORMAT>\n',
 '*/\n'
+],
+networkHdrs],
+
+
+#5
+[['int AI; //<FORMAT>PRINTF("%d",AI)</FORMAT>\n',
+'int Al; //<FORMAT>PRINTF("%d",AI)</FORMAT>\n',
+'\n',
+'\n',
+'\n',
+'int I; //<FORMAT>PRINTF("%d",_X_)</FORMAT>\n',
+'int l; //<FORMAT>PRINTF("%d",_X_)</FORMAT>\n'
+],
+networkHdrs],
+
+
+#6
+[['int _X_; //<FORMAT> printf("%d", _X_) </FORMAT>\n',
+'int i;   //<FORMAT> printf("%d", _X_) </FORMAT>\n'
+],
+networkHdrs],
+
+
+#7
+[['int _X_; //<FORMAT> printf("%d", _X_) </FORMAT>\n',
+'int i; //<FORMAT> printf("%d", __X__) </FORMAT>\n'
+],
+networkHdrs],
+
+
+#8
+[['int i,j; //<FORMAT> printf("%d", __X__) </FORMAT>\n'
 ],
 networkHdrs]
 
@@ -26279,6 +26317,7 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(2)
 			infoMessage = "Et voila!! (Pardon my French)"	
 			infoRoutine(infoMessage)
 			self.endFeatureDemoMessage()
@@ -26580,8 +26619,57 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
-			self.showUnraveledRowNumInTreeView(3)
-			self.showUnraveledRowNumInTreeView(6)
+			self.showUnraveledRowNumInTreeView(1)
+			self.showUnraveledRowNumInTreeView(4)
+			infoMessage = "Next, we will see why you should always use the _X_ instead of the explicit variable name.\n\n"	
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,5])
+			self.openDataFile([self.demoIndex,5])
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(4)
+			infoMessage = "Wait .... AI and Al are showing the same value, while variables I and l are showing different values!!!\n\n How come?\n\n"	
+			infoRoutine(infoMessage)
+			infoMessage = "It's because during the format specification, we mistakenly copied the first line to the second - and the supposedly \"Al\" arguement "	\
+							+ "in the PRTINF ( ) is actually an \"AI\".\n\n However, for the second set of variables, we used \"_X_\", so it picked up the appropriate variable accordingly."	
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,6])
+			self.openDataFile([self.demoIndex,6])
+			infoMessage = "Now, suppose we actually have a _X_ variable inside the legitimate code.\n\nWhat then?"
+			infoRoutine(infoMessage)
+			
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(4)
+			infoMessage = "So, it might be worthwhile to change the _X_ operator to __X__ instead. If __X__ also exists, try ___X___, and so on."	
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,7])
+			self.openDataFile([self.demoIndex,7])
+			infoMessage = "Now, we have changed the _X_ operator in FORMAT POSTPROCESS to __X__ instead.\n\nWill it give the same warning?"
+			infoRoutine(infoMessage)
+			
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(4)
+			infoMessage = "So, it was worthwhile to change the _X_ operator to __X__ instead. "	
+			infoRoutine(infoMessage)
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,8])
+			self.openDataFile([self.demoIndex,8])
+			infoMessage = "Now, what does the _X_ operator mean in this case? Does it refer to variable i or variable j?\n\nHit enter to find out."
+			infoRoutine(infoMessage)
+			
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "As you can see, the _X_ operator mean i when it applies to variable i, and it means j when it applies to variable j.\n\nBeautiful, elegant and concise."
+			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
 			
