@@ -863,6 +863,7 @@
 # 2024-12-11 - After fixing the header-level printing issues
 # 2024-12-15 - After getting the demo near-ready
 # 2024-12-18 - Demo-ready
+# 2024-12-22 - Fixed #include bug and implemented BCD format
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -5571,11 +5572,11 @@ def evaluateArithmeticExpression(inputAST, endianness=DEFAULT_ENDIANNESS):
 				# Arithmetic operations
 				if   inputList[1] == '+':
 					if checkIfString(op0) or checkIfString(op2):	# If one of them is a string, make both of them string
-						if not checkIfString(op0):
-							PRINT("Converting",op0,"to a string.")
+						if not checkIfString(op0) or (checkIfString(op0) and (op0[0]!='"' or op0[-1]!='"')):
+							PRINT("Converting",op0,"to a double-quoted string.")
 							op0 = '"'+STR(op0)+'"'
-						if not checkIfString(op2):
-							PRINT("Converting",op2,"to a string.")
+						if not checkIfString(op2) or (checkIfString(op2) and (op2[0]!='"' or op2[-1]!='"')):
+							PRINT("Converting",op2,"to a double-quoted string.")
 							op2 = '"'+STR(op2)+'"'
 						
 						# Now both operands are strings
@@ -9643,7 +9644,7 @@ def removeComments():
 	global lines, comments
 	# Remove single-line comments
 	if len(lines)!=len(comments):
-		EXIT("ERROR in removeComments() - len(lines) =", len(lines)," !=len(comments) =",len(comments))
+		EXIT("ERROR in removeComments() - len(lines) = "+ STR(len(lines))+" !=len(comments) ="+STR(len(comments)))
 	
 	# It's not as easy as it sounds. We cannot just remove everything starting from a // since that might be inside a double-quoted string.
 	# So, we find the first occurrence of // that is outside any double-quoted string.
@@ -10706,8 +10707,9 @@ def invokeMacrosOnLine(i):
 				# Important: When we add numAddedLines, the total number of lines goes up by (numAddedLines-1), not numAddedLines. Because we are also consuming one line.
 				numAddedLines = len(includedLines)
 
-				# Overwrite the lines
+				# Overwrite the lines and comments
 				lines = tempLines
+				comments = tempComments
 				PRINT ("After inserting, len(lines) =",len(lines))
 				newNumberOfLines = len(lines)
 
@@ -16204,6 +16206,150 @@ def convert2Dec(endianness, variableId, unraveledRowNum, rawData, parameters=[])
 		EXIT("Failed to format the numeric value "+STR(rawDataNum)+" corresponding to rawData="+rawData+" inside convert2Dec()")
 	return rawDataFormatted
 		
+def convert2BCD(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+#	PRINT = OUTPUT
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	PRINT("During", executionStage,", inside convert2BCD(endianness =",endianness,", variableId =", variableId,", rawData =",rawData, ", parameters =",parameters)
+	if executionStage == "Interpret":
+		return rawData
+
+	BCDencodingTable = {
+	"8 4 2 1 (XS-0)"		: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
+	"7 4 2 1"				: [0,1,2,3,4,5,6,None,7,8,9,None,None,None,None,None],
+	"Aiken (2 4 2 1)"		: [0,1,2,3,4,None,None,None,None,None,None,5,6,7,8,9],
+	"Excess-3 (XS-3)"		: [-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10,11,12],
+	"Excess-6 (XS-6)"		: [-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9],
+	"Jump-at-2 (2 4 2 1)"	: [0,1,None,None,None,None,None,None,2,3,4,5,6,7,8,9],
+	"Jump-at-8 (2 4 2 1)"	: [0,1,2,3,4,5,6,7,None,None,None,None,None,None,8,9],
+	"4 2 2 1 (I)"			: [0,1,2,3,None,None,4,5,None,None,None,None,6,7,8,9],
+	"4 2 2 1 (II)"			: [0,1,2,3,None,None,4,5,None,None,6,7,None,None,8,9],
+	"5 4 2 1"				: [0,1,2,3,4,None,None,None,5,6,7,8,9,None,None,None],
+	"5 2 2 1"				: [0,1,2,3,None,None,4,None,5,6,7,8,None,None,9,None],
+	"5 1 2 1"				: [0,1,2,3,None,None,None,4,5,6,7,8,None,None,None,9],
+	"5 3 1 1"				: [0,1,None,2,3,4,None,None,5,6,None,7,8,9,None,None],
+	"White (5 2 1 1)"		: [0,1,None,2,None,3,None,4,5,6,None,7,None,8,None,9],
+	"5 2 1 1"				: [0,1,None,2,None,3,None,4,5,None,6,None,7,None,8,9],
+	"Magnetic tape"			: [None,1,2,3,4,5,6,7,8,9,0,None,None,None,None,None],
+	"Paul"					: [None,1,3,2,6,7,5,4,None,0,None,None,8,9,None,None],
+	"Gray"					: [0,1,3,2,6,7,5,4,15,14,12,13,8,9,11,10],
+	"Glixon"				: [0,1,3,2,6,7,5,4,9,None,None,None,8,None,None,None],
+	"Ledley"				: [0,1,3,2,7,6,4,5,None,None,None,None,8,None,9,None],
+	"4 3 1 1"				: [0,1,None,2,3,None,None,5,4,None,None,6,7,None,8,9],
+	"LARC"					: [0,1,None,2,None,None,4,3,5,6,None,7,None,None,9,8],
+	"Klar"					: [0,1,None,2,None,None,4,3,9,8,None,7,None,None,5,6],
+	"Petherick (RAE)"		: [None,1,3,2,None,0,4,None,None,8,6,7,None,9,5,None],
+	"O'Brien I (Watts)"		: [0,1,3,2,None,None,4,None,9,8,6,7,None,None,5,None],
+	"5-cyclic"				: [0,1,3,2,None,None,4,None,5,6,8,7,None,None,9,None],
+	"Tompkins I"			: [0,1,3,2,None,None,4,None,None,9,None,None,8,7,5,6],
+	"Lippel"				: [0,1,2,3,None,None,4,None,None,9,None,None,8,7,6,5],
+	"O'Brien II"			: [None,0,2,1,4,None,3,None,None,9,7,8,5,None,6,None],
+	"Tompkins II"			: [None,None,0,1,4,3,None,2,None,7,9,8,5,6,None,None],
+	"Excess-3 Gray"			: [-3,-2,0,-1,4,3,1,2,12,11,9,10,5,6,8,7],
+	"6 3  2  1 (I)"			: [None,None,None,None,3,2,1,0,None,5,4,8,9,None,7,6],
+	"6 3  2  1 (II)"		: [0,None,None,None,3,2,1,None,6,5,4,None,9,8,7,None],
+	"8 4  2  1"				: [0,None,None,None,4,3,2,1,8,7,6,5,None,None,None,9],
+	"Lucal"					: [0,15,14,1,12,3,2,13,8,7,6,9,4,11,10,5],
+	"Kautz I"				: [0,None,None,2,None,5,1,3,None,7,9,None,8,6,None,4],
+	"Kautz II"				: [None,9,4,None,1,None,3,2,8,None,6,7,None,0,5,None],
+	"Susskind I"			: [None,0,None,1,None,4,3,2,None,9,None,8,5,None,6,7],
+	"Susskind II"			: [None,0,None,1,None,9,None,8,4,None,3,2,5,None,6,7]
+	}
+	
+	for key in BCDencodingTable:
+		if len(BCDencodingTable[key]) != 16:
+			EXIT("BCDencodingTable["+key+"] = "+STR(BCDencodingTable[key])+" does not have 16 members")
+	
+	BCDencodingType = "8 4 2 1 (XS-0)"
+	if isinstance(parameters,list) and len(parameters)>0 and isinstance(parameters[0],list) and checkIfString( parameters[0][0]):
+		BCDcodingTypeSupplied = parameters[0][0]
+		if BCDcodingTypeSupplied[0]=='"' and BCDcodingTypeSupplied[-1]=='"':
+			BCDcodingTypeSupplied=BCDcodingTypeSupplied[1:-1]	# Remove the double quotes
+		if BCDcodingTypeSupplied in getDictKeyList(BCDencodingTable):
+			BCDencodingType = BCDcodingTypeSupplied
+			PRINT("In convert2BCD() - the first parameter supplied "+BCDcodingTypeSupplied+" is a valid BCD coding types - using it")
+		else:
+			warningMessage = "Warning in convert2BCD() - the first parameter supplied "+BCDcodingTypeSupplied+" is not any of the valid BCD coding types - defaulting it \"8 4 2 1 (XS-0)\" instead."
+			warningRoutine(warningMessage)
+
+	signOrUnsignedBCD = 'unsigned'	# Default
+	if isinstance(parameters,list) and len(parameters)>1 and isinstance(parameters[1],list) and checkIfString( parameters[1][0]):
+		signOrUnsignedSupplied = parameters[1][0]
+		if signOrUnsignedSupplied[0]=='"' and signOrUnsignedSupplied[-1]=='"':
+			signOrUnsignedSupplied = signOrUnsignedSupplied[1:-1]
+		if signOrUnsignedSupplied.lower()=='signed':
+			signOrUnsignedBCD = 'signed'
+		elif signOrUnsignedSupplied.lower()=='unsigned':
+			signOrUnsignedBCD = 'unsigned'
+		else:
+			warningMessage = "Warning in convert2BCD() - the second parameter supplied "+signOrUnsignedSupplied+" is neither signed nor unsigned - setting it to unsigned."
+			warningRoutine(warningMessage)
+			signOrUnsignedBCD = 'unsigned'
+			
+	rawDataNum = None
+	if checkIfIntegral(rawData):
+		PRINT("rawData (",rawData,") is already integral")
+		rawDataNum = rawData
+	else:
+		rawDataNum = convertIntegralString2Int(rawData)
+		PRINT("rawData (",rawData,") wasn't integral, made it integral (",rawDataNum,")")
+		if not checkIfIntegral(rawDataNum):
+			errorMessage = "ERROR in convert2BCD() - cannot convert <"+STR(rawData)+"> to integer"
+			errorRoutine(errorMessage)
+			return rawData
+	PRINT("rawDataNum =",rawDataNum)
+	datatype = variableDeclarations[variableId][4]["datatype"]
+	signedOrUnsigned = variableDeclarations[variableId][4]["signedOrUnsigned"]
+	encodeValueResult = encodeValue(rawDataNum, endianness, datatype, signedOrUnsigned)
+	if encodeValueResult[0] != True:
+		errorMessage = "ERROR in convert2BCD() - cannot convert <"+STR(rawData)+"> to "+signedOrUnsigned+" "+datatype
+		errorRoutine(errorMessage)
+		return rawData
+	else:
+		byteArray = encodeValueResult[1]
+		PRINT("encoded byteArray =",printHexStringWord(byteArray))
+		if len(byteArray) != primitiveDatatypeLength[datatype]:
+			errorMessage = "ERROR in convert2BCD() - for rawData <"+STR(rawData)+"> of datatype "+datatype+", we are getting byteArray size of "+STR(len(byteArray))+" while we expected "+STR(primitiveDatatypeLength[datatype])+" bytes"
+			errorRoutine(errorMessage)
+			return rawData
+
+
+	overallDecimalValue = 0
+	for i in range(len(byteArray)):
+		byteVal = ORD(byteArray[i])
+		PRINT("ORD(byteArray[",i,"]) =",byteVal)
+		upperNibble = (byteVal & 0xF0)>>4
+		lowerNibble = (byteVal & 0x0F)
+		PRINT("upperNibble =",upperNibble,", lowerNibble =",lowerNibble)
+		upperNibbleValue = BCDencodingTable[BCDencodingType][upperNibble]
+		lowerNibbleValue = BCDencodingTable[BCDencodingType][lowerNibble]
+		PRINT("upperNibbleValue =",upperNibbleValue,", lowerNibbleValue =",lowerNibbleValue)
+		if upperNibbleValue < 0 or upperNibbleValue > 9: 
+			errorMessage = "ERROR in convert2BCD() - for rawData <"+STR(rawData)+"> of datatype "+datatype+",for byteArray["+STR(i)+"] = "+STR(byteVal) + ", the upper nibble value ("+STR(upperNibbleValue)+") is outside [0,9]"
+			errorRoutine(errorMessage)
+			return rawData
+			
+		if i==len(byteArray)-1 and signOrUnsignedBCD == 'signed':
+			overallDecimalValue *= 10
+			overallDecimalValue += upperNibbleValue
+			if lowerNibbleValue in (11,13):	# Convention for -ve
+				overallDecimalValue *= (-1)
+		else:
+			overallDecimalValue *= 100
+			if lowerNibbleValue < 0 or lowerNibbleValue > 9: 
+				errorMessage = "ERROR in convert2BCD() - for rawData <"+STR(rawData)+"> of datatype "+datatype+",for byteArray["+STR(i)+"] = "+STR(byteVal) + ", the lower nibble value ("+STR(lowerNibbleValue)+") is outside [0,9]"
+				errorRoutine(errorMessage)
+				return rawData
+			if endianness == LITTLE_ENDIAN:
+				packedDecimalValueForThisByte = lowerNibbleValue * 10 + upperNibbleValue
+			elif endianness == BIG_ENDIAN:
+				packedDecimalValueForThisByte = upperNibbleValue * 10 + lowerNibbleValue
+			else:
+				EXIT("ERROR in convert2BCD() - unknown endianness "+endianness)
+			overallDecimalValue += packedDecimalValueForThisByte
+	
+	return overallDecimalValue
+
+
 def convert2percent(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
 	if executionStage == "Interpret":
@@ -16583,10 +16729,11 @@ formats = {	"HEX"				:	convert2Hex,
 			"HEXADECIMAL"		:	convert2Hex,
 			"OCT"				:	convert2Oct, 
 			"OCTAL"				:	convert2Oct, 
-			"BIN"				:	convert2Bin, 
+			"BIN"				:	convert2Bin,
 			"BINARY"			:	convert2Bin, 
 			"DEC"				:	convert2Dec, 
-			"DECIMAL"			:	convert2Dec, 
+			"DECIMAL"			:	convert2Dec,
+			"BCD"				:	convert2BCD,
 			"PCT"				:	convert2percent,
 			"PERCENT"			:	convert2percent,
 			"UNIXDATETIME"		:	displayDATETIME,
@@ -16685,7 +16832,7 @@ def applyFormat(endianness, variableId, unraveledRowNum, rawData, displayFormatL
 			PRINT(displayFormatString,"was tokenized as",STR(tokenizeLinesResult))
 			displayFormat = tokenizeLinesResult[0]
 			if displayFormat not in getDictKeyList(formats):
-				errorMessage = "ERROR in applyFormat() - format", displayFormat,"is not currently supported"
+				errorMessage = "ERROR in applyFormat() - format "+ STR(displayFormat)+" is not currently supported"
 				errorRoutine(errorMessage)
 				return rawData if executionStage == "Map" else False
 			if tokenizeLinesResult[-1]==';':	# Ignore any semicolon at the end
