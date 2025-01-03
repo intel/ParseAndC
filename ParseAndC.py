@@ -864,6 +864,8 @@
 # 2024-12-15 - After getting the demo near-ready
 # 2024-12-18 - Demo-ready
 # 2024-12-22 - Fixed #include bug and implemented BCD format
+# 2024-12-26 - Implemented Base-64 format
+# 2025-01-03 - Updated the Demo
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -1845,7 +1847,11 @@ CStrings =	   "0x467269656E64732C00526F6D616E732C00636F756E7472796D656E2C006C656
 				+"0D0A466F720042727574757300697300616E00686F6E6F757261626C65006D61"+"6E3B0D0A536F00617265007468657900616C6C2C00616C6C00686F6E6F757261"		\
 				+"626C65006D656EE280930D0A436F6D65004900746F00737065616B00696E0043"+"6165736172E28099730066756E6572616C2E0D0A486500776173006D79006672"
 
-textifiedHexdata = "0x46 0x7269 0x65 6E6473 2C"		
+textifiedHexdata = "0x46 0x7269 0x65 6E6473 2C"
+
+BCDencodedData = "0x12345671063426473456789A6346847E"
+
+Base64encodedData = "0x62476C6E61485167643239796179343D"
 
 ##
 ##
@@ -2917,6 +2923,31 @@ networkHdrs]
 ]
 ],
 ##############################################################################################	36
+["Format BCD",
+[
+
+#0
+[['//Just "BCD" with no argument means BCD("8 4 2 1 (XS-0)","unsigned"), the default\n',
+'int i[2]; //<FORMAT> BCD </FORMAT>\n',
+'\n',
+'int j[2]; //<FORMAT> BCD("Excess-3 (XS-3)","signed") </FORMAT>\n',
+'\n'
+],
+BCDencodedData]
+]
+],
+##############################################################################################	37
+["Format Base64",
+[
+
+#0
+[['int i[4]; //<FORMAT> BASE64 </FORMAT>\n',
+'\n'
+],
+Base64encodedData]
+]
+],
+##############################################################################################	38
 ["Format PRINTF",
 [
 
@@ -2956,7 +2987,7 @@ networkHdrs]
 ]
 ],
 
-##############################################################################################	37
+##############################################################################################	39
 ["Format ENUM",
 [
 
@@ -3097,7 +3128,7 @@ networkHdrs]
 ]
 ],
 
-##############################################################################################	38
+##############################################################################################	40
 ["Format POSTPROCESS",
 [
 
@@ -16206,10 +16237,10 @@ def convert2Dec(endianness, variableId, unraveledRowNum, rawData, parameters=[])
 		EXIT("Failed to format the numeric value "+STR(rawDataNum)+" corresponding to rawData="+rawData+" inside convert2Dec()")
 	return rawDataFormatted
 		
-def convert2BCD(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+def decodeBCD(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
 #	PRINT = OUTPUT
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
-	PRINT("During", executionStage,", inside convert2BCD(endianness =",endianness,", variableId =", variableId,", rawData =",rawData, ", parameters =",parameters)
+	PRINT("During", executionStage,", inside decodeBCD(endianness =",endianness,", variableId =", variableId,", rawData =",rawData, ", parameters =",parameters)
 	if executionStage == "Interpret":
 		return rawData
 
@@ -16266,9 +16297,9 @@ def convert2BCD(endianness, variableId, unraveledRowNum, rawData, parameters=[])
 			BCDcodingTypeSupplied=BCDcodingTypeSupplied[1:-1]	# Remove the double quotes
 		if BCDcodingTypeSupplied in getDictKeyList(BCDencodingTable):
 			BCDencodingType = BCDcodingTypeSupplied
-			PRINT("In convert2BCD() - the first parameter supplied "+BCDcodingTypeSupplied+" is a valid BCD coding types - using it")
+			PRINT("In decodeBCD() - the first parameter supplied "+BCDcodingTypeSupplied+" is a valid BCD coding types - using it")
 		else:
-			warningMessage = "Warning in convert2BCD() - the first parameter supplied "+BCDcodingTypeSupplied+" is not any of the valid BCD coding types - defaulting it \"8 4 2 1 (XS-0)\" instead."
+			warningMessage = "Warning in decodeBCD() - the first parameter supplied "+BCDcodingTypeSupplied+" is not any of the valid BCD coding types - defaulting it \"8 4 2 1 (XS-0)\" instead."
 			warningRoutine(warningMessage)
 
 	signOrUnsignedBCD = 'unsigned'	# Default
@@ -16281,7 +16312,7 @@ def convert2BCD(endianness, variableId, unraveledRowNum, rawData, parameters=[])
 		elif signOrUnsignedSupplied.lower()=='unsigned':
 			signOrUnsignedBCD = 'unsigned'
 		else:
-			warningMessage = "Warning in convert2BCD() - the second parameter supplied "+signOrUnsignedSupplied+" is neither signed nor unsigned - setting it to unsigned."
+			warningMessage = "Warning in decodeBCD() - the second parameter supplied "+signOrUnsignedSupplied+" is neither signed nor unsigned - setting it to unsigned."
 			warningRoutine(warningMessage)
 			signOrUnsignedBCD = 'unsigned'
 			
@@ -16293,7 +16324,7 @@ def convert2BCD(endianness, variableId, unraveledRowNum, rawData, parameters=[])
 		rawDataNum = convertIntegralString2Int(rawData)
 		PRINT("rawData (",rawData,") wasn't integral, made it integral (",rawDataNum,")")
 		if not checkIfIntegral(rawDataNum):
-			errorMessage = "ERROR in convert2BCD() - cannot convert <"+STR(rawData)+"> to integer"
+			errorMessage = "ERROR in decodeBCD() - cannot convert <"+STR(rawData)+"> to integer"
 			errorRoutine(errorMessage)
 			return rawData
 	PRINT("rawDataNum =",rawDataNum)
@@ -16301,14 +16332,14 @@ def convert2BCD(endianness, variableId, unraveledRowNum, rawData, parameters=[])
 	signedOrUnsigned = variableDeclarations[variableId][4]["signedOrUnsigned"]
 	encodeValueResult = encodeValue(rawDataNum, endianness, datatype, signedOrUnsigned)
 	if encodeValueResult[0] != True:
-		errorMessage = "ERROR in convert2BCD() - cannot convert <"+STR(rawData)+"> to "+signedOrUnsigned+" "+datatype
+		errorMessage = "ERROR in decodeBCD() - cannot convert <"+STR(rawData)+"> to "+signedOrUnsigned+" "+datatype
 		errorRoutine(errorMessage)
 		return rawData
 	else:
 		byteArray = encodeValueResult[1]
 		PRINT("encoded byteArray =",printHexStringWord(byteArray))
 		if len(byteArray) != primitiveDatatypeLength[datatype]:
-			errorMessage = "ERROR in convert2BCD() - for rawData <"+STR(rawData)+"> of datatype "+datatype+", we are getting byteArray size of "+STR(len(byteArray))+" while we expected "+STR(primitiveDatatypeLength[datatype])+" bytes"
+			errorMessage = "ERROR in decodeBCD() - for rawData <"+STR(rawData)+"> of datatype "+datatype+", we are getting byteArray size of "+STR(len(byteArray))+" while we expected "+STR(primitiveDatatypeLength[datatype])+" bytes"
 			errorRoutine(errorMessage)
 			return rawData
 
@@ -16324,7 +16355,7 @@ def convert2BCD(endianness, variableId, unraveledRowNum, rawData, parameters=[])
 		lowerNibbleValue = BCDencodingTable[BCDencodingType][lowerNibble]
 		PRINT("upperNibbleValue =",upperNibbleValue,", lowerNibbleValue =",lowerNibbleValue)
 		if upperNibbleValue < 0 or upperNibbleValue > 9: 
-			errorMessage = "ERROR in convert2BCD() - for rawData <"+STR(rawData)+"> of datatype "+datatype+",for byteArray["+STR(i)+"] = "+STR(byteVal) + ", the upper nibble value ("+STR(upperNibbleValue)+") is outside [0,9]"
+			errorMessage = "ERROR in decodeBCD() - for rawData <"+STR(rawData)+"> of datatype "+datatype+",for byteArray["+STR(i)+"] = "+STR(byteVal) + ", the upper nibble value ("+STR(upperNibbleValue)+") is outside [0,9]"
 			errorRoutine(errorMessage)
 			return rawData
 			
@@ -16336,7 +16367,7 @@ def convert2BCD(endianness, variableId, unraveledRowNum, rawData, parameters=[])
 		else:
 			overallDecimalValue *= 100
 			if lowerNibbleValue < 0 or lowerNibbleValue > 9: 
-				errorMessage = "ERROR in convert2BCD() - for rawData <"+STR(rawData)+"> of datatype "+datatype+",for byteArray["+STR(i)+"] = "+STR(byteVal) + ", the lower nibble value ("+STR(lowerNibbleValue)+") is outside [0,9]"
+				errorMessage = "ERROR in decodeBCD() - for rawData <"+STR(rawData)+"> of datatype "+datatype+",for byteArray["+STR(i)+"] = "+STR(byteVal) + ", the lower nibble value ("+STR(lowerNibbleValue)+") is outside [0,9]"
 				errorRoutine(errorMessage)
 				return rawData
 			if endianness == LITTLE_ENDIAN:
@@ -16344,11 +16375,109 @@ def convert2BCD(endianness, variableId, unraveledRowNum, rawData, parameters=[])
 			elif endianness == BIG_ENDIAN:
 				packedDecimalValueForThisByte = upperNibbleValue * 10 + lowerNibbleValue
 			else:
-				EXIT("ERROR in convert2BCD() - unknown endianness "+endianness)
+				EXIT("ERROR in decodeBCD() - unknown endianness "+endianness)
 			overallDecimalValue += packedDecimalValueForThisByte
 	
 	return overallDecimalValue
 
+def decodeBase64(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
+#	PRINT = OUTPUT
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	endiannessText = "LITTLE_ENDIAN" if endianness == LITTLE_ENDIAN else "BIG_ENDIAN"
+	PRINT("During", executionStage,", inside decodeBase64(endianness =",endiannessText,", variableId =", variableId,", unraveledRowNum =", unraveledRowNum, ", rawData =",rawData, ", parameters =",parameters)
+	if executionStage == "Interpret":
+		return rawData
+
+	PRINT("rawData =",rawData)
+	datatype = variableDeclarations[variableId][4]["datatype"]
+	signedOrUnsigned = variableDeclarations[variableId][4]["signedOrUnsigned"]
+	isArray = variableDeclarations[variableId][4]["isArray"]
+	
+	if not isArray:
+		errorMessage = "ERROR in decodeBase64() - cannot decode "+printHexStringWord(rawData)+"("+printASCIIStringWord(rawData)+") for variable "					\
+						+ variableDeclarations[variableId][0]+" since it is not an array"
+		errorRoutine(errorMessage)
+		return rawData
+	if datatype not in getDictKeyList(primitiveDatatypeLength):
+		errorMessage = "ERROR in decodeBase64() - cannot decode "+printHexStringWord(rawData)+"("+printASCIIStringWord(rawData)+") for variable "					\
+						+ variableDeclarations[variableId][0]+" since it is not an array of any primitive type - its datatype is "+datatype
+		errorRoutine(errorMessage)
+		return rawData
+	if len(rawData)% primitiveDatatypeLength[datatype] !=0:
+		errorMessage = "ERROR in decodeBase64() - cannot decode "+printHexStringWord(rawData)+"("+printASCIIStringWord(rawData)+") for variable "					\
+						+ variableDeclarations[variableId][0]+" since the rawData size ("+STR(len(rawData))+") is not a multiple of the primitive datatype "		\
+						+ datatype+" size of "+STR(primitiveDatatypeLength[datatype])
+		errorRoutine(errorMessage)
+		return rawData
+
+	binary6bitsArray = ''
+	for i in range(len(rawData)):
+		isPaddingChar = False
+		byte = rawData[i]
+		outputByte = chr(byte) if PYTHON2x else bytes([byte])
+		PRINT("Decoding byte #"+STR(i)+"( Hex 0x"+STR(byte)+", ASCII " + printASCIIStringWord(outputByte)+")")
+		if   (ORD('A') <= ORD(byte) <= ORD('Z')):
+			binary6bits = ORD(byte) -  ORD('A')
+		elif (ORD('a') <= ORD(byte) <= ORD('z')):
+			binary6bits = ORD(byte) -  ORD('a') + 26
+		elif (ORD('0') <= ORD(byte) <= ORD('9')):
+			binary6bits = ORD(byte) -  ORD('0') + 52
+		elif ORD(byte) == '+':
+			binary6bits = 62
+		elif ORD(byte) == '/':
+			binary6bits = 63
+		elif ORD(byte) == ORD('='):
+			isPaddingChar = True
+			PRINT("Padding char '=' detected for byte #",i)
+			for j in range(len(rawData)-i-1):
+				if rawData[i+j] != '=':
+					errorMessage = "ERROR in decodeBase64() - cannot decode "+printHexStringWord(rawData)+"("+printASCIIStringWord(rawData)+") for variable "		\
+								+ variableDeclarations[variableId][0]+" since its byte #"+STR(i)+"( Hex 0x"+STR(byte)+", ASCII " + printASCIIStringWord(outputByte)		\
+								+ ") is '=' (padding), and there are non-padding characters after that" 
+					errorRoutine(errorMessage)
+					return rawData
+		else:
+			errorMessage = "ERROR in decodeBase64() - cannot decode " + printHexStringWord(rawData) + "(" + printASCIIStringWord(rawData) + ") for variable "		\
+							+ variableDeclarations[variableId][0] + " since its byte #" + STR(i) + "( Hex 0x" + STR(byte) + ", ASCII " + printASCIIStringWord(outputByte) 	\
+							+ ") is not a valid Base-64 encoding char" 
+			errorRoutine(errorMessage)
+			return rawData
+			
+		if not isPaddingChar:
+			binary6bitsArray += '{:06b}'.format(binary6bits)
+		PRINT("Decoded byte #",STR(i), "( Hex 0x"+STR(byte),", ASCII " + printASCIIStringWord(outputByte)+") as",STR(binary6bits),"(",'{:06b}'.format(binary6bits),")")
+	PRINT("After decoding into binary, binary6bitsArray = 0b"+binary6bitsArray)
+	
+	if 	len(binary6bitsArray)%BITS_IN_BYTE == 0:
+		PRINT("binary6bitsArray is a proper multiple of",BITS_IN_BYTE)
+	else:
+		PRINT("binary6bitsArray is NOT a proper multiple of",BITS_IN_BYTE)
+		if binary6bitsArray[-(len(binary6bitsArray)%BITS_IN_BYTE):] != (len(binary6bitsArray)%BITS_IN_BYTE)*'0':
+			errorMessage = "ERROR in decodeBase64() - cannot decode "+printHexStringWord(rawData)+"("+printASCIIStringWord(rawData)+") for variable "			\
+							+ variableDeclarations[variableId][0]+" since its byte #"+STR(i)+"("+STR(byte)+") is not a valid Base-64 encoding char" 
+			errorRoutine(errorMessage)
+			return rawData
+		else:
+			PRINT("In decodeBase64() - binary6bitsArray =",binary6bitsArray,"is",len(binary6bitsArray),"bits long, which has",len(binary6bitsArray)%BITS_IN_BYTE,"'0' bits of padding at the end - pruning them")
+			binary6bitsArray = binary6bitsArray[:-(len(binary6bitsArray)%BITS_IN_BYTE)]
+
+	if 	len(binary6bitsArray)%BITS_IN_BYTE != 0:
+		EXIT("Coding bug in decodeBase64() - binary6bitsArray =",binary6bitsArray,"is",len(binary6bitsArray),"bits long - not a multiple of"+STR(BITS_IN_BYTE))
+	
+	binaryByteArrayDecodedHex = ''
+#	binaryByteArrayDecoded = []
+	outputBytes = "" if PYTHON2x else bytearray()
+	for i in range(integerDivision(len(binary6bitsArray),BITS_IN_BYTE)):
+		binary8Bits = '0b'+binary6bitsArray[i*BITS_IN_BYTE:(i+1)*BITS_IN_BYTE]
+		binaryByte = int(binary8Bits,2)
+		outputByte = chr(binaryByte) if PYTHON2x else bytes([binaryByte])
+		outputBytes += outputByte
+		PRINT("For octet #",i,", binary8Bits =",binary8Bits,", type(binary8Bits) =", type(binary8Bits), ", binaryByte =",binaryByte," (",outputByte,")")
+#		binaryByteArrayDecoded.append(binaryByte)
+		binaryByteArrayDecodedHex += '{:02x}'.format(binaryByte)
+#	PRINT("binaryByteArrayDecoded =",binaryByteArrayDecoded)
+	PRINT("binaryByteArrayDecodedHex =",binaryByteArrayDecodedHex,"(",outputBytes,")")
+	return '0x'+binaryByteArrayDecodedHex.upper()
 
 def convert2percent(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
@@ -16733,7 +16862,8 @@ formats = {	"HEX"				:	convert2Hex,
 			"BINARY"			:	convert2Bin, 
 			"DEC"				:	convert2Dec, 
 			"DECIMAL"			:	convert2Dec,
-			"BCD"				:	convert2BCD,
+			"BCD"				:	decodeBCD,
+			"BASE64"			:	decodeBase64,
 			"PCT"				:	convert2percent,
 			"PERCENT"			:	convert2percent,
 			"UNIXDATETIME"		:	displayDATETIME,
@@ -16754,8 +16884,8 @@ formats = {	"HEX"				:	convert2Hex,
 def applyFormat(endianness, variableId, unraveledRowNum, rawData, displayFormatList=[]):
 #	PRINT=OUTPUT
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
-	
-	PRINT("\n\nInside applyFormat(variableId=",variableId,",unraveledRowNum=",unraveledRowNum,", rawData=",rawData,", displayFormatList=",displayFormatList,"\n")
+	endiannessText = "LITTLE_ENDIAN" if endianness==LITTLE_ENDIAN else "BIG_ENDIAN"
+	PRINT("\n\nDuring",executionStage,", inside applyFormat(",endiannessText,", variableId=",variableId,", unraveledRowNum=",unraveledRowNum,", rawData=",rawData,", displayFormatList=",displayFormatList,")\n")
 	if endianness != LITTLE_ENDIAN and endianness != BIG_ENDIAN:
 		EXIT("Coding error in applyFormat() - endianness must be either little endian or big endian")
 		
@@ -16830,9 +16960,9 @@ def applyFormat(endianness, variableId, unraveledRowNum, rawData, displayFormatL
 		else:
 			tokenizeLinesResult = tokenizeLinesResult[0]	# Replace the original format operation string with a tokenized list
 			PRINT(displayFormatString,"was tokenized as",STR(tokenizeLinesResult))
-			displayFormat = tokenizeLinesResult[0]
+			displayFormat = tokenizeLinesResult[0].upper()
 			if displayFormat not in getDictKeyList(formats):
-				errorMessage = "ERROR in applyFormat() - format "+ STR(displayFormat)+" is not currently supported"
+				errorMessage = "ERROR in applyFormat() - format "+ STR(tokenizeLinesResult[0])+" is not currently supported"
 				errorRoutine(errorMessage)
 				return rawData if executionStage == "Map" else False
 			if tokenizeLinesResult[-1]==';':	# Ignore any semicolon at the end
@@ -16844,9 +16974,21 @@ def applyFormat(endianness, variableId, unraveledRowNum, rawData, displayFormatL
 		if len(tokenizeLinesResult)==2 and tokenizeLinesResult[-1]=='()':
 			tokenizeLinesResult = [tokenizeLinesResult[0],'(',')']
 		
+		if tokenizeLinesResult[0].upper() == "BASE64":	# only
+			isArrayLevelFormat = True
+			'''
+			PRINT("It is BASE64 format")
+			if executionStage == "Map": 
+				if not isArray or (isArray and not isArrayHeaderRow):
+					PRINT("Skipping it")
+					skipThisFormat = True
+				else:
+					PRINT("NOT Skipping it")
+			'''		
 		if len(tokenizeLinesResult)==1 or (len(tokenizeLinesResult)==3 and tokenizeLinesResult[1]=="(" and tokenizeLinesResult[2]==")"):
 			if executionStage == "Map" and isArray and isArrayHeaderRow:
-				skipThisFormat = True
+				if tokenizeLinesResult[0].upper() != "BASE64":
+					skipThisFormat = True
 		if not (len(tokenizeLinesResult)==1 or (len(tokenizeLinesResult)>1 and tokenizeLinesResult[1]=="(" and tokenizeLinesResult[-1]==")")):
 			errorMessage = "ERROR in applyFormat() tokenizing <%s> - the only allowed formats are 1) format, 2) format(), and format(parameters). "%(displayFormatString)
 			errorRoutine(errorMessage)
@@ -16865,42 +17007,42 @@ def applyFormat(endianness, variableId, unraveledRowNum, rawData, displayFormatL
 				errorMessage = "ERROR in applyFormat() attempting to parse the argument list for %s."%(displayFormatString)
 				errorRoutine(errorMessage)
 				return rawData if executionStage == "Map" else False
-			else:
-				parameters = parseArgumentListResult
-				PRINT("Parameters passed to FORMAT %s is <%s>"%(displayFormat,STR(parameters)))
-
 				
-				# parseArgumentList() returns single-term arguments as single terms, without making it a list. So make every term a list.
-				for i in range(len(parameters)):
-					if checkIfString(parameters[i]):
-						parameters[i] = [parameters[i]]		# A hack to avoid the case where single-item lists are sent as a single string rather than [a signle string]
-					if not isinstance(parameters[i],list):
-						errorMessage = "ERROR in applyFormat() - illegal argument parameters["+STR(i)+"] = "+STR(parameters)+" - not a list"
-						errorRoutine(errorMessage)
-						return rawData if executionStage == "Map" else False
-					
-					if executionStage == "Map" and isArray:
-						# check if the variableName is there in the format
-						flattenedParameters = flattenList(parameters[i])
-						PRINT("parameters[",i,"]=",parameters[i],", flattenedParameters =",flattenedParameters)
-						for item in flattenedParameters:
-							if item == variableName:
-								isArrayLevelFormat = True
-								break
+			parameters = parseArgumentListResult
+			PRINT("Parameters passed to FORMAT %s is <%s>"%(displayFormat,STR(parameters)))
 
+			
+			# parseArgumentList() returns single-term arguments as single terms, without making it a list. So make every term a list.
+			for i in range(len(parameters)):
+				if checkIfString(parameters[i]):
+					parameters[i] = [parameters[i]]		# A hack to avoid the case where single-item lists are sent as a single string rather than [a signle string]
+				if not isinstance(parameters[i],list):
+					errorMessage = "ERROR in applyFormat() - illegal argument parameters["+STR(i)+"] = "+STR(parameters)+" - not a list"
+					errorRoutine(errorMessage)
+					return rawData if executionStage == "Map" else False
+				
 				if executionStage == "Map" and isArray:
-					PRINT("unraveledRowNum =",unraveledRowNum)
-					PRINT("isArrayHeaderRow =",isArrayHeaderRow)
-					PRINT("isArrayLevelFormat =",isArrayLevelFormat)
-					PRINT("skipThisFormat =",skipThisFormat," (originally)")
-					
-					if isArrayHeaderRow and (not isArrayLevelFormat):
-						PRINT("Condition 1 succeeded")
-						skipThisFormat = True
-					elif (not isArrayHeaderRow) and isArrayLevelFormat:
-						PRINT("Condition 2 succeeded")
-						skipThisFormat = True
-					PRINT("skipThisFormat =",skipThisFormat,"(new value)")
+					# check if the variableName is there in the format
+					flattenedParameters = flattenList(parameters[i])
+					PRINT("parameters[",i,"]=",parameters[i],", flattenedParameters =",flattenedParameters)
+					for item in flattenedParameters:
+						if item == variableName:
+							isArrayLevelFormat = True
+							break
+
+		if executionStage == "Map" and isArray:
+			PRINT("unraveledRowNum =",unraveledRowNum)
+			PRINT("isArrayHeaderRow =",isArrayHeaderRow)
+			PRINT("isArrayLevelFormat =",isArrayLevelFormat)
+			PRINT("skipThisFormat =",skipThisFormat," (originally)")
+			
+			if isArrayHeaderRow and (not isArrayLevelFormat):
+				PRINT("Condition 1 succeeded - is an array header row and the format is not array-level")
+				skipThisFormat = True
+			elif (not isArrayHeaderRow) and isArrayLevelFormat:
+				PRINT("Condition 2 succeeded - is not an array header row and the format is array-level")
+				skipThisFormat = True
+			PRINT("skipThisFormat =",skipThisFormat,"(new value)")
 
 		
 		if skipThisFormat:
@@ -18044,12 +18186,14 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 			PRINT("We need to format the",variableName,"with FORMAT=",variableDescription["FORMAT"])
 #			headerRowNum = rowNumberOfArrayHeaderRowWithBlankEndAddr
 			variableStartOffset = unraveledSupplied[headerRowNum][3]
-			variableEndOffset = unraveledSupplied[headerRowNum][4]
-			numBytesToRead = int(variableEndOffset)-int(variableStartOffset)+1
+			variableEndOffsetExclusive = unraveledSupplied[headerRowNum][4]
+			PRINT("For ", arrayOrStructName,", variableStartOffset =",variableStartOffset,", variableEndOffsetExclusive =",variableEndOffsetExclusive)
+			numBytesToRead = int(variableEndOffsetExclusive)-int(variableStartOffset)
 			valueBytes = readBytesFromFile(variableStartOffset,numBytesToRead)
 			if len(valueBytes) != numBytesToRead:	# Full data is not there
 				warningMessage = "For " + arrayOrStructName +" we needed to read "+STR(numBytesToRead)+" bytes but got only "+STR(len(valueBytes))+" bytes"
 				warningRoutine(warningMessage)
+			PRINT("For",arrayOrStructName,"we read",numBytesToRead,"bytes =",printHexStringWord(valueBytes)," and updated unraveled[",headerRowNum,"]")
 			# Update the raw byte array as the "values" for array or struct. This does not get printed or shown. Only way to do that is by formatting
 			unraveledSupplied[headerRowNum][5] = printHexStringWord(valueBytes)
 			unraveledSupplied[headerRowNum][6] = valueBytes
@@ -19720,10 +19864,12 @@ def mainWork():
 
 def checkIfValidRawInput(inputBytes):
 	if PYTHON2x and (not isinstance(inputBytes,basestring)):
-		PRINT ("ERROR: Inside checkIfValidRawInput(), input byte stream <",inputBytes,"> is not a valid bytestream input - its type is", type(inputBytes),"instead of \"bytes\"")
+		errorMessage = "ERROR: Inside checkIfValidRawInput(), input byte stream <"+STR(inputBytes)+"> is not a valid bytestream input - its type is "+STR(type(inputBytes))+" instead of \"bytes\""
+		errorRoutine(errorMessage)
 		return False
 	elif PYTHON3x and (not isinstance(inputBytes,(bytes,bytearray))):
-		PRINT ("ERROR: Inside checkIfValidRawInput(), input byte stream <",inputBytes,"> is not a valid bytestream input - its type is", type(inputBytes),"instead of \"bytes\"")
+		errorMessage = "ERROR: Inside checkIfValidRawInput(), input byte stream <"+STR(inputBytes)+"> is not a valid bytestream input - its type is "+STR(type(inputBytes))+" instead of \"bytes\""
+		errorRoutine(errorMessage)
 		return False
 	else:
 		return True
@@ -19734,13 +19880,42 @@ def checkIfValidRawInput(inputBytes):
 
 def printHexStringWord (inputBytes):
 	if not checkIfValidRawInput(inputBytes):
-		PRINT ("ERROR: Inside printHexStringWord(), input byte stream <",inputBytes,"> is not a valid bytestream input" )
+		errorMessage = "ERROR: Inside printHexStringWord(), input byte stream <"+STR(inputBytes)+"> is not a valid bytestream input"
+		errorRoutine(errorMessage)
 		return False
 	else:
 		returnString="<"
 		for byte in inputBytes:
 			returnString += "%02X"%ORD(byte)
 		returnString += ">"
+		return returnString
+	'''
+	if len(inputBytes) == 1:
+		return "<%02X>" %(ord(inputBytes[0]))
+	elif len(inputBytes) == 2:
+		return "<%02X %02X>" %(ord(inputBytes[0]),ord(inputBytes[1]))
+	elif len(inputBytes) == 4:
+		return "<%02X %02X %02X %02X>" %(ord(inputBytes[0]),ord(inputBytes[1]),ord(inputBytes[2]),ord(inputBytes[3]))
+	elif len(inputBytes) == 8:
+		return "<%02X %02X %02X %02X %02X %02X %02X %02X>" %(ord(inputBytes[0]),ord(inputBytes[1]),ord(inputBytes[2]),ord(inputBytes[3]),
+															 ord(inputBytes[4]),ord(inputBytes[5]),ord(inputBytes[6]),ord(inputBytes[7]))
+	else:
+		return False
+	'''
+def printASCIIStringWord (inputBytes):
+	if not checkIfValidRawInput(inputBytes):
+		PRINT ("ERROR: Inside printASCIIStringWord(), input byte stream <",inputBytes,"> is not a valid bytestream input" )
+		return False
+	else:
+		returnString='"'
+		for byte in inputBytes:
+			if ((0x20 <= ORD(byte) <= 0x7E) or (0x80 <= ORD(byte) <= 0xFE)):
+				byteToPrint = byte
+			else:
+				byteToPrint = "."
+			
+			returnString += chr(ORD(byteToPrint))
+		returnString += '"'
 		return returnString
 	'''
 	if len(inputBytes) == 1:
@@ -26576,17 +26751,78 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(3)
-			infoMessage = "If this still does not serve your need, you can always use the PRINTF() format, which works exactly like the printf() in C. "	\
-							+ "\n\nPress OK to see how it will look like."
+			
+			self.endFeatureDemoMessage()
+			
+		elif self.demoIndex == 36:		# Format BCD
+
+			self.clearDemo()
+			infoMessage = "BCD (Binary-Coded Decimal) is one of the oldest encoding scheme in which each digit in a decimal number are encoded inside a nibble (4-char). "	\
+							+ "Since 4 bits are enough to encode 10 possible digits (0-9), BCD continues to give a much higher fidelity conversion to decimal "	\
+							+ "(more accurate representation and rounding of decimal quantities). It can both signed or unsigned. And there are many BCD encodings."		
 			infoRoutine(infoMessage)
+			infoMessage = 'Here are some of the most common BCD (Binary Coded Decimal) encodings:\n\n' 		\
+							+ '"8 4 2 1 (XS-0)", "7 4 2 1", "Aiken (2 4 2 1)", "Excess-3 (XS-3)", "Excess-6 (XS-6)", "Jump-at-2 (2 4 2 1)", "Jump-at-8 (2 4 2 1)", '	\
+							+ '"4 2 2 1 (I)", "4 2 2 1 (II)", "5 4 2 1", "5 2 2 1", "5 1 2 1", "5 3 1 1", "White (5 2 1 1)", "5 2 1 1", "Magnetic tape", "Paul", '		\
+							+ '"Gray", "Glixon", "Ledley", "4 3 1 1", "LARC", "Klar", "Petherick (RAE)", "O\'Brien I (Watts)", "5-cyclic", "Tompkins I", "Lippel", '	\
+							+ '"O\'Brien II", "Tompkins II", "Excess-3 Gray", "6 3  2  1 (I)", "6 3  2  1 (II)", "8 4  2  1", "Lucal", "Kautz I", "Kautz II", '			\
+							+ '"Susskind I", "Susskind II"'
+			infoRoutine(infoMessage)
+
+			self.openCodeFile([self.demoIndex,0])
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "The <FORMAT> BCD </FORMAT> decodes any BCD-encoded field. It optionally takes two arguments: "									\
+							+ "1. The encoding name.\n\n2. \"signed\" or \"unsigned\""																		\
+							+ "\n\nIf no arguments are passed, it assumes the most common (\"8 4 2 1 (XS-0)\") encoding scheme, as well as unsigned."		\
+							+"\n\nHit enter to see the result."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(2)
+			self.showUnraveledRowNumInTreeView(4)
+			infoMessage = "Looks neat, isn't it?"
+			infoRoutine(infoMessage)
+
+			self.endFeatureDemoMessage()
+			
+		elif self.demoIndex == 37:		# Format BASE64
+
+			self.clearDemo()
+			infoMessage = "Base64 is a group of binary-to-text encoding schemes that transforms binary data into a sequence of printable characters, "		\
+							+"limited to a set of 64 unique characters (usually a-z,A-Z,0-9,+ and/). More specifically, the source binary data is taken "	\
+							+"6 bits at a time, then this group of 6 bits is mapped to one of 64 unique characters. As with all binary-to-text encoding "	\
+							+"schemes, Base64 is designed to carry data stored in binary formats across channels that only reliably support text content. "
+			infoRoutine(infoMessage)
+			infoMessage = "For an example, the bytestream 0x4D616E (which corresponds to ASCII \"Man\") has the 3x8 = 24 bit long bitstream of "		\
+							+"01001101, 01100001, and 01101110. This 24-bit bit stream can be instead grouped into 4x6 bitstream of 010011, 010110, "	\
+							+"000101 and 101110, which corresponds to 0x54, 0x57, 0x46 and 0x75 (which corresponds to ASCII \"TWFu\". "	\
+							+"\n\nHit Enter to see this in action."
+			self.openCodeFile([self.demoIndex,0])
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "Suppose the input data is encoded in Base64 format. To see the decoded bytes, all you have to do is map the encoded data "		\
+							+"to some array, and then use the <FORMAT> BASE64 </FORMAT> on it. \n\nThe tool is smart enough to understand that the "		\
+							+"format will not be applicable to individual array elements, but to the whole array as whole.\n\nIn fact, there is no "		\
+							+"way to make the Base-64 decoding apply to each byte individually, since a single decoded byte might overlap TWO encoded "		\
+							+"bytes.  "	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "Now you see the decoded array"
+			infoRoutine(infoMessage)
+			
+			infoMessage = "That was all the built-in FORMATs. If this still does not serve your need, you can always use the PRINTF() format, which "		\
+							+ "works exactly like the printf() in C. "
+			infoRoutine(infoMessage)
+			
 			self.endFeatureDemoMessage()
 							
-		elif self.demoIndex == 36:		# Format PRINTF
+		elif self.demoIndex == 38:		# Format PRINTF
 
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			infoMessage = "As you can see, not only you can custom-print the variable declared on that line, but also you can print the values of "	\
+			infoMessage = "As you can see, not only you can custom-print the variable declared on that line, but also you can print the values of "			\
 							+ "other variables declared before.\n\nPress OK to see the output."		
 			infoRoutine(infoMessage)
 			self.interpret()
@@ -26599,7 +26835,7 @@ class MainWindow:
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
 			infoMessage = "Now, here we see the real power of this tool when it comes to PRINTF. Not only you can use an expression (instead of just a "	\
-							+ "variable name), but also the format string itself (the very first parameter to PRINTF) can also be an expression. "	\
+							+ "variable name), but also the format string itself (the very first parameter to PRINTF) can also be an expression. "			\
 							+ "This makes the tool as powerful as a C parser program.\n\nPress OK to see the results."
 			infoRoutine(infoMessage)
 			self.interpret()
@@ -26609,16 +26845,24 @@ class MainWindow:
 			infoMessage = "However, creating huge programs involving \"Condition ? Do_if_True : Do_if_False\" (C-version of if-then-else) inside the format "	\
 							+ "string of a PRINTF can get tedious. Sometimes we do not want to print the value directly, but rather want to print something "	\
 							+ "else corresponding to the value. "	\
-							+ "Think it as the inverse of enum in C. In C, when you use ENUM literals in your code, they get interpreted as integers. " \
-							+ "Here, we do the inverse - when a variable matches a certain value, its corresponding ENUM literal gets printed instead. " \
-							+ "\n\nWe have <FORMAT> ENUM(\"string_1\"=value1, \"string_2\"=value2, ..., \"stringN\"=\"REST\")</FORMAT> ."				\
+							+ "Think it as the inverse of enum in C. In C, when you use ENUM literals in your code, they get interpreted as integers. " 		\
+							+ "Here, we do the inverse - when a variable matches a certain value, its corresponding ENUM literal gets printed instead. " 		\
+							+ "\n\nWe have <FORMAT> ENUM(\"string_1\"=value1, \"string_2\"=value2, ..., \"stringN\"=\"REST\")</FORMAT> ."						\
 							+ "\n\nPress OK to see how it will look like."
 			infoRoutine(infoMessage)
 			self.endFeatureDemoMessage()
 			
-		elif self.demoIndex == 37:		# Format ENUM
+		elif self.demoIndex == 39:		# Format ENUM
 			
 			self.clearDemo()
+			infoMessage = "Till now, we have only seen built-in formats where the only liberty the user has is choosing the appropriate FORMAT.\n\n "	\
+							+ "However, there might be other decoding schemes which the user may want to deploy. \n\nOne very basic and often-used "	\
+							+ "scheme is that instead of displaying the data value, we display a more user-friendly literal. For example, suppose "		\
+							+ " we are encoding the privilege level of a driver using an integer variable named \"Ring\", and the expected values "		\
+							+ "to be stored are 0 and 3. However, maybe instead of displaying the just 0 and 3, we want to display the literals "		\
+							+ "\"Kernel-mode\" and \"User-mode\", respectively.\n\nIn C, this correspondence is achieved using the \"enum\" keyword."	\
+							+ "\n\nHowever, there is a catch. In C, enum only converts a literal to an integer, NOT the other way round."
+			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
 			infoMessage = "Suppose we have the following C code that uses the enum for code clarity.\n\n "	\
@@ -26687,7 +26931,7 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			self.endFeatureDemoMessage()
 							
-		elif self.demoIndex == 38:		# Format PREPROCESS
+		elif self.demoIndex == 40:		# Format PREPROCESS
 			
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
