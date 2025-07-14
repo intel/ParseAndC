@@ -866,6 +866,7 @@
 # 2024-12-22 - Fixed #include bug and implemented BCD format
 # 2024-12-26 - Implemented Base-64 format
 # 2025-01-03 - Updated the Demo
+# 2025-07-14 - Ensured that the <FORMAT> tag </FORMAT> statements are now case-insensitive
 ##################################################################################################################################
 ##################################################################################################################################
 
@@ -18678,7 +18679,7 @@ def parseCommentForFormats(inputString):
 		errorRoutine(errorMessage)
 	formatPrefixTokens = ["<","FORMAT",">"]
 	formatSuffixTokens = ["<","/","FORMAT",">"]
-	if re.match(r'^.*<\w*FORMAT\w*>.*<\w*/\w*FORMAT\w*>', inputString):
+	if re.match(r'^.*<\w*FORMAT\w*>.*<\w*/\w*FORMAT\w*>', inputString.upper()):
 		PRINT("inputString = %s contains FORMAT" %(inputString))
 		tokenizeLinesResult = tokenizeLines(inputString)
 		if tokenizeLinesResult == False:
@@ -18691,11 +18692,11 @@ def parseCommentForFormats(inputString):
 			PRINT("Tokenized inputList=",inputList)
 			i = 0
 			while i<=len(inputList)-len(formatPrefixTokens):
-				if inputList[i:i+len(formatPrefixTokens)] == formatPrefixTokens:	# Format prefix found
+				if inputList[i]==formatPrefixTokens[0] and inputList[i+1].upper()==formatPrefixTokens[1] and inputList[i+2]==formatPrefixTokens[2]:	# Format prefix found
 					j = i + len(formatPrefixTokens)	# Start looking for the format suffix from here
 					formatSuffixFound = False
 					while j<=len(inputList)-len(formatSuffixTokens):
-						if inputList[j:j+len(formatSuffixTokens)] == formatSuffixTokens:	# Format suffix found
+						if inputList[j]==formatSuffixTokens[0] and inputList[j+1]==formatSuffixTokens[1] and inputList[j+2].upper()==formatSuffixTokens[2] and inputList[j+3]==formatSuffixTokens[3]:	# Format suffix found
 							PRINT("Found",inputList[j:j+len(formatSuffixTokens)],"tokens from j=",j)
 							formatSuffixFound = True
 							formatTokens = inputList[i+len(formatPrefixTokens):j]
