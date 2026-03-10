@@ -871,6 +871,7 @@
 # 2026-01-31 - Introduced INFORMAT
 # 2026-02-15 - Introduced Regular Expression
 # 2026-02-28 - Pretty printing
+# 2026-03-10 - UI Redesign
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -23461,6 +23462,12 @@ class MainWindow:
 		# This contains <unraveledrowNum, corresponding iid of treeView>
 		self.unraveledrowNumItemId = []
 
+		# Window visibility toggles
+		self.hideOriginalVar = tk.BooleanVar()
+		self.hideOriginalVar.set(False)
+		self.hideInterpretedVar = tk.BooleanVar()
+		self.hideInterpretedVar.set(False)
+
 		# The demoIndex
 		self.demoIndex = -1
 		
@@ -23711,6 +23718,10 @@ class MainWindow:
 		toggleMapTypedefsTooInitalText = "Mapping typedefs too" if MAP_TYPEDEFS_TOO else "Not mapping typedefs"
 		self.toggleMapTypedefsTooButton = ttk.Button(frame, text=toggleMapTypedefsTooInitalText, underline=8,command=self.toggleMapTypedefsToo)
 		
+		# Checkboxes to hide/show code windows
+		self.hideOriginalCheck = ttk.Checkbutton(frame, text="Hide Original", command=self.onHideOriginalToggle, variable=self.hideOriginalVar)
+		self.hideInterpretedCheck = ttk.Checkbutton(frame, text="Hide Interpreted", command=self.onHideInterpretedToggle, variable=self.hideInterpretedVar)
+		
 		self.toggleRunOrClearDemoButton.focus_set()
 		
 		self.originalBackgroundColor = self.CodeDataMeaningText.cget("background")
@@ -23926,6 +23937,14 @@ class MainWindow:
 		col = col + colSpan		#7
 		colSpan = 1
 		self.toggleRunOrClearDemoButton.grid(row=5, column=col, columnspan=colSpan, sticky=tk.W) 
+		
+		# New code added to maximize original or interpreted code window
+		col = col + colSpan + 7
+		colSpan = 2
+		self.hideOriginalCheck.grid(row=5, column=col, columnspan=colSpan, sticky=tk.W)
+		col = col + colSpan
+		colSpan = 2
+		self.hideInterpretedCheck.grid(row=5, column=col, columnspan=colSpan, sticky=tk.W)
 		'''
 		col = col + colSpan		#8
 		colSpan = 1
@@ -23967,6 +23986,62 @@ class MainWindow:
 		if currentWindowBaseNewValue != int(self.fileOffsetSpinbox.get()):
 			OUTPUT("ERROR - tried to set the offsetSpinbox to",currentWindowBaseNewValue,"but after the pasting, the value is",self.fileOffsetSpinbox.get())
 		return
+
+	# --- Window visibility controls ---
+	def layout_default(self):
+		# Restore defaults for row 1 layout and widths
+		try:
+			self.originalCodeText.grid(row=1, column=0, columnspan=5, sticky=tk.NSEW)
+			self.originalCodeTextVerticalScrollbar.grid(row=1, column=5, sticky=tk.NSEW)
+			self.originalCodeText.config(width=DISPLAY_BLOCK_WIDTH * 3)
+		except tk.TclError:
+			pass
+		try:
+			self.interpretedCodeText.grid(row=1, column=6, columnspan=5, sticky=tk.NSEW)
+			self.interpretedCodeTextVerticalScrollbar.grid(row=1, column=11, sticky=tk.NSEW)
+			self.interpretedCodeText.config(width=DISPLAY_BLOCK_WIDTH * 3)
+		except tk.TclError:
+			pass
+
+	def layout_hide_original(self):
+		# Hide the Original window and expand Interpreted to use its space
+		try:
+			self.originalCodeText.grid_remove()
+			self.originalCodeTextVerticalScrollbar.grid_remove()
+		except tk.TclError:
+			pass
+		self.interpretedCodeText.grid(row=1, column=0, columnspan=11, sticky=tk.NSEW)
+		self.interpretedCodeTextVerticalScrollbar.grid(row=1, column=11, sticky=tk.NSEW)
+		self.interpretedCodeText.config(width=DISPLAY_BLOCK_WIDTH * 6)
+
+	def layout_hide_interpreted(self):
+		# Hide the Interpreted window and expand Original to use its space
+		try:
+			self.interpretedCodeText.grid_remove()
+			self.interpretedCodeTextVerticalScrollbar.grid_remove()
+		except tk.TclError:
+			pass
+		self.originalCodeText.grid(row=1, column=0, columnspan=11, sticky=tk.NSEW)
+		self.originalCodeTextVerticalScrollbar.grid(row=1, column=11, sticky=tk.NSEW)
+		self.originalCodeText.config(width=DISPLAY_BLOCK_WIDTH * 6)
+
+	def updateWindowVisibility(self):
+		# Enforce mutual exclusivity and apply layout
+		if self.hideOriginalVar.get():
+			self.hideInterpretedVar.set(False)
+			self.layout_hide_original()
+		elif self.hideInterpretedVar.get():
+			self.hideOriginalVar.set(False)
+			self.layout_hide_interpreted()
+		else:
+			self.layout_default()
+
+	def onHideOriginalToggle(self):
+		self.updateWindowVisibility()
+
+	def onHideInterpretedToggle(self):
+		self.updateWindowVisibility()
+
 
 	# This routine populates the self.unraveledrowNumItemId list, where each row is <unraveled row #, corresponding iid>
 	def populateItemIdForUnraveledRowNum(self, iidParent=None, rowNumParent=None):
