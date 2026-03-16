@@ -872,6 +872,7 @@
 # 2026-02-15 - Introduced Regular Expression
 # 2026-02-28 - Pretty printing
 # 2026-03-10 - UI Redesign
+# 2026-03-16 - Barebone demo done
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -1861,6 +1862,19 @@ BCDencodedData = "0x12345671063426473456789A6346847E"
 
 Base64encodedData = "0x62476C6E61485167643239796179343D"
 
+textData1 = "0x3078414243443132333420307841424344626565662048690D0A"
+#textData1 = "0xABCD1234 0xABCDbeef Hi.."
+
+textDateRE =   "0x31302F33312F323032352D30333A31373A32392E3637352030313E6978775B30"+"5D20494E46206472697665725F6163695F64656275673A20435120434D443A20"		\
+				+"6F70636F6465203078303030312C20666C616773203078323030302C20646174"+"616C656E203078303030302C2072657476616C203078303030300D0A31302F33"		\
+				+"312F323032352D30333A31373A32392E3637352030313E6978775B305D20494E"+"4620647269766572205F6163695F64656275673A2009636F6F6B69652028682C"		\
+				+"6C29203078303030303030303020307830303030303030300D0A"
+'''				
+textDateRE =   "0x31302F33312F323032352D30333A31373A32392E3637352030313E6978775B30"+"5D20494E46206472697665725F6163695F64656275673A20435120434D443A20"		\
+				+"6F70636F6465203078303030312C20666C616773203078323030302C20646174"+"616C656E203078303030302C2072657476616C203078303030300D0A312F3331"		\
+				+"2F323032352D30333A31373A32392E3637352030313E6978775B305D20494E46"+"20647269766572205F6163695F64656275673A2009636F6F6B69652028682C6C"		\
+				+"29203078303030303030303020307830303030303030300D0A"
+'''
 ##
 ##
 ## Below is the input structures that I use for demo:
@@ -3248,6 +3262,53 @@ networkHdrs],
 [['int i,j; //<FORMAT> printf("%d", __X__) </FORMAT>\n'
 ],
 networkHdrs]
+
+]
+],
+
+##############################################################################################	41
+["Parsing Text Files",
+[
+
+#0
+[['//In C you can initialize\n',
+'char c[]="0x[A-Z]*"; //<INFORMAT> RE </INFORMAT> \n',
+' \n'
+],
+textData1],
+
+
+#1
+[['//In C you can initialize\n',
+'int i; // <informat>datetime("MM/dd/YYYY-hh:mm:ss") </informat> \n',
+' \n'
+],
+textDateRE],
+
+
+#2
+[['//In C you can initialize\n',
+'int i; /* <informat>datetime("MM/dd/YYYY-hh:mm:ss") </informat> \n',
+'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
+'       */   \n',
+' \n'
+],
+textDateRE],
+
+
+#3
+[['//Parsing date/time \n',
+'int i; /* <informat>datetime("MM/dd/YYYY-hh:mm:ss") </informat> \n',
+'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
+'       */   \n',
+'    \n',
+'char c[] = ".*\\n"; //<INFORMAT>RE</INFORMAT>\n',
+'\n',
+'int j; /* <informat>datetime(MM/dd/YYYY-hh:mm:ss) </informat> \n',
+'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
+'       */'
+],
+textDateRE]
 
 ]
 ]
@@ -8153,7 +8214,7 @@ def findTypeSpecifierEndIndex(inputList):
 #This function takes a list of tokens representing a single variable declaration statement, and checks its legality and calculates its size on stack;
 #######################################################################################################################################################
 def parseVariableDeclaration(inputList):
-	PRINT=OUTPUT
+#	PRINT=OUTPUT
 	global typedefs, structuresAndUnions, suDict, dummyUnnamedBitfieldCount
 	PRINT ("="*30,"\nInside parseVariableDeclaration()\n","="*30,"\n" )
 	PRINT ("inputList =",inputList )
@@ -8825,6 +8886,7 @@ def parseVariableDeclaration(inputList):
 					else:
 						initializationEndIndex = nextSemicolonIndex-1;
 					initializationValue = inputList[rightCounter:initializationEndIndex+1]
+					origInitializationValue = initializationValue
 					
 					PRINT ("variableName ",variableName,"is initialized to the value",initializationValue )
 					rightCounter = initializationEndIndex+1
@@ -8948,9 +9010,9 @@ def parseVariableDeclaration(inputList):
 				return False
 			elif ["TBD"] in arrayDimensions:
 				if isInitialized:	# Initialialized
-					MUST_PRINT("initializationValue =",initializationValue)
+					PRINT("initializationValue =",initializationValue)
 					if initializationValue[0].lower()[0:2] == "re":
-						MUST_PRINT("Regular expression")
+						PRINT("Regular expression")
 						if len(initializationValue) == 1 and initializationValue[0].lower()[0:2] == "re":
 							REexpression = initializationValue[0][2:]
 						elif len(initializationValue) == 2 and initializationValue[0].lower() == "re":
@@ -8962,10 +9024,10 @@ def parseVariableDeclaration(inputList):
 							errorRoutine(errorMessage)
 							return False
 						if not isInitializedToRegularExpression:
-							MUST_PRINT("Something wrong")
+							PRINT("Something wrong")
 						isInitializedToRegularExpression = True
 						isDynamic = True
-						MUST_PRINT("The initialization Regular Expression is",REexpression)
+						PRINT("The initialization Regular Expression is",REexpression)
 					else:		# initialzed, but no regular expressions
 						if initializationValue[0] != '{' or initializationValue[-1] != '}':
 							errorMessage = "ERROR in parseVariableDeclaration() - the initialization value %s for array %s allows TBD only as the topmost dimension!"%(variableName,STR(initializationValue))
@@ -9195,6 +9257,7 @@ def parseVariableDeclaration(inputList):
 		variableDescriptionExtended["isInitializedToRegularExpression"]=isInitializedToRegularExpression
 		if isInitialized:
 			variableDescriptionExtended["initializationStartIndex"]=initializationStartIndex
+			variableDescriptionExtended["origInitializationValue"] = origInitializationValue
 			if isInitializedToRegularExpression:
 				variableDescriptionExtended["initializationValue"] = REexpression
 			else:
@@ -15947,6 +16010,40 @@ def splitName(namedVariable, variableIdOrParentStructName=""):
 #
 ###############################################################################################################
 
+def readRegExp(variableId, offset=None, parameters=[]):
+#	PRINT = OUTPUT
+	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
+	PRINT("Inside readRegExp(variableId=",variableId,", offset=",offset, ", parameters=",STR(parameters),"during",executionStage)
+	if executionStage not in ["Interpret","Map"]:
+		errorMessage = "ERROR in readRegExp() - Neither Map nor Interpret"
+		errorRoutine(errorMessage)
+		return False
+	elif executionStage == "Interpret":
+		if variableId not in range(len(variableDeclarations)):
+			errorMessage = "ERROR in readRegExp() - invalid variableId ="+STR(variableId)
+			errorRoutine(errorMessage)
+			return False
+		variableDescription = variableDeclarations[variableId][4]
+		hasRegExInformat = True if ("INFORMAT" in getDictKeyList(variableDescription) and 'REGULAR_EXPRESSION' in variableDescription["INFORMAT"]) else False
+		rePattern = variableDescription["origInitializationValue"][0] if hasRegExInformat else variableDescription["initializationValue"]
+
+		PRINT("Trying to check the validity of the matching pattern",rePattern)
+	#	rePattern = ".*There"
+		if (rePattern[0]=='"' and rePattern[-1]=='"') or (rePattern[0]=="'" and rePattern[-1]=="'"):	# Remove the quotes
+			rePatternFinal = rePattern[1:-1]
+		else:
+			rePatternFinal = rePattern
+		PRINT("rePatternFinal = <"+rePatternFinal+">")
+		try:
+			re.compile(rePatternFinal)
+		except re.error:
+			errorMessage = "Error in readRegExp(): The regular expression pattern \""+rePatternFinal+"\" is not valid."
+			errorRoutine(errorMessage)
+			return 0
+	else:	# Map
+		return
+	
+	
 def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[]):
 	PRINT = OUTPUT
 	if desc not in ["Hex","Dec","Oct","Bin"]:
@@ -15955,7 +16052,7 @@ def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[]):
 		return False
 	size = None
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
-	PRINT("Inside convertFromHexDecOctBin(desc=",desc,", variableId=",variableId,", offset=",offset, ", parameters=",STR(parameters),"druing",executionStage)
+	PRINT("Inside convertFromHexDecOctBin(desc=",desc,", variableId=",variableId,", offset=",offset, ", parameters=",STR(parameters),"during",executionStage)
 	if executionStage not in ["Interpret","Map"]:
 		errorMessage = "ERROR in convertFromHexDecOctBin() - Neither Map nor Interpret"
 		errorRoutine(errorMessage)
@@ -16193,9 +16290,9 @@ def insertWhitespace2TokenizeLines(stringWithWhitespaces, stringWithWhitespacesT
 				creatingDummyWhitespaceToken = True
 				j+= 1
 	
-	MUST_PRINT("stringWithWhitespaces = <"+stringWithWhitespaces+">")
-	MUST_PRINT("Old tokenized list =",STR(stringWithWhitespacesTokenized))
-	MUST_PRINT("New tokenized list =",STR(newListWithWhitespaceTokens))
+	PRINT("stringWithWhitespaces = <"+stringWithWhitespaces+">")
+	PRINT("Old tokenized list =",STR(stringWithWhitespacesTokenized))
+	PRINT("New tokenized list =",STR(newListWithWhitespaceTokens))
 	return newListWithWhitespaceTokens
 
 
@@ -16209,7 +16306,18 @@ def convert2UnixTimestamp(YYYY,MM,DD,hh=0,mm=0,ss=0):
 		return False
 	months = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 	secsSince1970 = 0
-	secsSince1970 += ((YYYY-1970)*365+integerDivision(YYYY-1970, 4))*24*60*60
+	# If YYYY is a leap year, we will count its leap day anyway. But what we need to know is that how many leap days have passed since 1/1/1970 till LAST year
+	# Observe that this leapDaysFrom1970toYYYYminus1 variable below will give 0 for 1972, which is correct since we will calculate the 1972's leap day later anyway
+	# TO-DO: To add the logic for pre-1900 dates
+	if YYYY >= 1970:
+		leapDaysFrom1970toYYYYminus1 = 0 if YYYY <= 1972 else integerDivision(YYYY-1969, 4)
+	else:
+		leapDaysFrom1970toYYYYminus1 = 0 if YYYY >= 1969 else -integerDivision(1972-YYYY, 4)
+	
+	# We bring the clock to 1/1/YYYY 00:00:00
+	secsSince1970 += ((YYYY-1970)*365+leapDaysFrom1970toYYYYminus1)*24*60*60
+	
+	# Now we add the day/months time etc. 
 	days = 0
 	monthIndex = 1
 	while True:
@@ -16219,7 +16327,7 @@ def convert2UnixTimestamp(YYYY,MM,DD,hh=0,mm=0,ss=0):
 		if YYYY%4==0 and monthIndex==2:
 			days += 1
 		monthIndex += 1
-	days += DD
+	days += DD-1
 	secsSince1970 += days * 24*60*60
 	secsSince1970 += hh*60*60 + mm*60 + ss
 	
@@ -16229,7 +16337,7 @@ def convert2UnixTimestamp(YYYY,MM,DD,hh=0,mm=0,ss=0):
 		errorRoutine(errorMessage)
 		return False
 	else:
-		MUST_PRINT("SUCCESS: The number of seconds past 1970 ("+STR(secsSince1970)+" for YYYY("+STR(YYYY)+"), MM("+STR(MM)+"), DD("+STR(DD)+"), hh("+STR(hh)+"), mm("+STR(mm)+"), ss("+STR(ss)+") is "+STR(secsSince1970))
+		PRINT("SUCCESS: The number of seconds past 1970 ("+STR(secsSince1970)+" for YYYY("+STR(YYYY)+"), MM("+STR(MM)+"), DD("+STR(DD)+"), hh("+STR(hh)+"), mm("+STR(mm)+"), ss("+STR(ss)+") is "+STR(secsSince1970))
 	return secsSince1970
 
 
@@ -16308,7 +16416,7 @@ def convertUnixTimestamp(rawData):
 # It could get complicated since there may not be any delimiter around it
 ###########################################################################################################################################################
 def tokenizeDateTimeFormatString(dateTimeFormatString):
-	MUST_PRINT("Entering tokenizeDateTimeFormatString(dateTimeFormatString=",dateTimeFormatString,")")
+	PRINT("Entering tokenizeDateTimeFormatString(dateTimeFormatString=",dateTimeFormatString,")")
 	tokenizeLinesResult = tokenizeLines(dateTimeFormatString)
 	if tokenizeLinesResult == False:
 		errorMessage = "ERROR in tokenizeDateTimeFormatString() tokenizing <%s>"%(dateTimeFormatString)
@@ -16347,10 +16455,10 @@ def tokenizeDateTimeFormatString(dateTimeFormatString):
 			foundTokens ["ss"] = True
 		i+=1
 	dateTimeTokenCount = 0
-	MUST_PRINT("Inside the parameter",STR(dateTimeFormatStringTokenized),", the following tokens are present:")
+	PRINT("Inside the parameter",STR(dateTimeFormatStringTokenized),", the following tokens are present:")
 	for t in ["YYYY", "MM", "DD", "hh", "mm", "ss"]:
 		if foundTokens[t]==True:
-			MUST_PRINT(t,"is there")
+			PRINT(t,"is there")
 			dateTimeTokenCount += 1
 	# It is possible that there is no delimiter between the YYYY/MM/DD (like "YYYYMMDD", which will get parsed into a single token)
 	# So, we artificially put spaces between them
@@ -16362,7 +16470,7 @@ def tokenizeDateTimeFormatString(dateTimeFormatString):
 				break
 			t = temp[i].upper()	# This is the token we are going to check
 			if ("YYYY" in t or "YY" in t) and ("MM" in t or "MMM" in t) and "DD" in t:
-				MUST_PRINT("Found token",t,"at position",i,"containing year/month/date")
+				PRINT("Found token",t,"at position",i,"containing year/month/date")
 				if "YYYY" in t:
 					t = t.replace("YYYY"," YYYY ")
 				elif "YY" in t:
@@ -16388,19 +16496,58 @@ def tokenizeDateTimeFormatString(dateTimeFormatString):
 					t = t.replace("SS"," SS ")
 				
 				t = t.replace(" QQQQQQQQQQ "," MM ")
-				MUST_PRINT("After replacing, t =",t)
+				PRINT("After replacing, t =",t)
 				tokenizeLinesResult = tokenizeLines(t)
 				if tokenizeLinesResult == False:
 					errorMessage = "ERROR in tokenizeDateTimeFormatString() tokenizing <%s>"%(t)
 					errorRoutine(errorMessage)
-					return rawData
+					return False
 				else:
 					tTokenized = tokenizeLinesResult[0]	# Replace the original format operation string with a tokenized list
 					dateTimeFormatStringTokenized = dateTimeFormatStringTokenized[:i]+tTokenized+dateTimeFormatStringTokenized[i+1:]
-					MUST_PRINT("dateTimeFormatStringTokenized =",dateTimeFormatStringTokenized)
+					PRINT("dateTimeFormatStringTokenized =",dateTimeFormatStringTokenized)
 				break
 			i+=1
-	MUST_PRINT("returning dateTimeFormatStringTokenized=",dateTimeFormatStringTokenized)		
+	hasDate = False
+	hasTime = False
+	mmTokenIndices = []
+	for i in range(len(dateTimeFormatStringTokenized)):
+		t = dateTimeFormatStringTokenized[i]
+		if t == 'yyyy':
+			dateTimeFormatStringTokenized[i] = "YYYY"
+		elif t == 'yy':
+			dateTimeFormatStringTokenized[i] = "YY"
+		elif t in ['mm','MM',"Mmm","MMM","mmm"]:
+			mmTokenIndices.append(i)
+		elif t == 'dd':
+			dateTimeFormatStringTokenized[i] = "DD"
+		elif t == 'HH':
+			dateTimeFormatStringTokenized[i] = "hh"
+		elif t == 'SS':
+			dateTimeFormatStringTokenized[i] = "ss"
+
+	if len(mmTokenIndices)==1:
+		i = mmTokenIndices[0]
+		if foundTokens["MM"]:
+			if dateTimeFormatStringTokenized[i] != "Mmm":
+				dateTimeFormatStringTokenized[i] = dateTimeFormatStringTokenized[i].upper()
+		elif foundTokens["mm"]:
+				dateTimeFormatStringTokenized[i] = dateTimeFormatStringTokenized[i].lower()
+	elif len(mmTokenIndices)==2:
+		if foundTokens["MM"] and foundTokens["mm"]:
+			i = mmTokenIndices[1]
+			dateTimeFormatStringTokenized[i] = dateTimeFormatStringTokenized[i].lower()
+		else:
+			errorMessage = "ERROR in tokenizeDateTimeFormatString() - Problematic dateTimeFormatStringTokenized = <%s>"%(STR(dateTimeFormatStringTokenized))
+			errorRoutine(errorMessage)
+			return False
+	else:
+		PRINT("mmTokenIndices =",mmTokenIndices)
+		errorMessage = "ERROR in tokenizeDateTimeFormatString() - Problematic dateTimeFormatStringTokenized = <%s>"%(STR(dateTimeFormatStringTokenized))
+		errorRoutine(errorMessage)
+		return False
+		
+	PRINT("returning dateTimeFormatStringTokenized=",dateTimeFormatStringTokenized)		
 	return dateTimeFormatStringTokenized
 
 ################################################################################################################################
@@ -16408,7 +16555,7 @@ def tokenizeDateTimeFormatString(dateTimeFormatString):
 ################################################################################################################################
 	
 def readDateTime(variableId, offset=None, parameters=[]):
-	PRINT = OUTPUT
+#	PRINT = OUTPUT
 	PRINT("Entered readDateTime(variableId=",variableId,", offset="+STR(offset)+", parameters="+STR(parameters)+")")
 	
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
@@ -16424,7 +16571,7 @@ def readDateTime(variableId, offset=None, parameters=[]):
 					allListElementsAreSingleStringList = False
 			if allListElementsAreSingleStringList:
 				temp = [[x[0] for x in parameters]]
-				MUST_PRINT("parameters=",parameters,", new parameters =",temp)
+				PRINT("parameters=",parameters,", new parameters =",temp)
 				parameters = temp
 			else:
 				return False
@@ -16455,11 +16602,32 @@ def readDateTime(variableId, offset=None, parameters=[]):
 		
 		currOffset = offset
 		for t in dateTimeFormatStringTokenized:
-			PRINT("Now looking for token",t,"of length",len(t),"bytes")
+			PRINT("\n\nNow looking for token",t,"of length",len(t),"bytes")
 			data = readNBytesText(currOffset,len(t))
+			PRINT("\nFor token",t,"of length",len(t),"we got",len(data), "bytes =",STR(data),",type(data)=",type(data),"\n\n")
 			if t in getDictKeyList(dateTime):
-				dateTime[t]=int(data)
-			currOffset += len(t)
+				#It's possible that we have variable-sized field, like "9" instead of "09" for date or month. We need to account for that
+				realLength = 0
+				for i in range(len(data)):
+					PRINT("data[",i,"] =",data[i])
+					if '0' <= data[i] <= '9':
+						realLength +=1
+						PRINT("data[",i,"] is numeric - new value of realLength =",realLength)
+					else:
+						PRINT("data[",i,"] is NOT numeric - last value of realLength =",realLength)
+						break
+				realData = data[:realLength]
+				dateTime[t]=int(realData)
+			else:
+				if t != data:
+					errorMessage = "ERROR in readDateTime() - expected "+STR(t)+" but got "+STR(data)+" instead"
+					errorRoutine(errorMessage)
+					return False
+				else:	
+					realData = data
+				
+			PRINT("\nFor token",t,"of length",len(t),"we got",len(realData), "bytes =",realData)
+			currOffset += len(realData)
 		PRINT("Extracted dateTime=",dateTime)
 		
 		# We cannot store this as multi-part, and must store as a single integer. So we simply convert it to Unix timestamp.
@@ -16486,7 +16654,7 @@ def readDateTime(variableId, offset=None, parameters=[]):
 		return [currOffset, unixTS]
 
 def displayDATETIME(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
-	MUST_PRINT("Entered displayDATETIME(unraveledRowNum=",unraveledRowNum,", rawData="+STR(rawData)+", parameters="+STR(parameters)+")")
+	PRINT("Entered displayDATETIME(unraveledRowNum=",unraveledRowNum,", rawData="+STR(rawData)+", parameters="+STR(parameters)+")")
 	
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
 	
@@ -16504,7 +16672,7 @@ def displayDATETIME(endianness, variableId, unraveledRowNum, rawData, parameters
 					allListElementsAreSingleStringList = False
 			if allListElementsAreSingleStringList:
 				temp = [[x[0] for x in parameters]]
-				MUST_PRINT("parameters=",parameters,", new parameters =",temp)
+				PRINT("parameters=",parameters,", new parameters =",temp)
 				parameters = temp
 			else:
 				return rawData
@@ -16528,12 +16696,12 @@ def displayDATETIME(endianness, variableId, unraveledRowNum, rawData, parameters
 	dateTimeFormatStringTokenized = tokenizeDateTimeFormatString(dateTimeFormatString)
 	
 	dateTimeFields = convertUnixTimestamp(rawData)	# Return value is a list of [YYYY,MM,DD,HH,mm,ss]
-	MUST_PRINT("datetime format string <"+dateTimeFormatString+"> is tokenized as", STR(dateTimeFormatStringTokenized))
+	PRINT("datetime format string <"+dateTimeFormatString+"> is tokenized as", STR(dateTimeFormatStringTokenized))
 	
 
 	dateTimeOutputString = ""
 	for i in range(len(dateTimeFormatStringTokenized)):
-		MUST_PRINT("Handling format token #",i," = ",dateTimeFormatStringTokenized[i])
+		PRINT("Handling format token #",i," = ",dateTimeFormatStringTokenized[i])
 			
 		if dateTimeFormatStringTokenized[i].upper() == "YYYY":
 			YYYY = STR(dateTimeFields[0])
@@ -16566,9 +16734,9 @@ def displayDATETIME(endianness, variableId, unraveledRowNum, rawData, parameters
 			dateTimeOutputString += SS
 		else:	
 			dateTimeOutputString += STR(dateTimeFormatStringTokenized[i])
-			MUST_PRINT("After adding "+STR(i)+"-th item <"+dateTimeOutputString[i]+">, dateTimeOutputString = <"+dateTimeOutputString+">")
+			PRINT("After adding "+STR(i)+"-th item <"+dateTimeOutputString[i]+">, dateTimeOutputString = <"+dateTimeOutputString+">")
 
-	MUST_PRINT(STR(dateTimeFields)+" formatted as per datetime format string \n<"+dateTimeFormatString+">, and it is displayed as \n<"+ dateTimeOutputString+">")
+	PRINT(STR(dateTimeFields)+" formatted as per datetime format string \n<"+dateTimeFormatString+">, and it is displayed as \n<"+ dateTimeOutputString+">")
 	return dateTimeOutputString
 
 def displayEXCELDATETIME(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
@@ -16594,9 +16762,9 @@ def displayEXCELDATETIME(endianness, variableId, unraveledRowNum, rawData, param
 	timeAsFrationOfDay = rawDataNumeric - numDaysSince18991231
 	secondsInADay = 24 * 60 * 60
 	seconds = int(round(timeAsFrationOfDay * secondsInADay,0))
-	MUST_PRINT("\n\nThe fractional part of",rawData,"(",timeAsFrationOfDay,") translates to",seconds,"seconds!\n\n")
+	PRINT("\n\nThe fractional part of",rawData,"(",timeAsFrationOfDay,") translates to",seconds,"seconds!\n\n")
 	unixDateTime = round(numDaysSince19700101 * secondsInADay + seconds, 0)
-	MUST_PRINT("For Excel rawData =", rawData,", corresponding Unix timestamp =",unixDateTime)
+	PRINT("For Excel rawData =", rawData,", corresponding Unix timestamp =",unixDateTime)
 	return displayDATETIME(endianness, variableId, unraveledRowNum, unixDateTime, parameters)
 
 def convertSecond2HH_MM_SS(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
@@ -17178,9 +17346,9 @@ def formatENUM(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
 				errorRoutine(errorMessage)
 				return rawData if executionStage == "Map" else False
 	
-	MUST_PRINT("Inside formatENUM(), the passed parameters are")
+	PRINT("Inside formatENUM(), the passed parameters are")
 	for i in range(len(parameters)):
-		MUST_PRINT("parameters[",i,"]=",parameters[i])
+		PRINT("parameters[",i,"]=",parameters[i])
 
 	# make a list of the variable names
 	variableNames = [ x[0] for x in variableDeclarations]
@@ -17191,7 +17359,7 @@ def formatENUM(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
 	# We now know that this is a valid enum
 	for i in range(len(parameters)):
 		enumTerm = parameters[i]
-		MUST_PRINT("Handling enumTerm =",enumTerm)
+		PRINT("Handling enumTerm =",enumTerm)
 		if '=' in enumTerm:	# An enum must be either an valueExpression by itself, or valueExpression (LHS) = keyExpression (RHS)
 			equalityIndex = enumTerm.index('=')
 			LHS = enumTerm[:equalityIndex]
@@ -17200,14 +17368,14 @@ def formatENUM(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
 			LHS = enumTerm
 			equalityIndex = LARGE_NEGATIVE_NUMBER
 			RHS = []
-		MUST_PRINT("While decoding enumTerm =",enumTerm,"valueExpression (LHS) is",LHS, ", and keyExpression (RHS) =",RHS)
+		PRINT("While decoding enumTerm =",enumTerm,"valueExpression (LHS) is",LHS, ", and keyExpression (RHS) =",RHS)
 
 		valueLHS = None
 		valueRHS = None
 
 		if executionStage == "Interpret":
 			for i in range(len(LHS)):
-				MUST_PRINT("Checking LHS[",i,"] =",LHS[i])
+				PRINT("Checking LHS[",i,"] =",LHS[i])
 				if ((LHS[i] in ('_X_','__X__','___X___','____X____','_____X_____','______X______','_______X_______') or
 					 LHS[i] in ('_x_','__x__','___x___','____x____','_____x_____','______x______','_______x_______')) and
 					 LHS in variableNames):
@@ -17215,7 +17383,7 @@ def formatENUM(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
 							warningMessage = "Symbol "+LHS[i]+" is already an existing variable. Consider using an alternate symbol."
 							warningRoutine(warningMessage)
 			for i in range(len(RHS)):
-				MUST_PRINT("Checking RHS[",i,"] =",RHS[i])
+				PRINT("Checking RHS[",i,"] =",RHS[i])
 				if ((RHS[i] in ('_X_','__X__','___X___','____X____','_____X_____','______X______','_______X_______') or
 					 RHS[i] in ('_x_','__x__','___x___','____x____','_____x_____','______x______','_______x_______')) and
 					 RHS in variableNames):
@@ -17339,7 +17507,14 @@ informats = {"HEX"				:	convertFromHex,
 			"BIN"				:	convertFromBin,
 			"BINARY"			:	convertFromBin, 
 			"DATETIME"			:	readDateTime,
-			"UNIXDATETIME"		:	convert2UnixTimestamp}
+			"UNIXDATETIME"		:	convert2UnixTimestamp,
+#			"RE"				:	readRegExp,
+#			"REGEX"				:	readRegExp,
+#			"REGEXP"			:	readRegExp,
+#			"REG_EX"			:	readRegExp,
+#			"REG_EXP"			:	readRegExp,
+#			"REGULAR EXPRESSION":	readRegExp,
+			"REGULAR_EXPRESSION":	readRegExp}
 '''
 			,
 			"OCT"				:	convertFromOct, 
@@ -17369,21 +17544,18 @@ formats = {	"HEX"				:	convert2Hex,
 			"SECONDS"			:	convertSecond2HH_MM_SS,
 			"MILLISECOND"		:	convertMilliSecond2HH_MM_SS_mmm,
 			"MILLISECONDS"		:	convertMilliSecond2HH_MM_SS_mmm,
-			"DONOTPRINT"		:	doNotPrint,
 			"DO_NOT_PRINT"		:	doNotPrint,
-			"NOPRINT"			:	doNotPrint,
-			"NO_PRINT"			:	doNotPrint,
-			"SKIP"				:	doNotPrint,
-			"OMIT"				:	doNotPrint}
+			"PRINT_ARRAY_HEADER_ONLY":	doNotPrint,
+			"PRINT_ELEMENTS_ONLY":	doNotPrint}
 
 ###############################################################################
 # This routine applies various informats to the raw value of a data item
 ###############################################################################
 def applyInformat(variableId, offset, informatList=[]):
-	PRINT=OUTPUT
+#	PRINT=OUTPUT
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
 	PRINT("\n","=="*50,"\nInside applyInformat()\n","=="*50,"\n")
-	PRINT("\n\nDuring",executionStage,", inside applyInformat(variableId=",variableId,", informatList=",informatList,")\n")
+	PRINT("\n\nDuring",executionStage,", inside applyInformat(variableId=",variableId,", offset =",offset,", informatList=",informatList,")\n")
 		
 	if not isinstance(informatList,list):
 		errorMessage = "ERROR in applyInformat() - supplied informat list <%s> is not a list"%(STR(informatList))
@@ -17420,15 +17592,15 @@ def applyInformat(variableId, offset, informatList=[]):
 			errorRoutine(errorMessage)
 			return False
 		elif len(tokenizeLinesResult)>1:
-			parseArgumentListResult = parseArgumentList(tokenizeLinesResult[1:])
-			'''
-			# For OPERATION(), we can have a ":" operator. Like OPERATION(x>0?x:-x). So, the ":" should be tokenized
+#			parseArgumentListResult = parseArgumentList(tokenizeLinesResult[1:])
+			
+			# For some informats, we might be having a ":" operator. Like OPERATION(x>0?x:-x). So, the ":" should be tokenized
 			# However, for others, there might be custom format string containing a ":". Like "YYYY-MM-DD, HH:mm:SS"
 			if tokenizeLinesResult[0] == "DATETIME":
 				parseArgumentListResult = parseArgumentList(tokenizeLinesResult[1:], True)
 			else:
 				parseArgumentListResult = parseArgumentList(tokenizeLinesResult[1:])
-			'''	
+				
 			if parseArgumentListResult == False:
 				errorMessage = "ERROR in applyInformat() attempting to parse the argument list for %s."%(informatString)
 				errorRoutine(errorMessage)
@@ -18329,6 +18501,14 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 	variableName = variableDeclarationsEntry[0]
 	variableSize = variableDeclarationsEntry[1]
 	variableIsDynamic = variableDescription["isDynamic"]
+	# The tool supports RegEx two ways. You can either say it like char c[] = RE"ab.*"; where we are breaking the C syntax (not advertized),
+	# or we can specify it as char c[] = "ab.*";  // <INFORMAT> REGEXP </INFORMAT> (advertized)
+	hasRegExInformat = False
+	if "INFORMAT" in getDictKeyList(variableDescription):
+		for r in ['RE', 'REGEX', 'REGEXP','REG_EX', 'REG_EXP','REGULAR EXPRESSION','REGULAR_EXPRESSION']:
+			if r in variableDescription["INFORMAT"]:
+				hasRegExInformat = True
+				break
 	'''
 	selectedVariable = deepCopy(variableDeclarations[variableId])
 	if isinstance(variableIdOrDescription, dict):
@@ -18340,7 +18520,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 	'''
 	variableBaseType				= variableDescription["baseType"]	# For a declaration like int * pInt; baseType is int, but datatype is pointer
 	variableDatatype				= variableDescription["datatype"]   # That's the difference between baseType and datatype
-	if variableDescription["isArray"] and variableDescription["arrayDimensions"][0]==['TBD'] and not variableDescription["isInitializedToRegularExpression"]: 
+	if variableDescription["isArray"] and variableDescription["arrayDimensions"][0]==['TBD'] and not (hasRegExInformat or variableDescription["isInitializedToRegularExpression"]): 
 		if not speculativeArrayDimensions or not isinstance(speculativeArrayDimensions,list):
 			if not arrayAlreadyUnraveled:	# We only flash this warning once
 				warningMessage = "For variableName "+variableName+", array dimension is unspecified, but no speculativeArrayDimensions is supplied."	\
@@ -18383,8 +18563,8 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 	if variableDescription["isArray"] and not arrayAlreadyUnraveled:
 		arrayElementSize = variableDescription["arrayElementSize"]	# The array element itself might be a struct, hence its element size could be Dynamic
 		arrayDimensions = variableDescription["arrayDimensions"]	# The array dimensions might be dynamic
-		MUST_PRINT("variableId", variableId,"(",variableName,") is an array with arrayElementSize =",arrayElementSize,"arrayDimensions =",arrayDimensions)
-		MUST_PRINT("Global variableDeclarations[variableId][4][\"arrayDimensions\"] =",variableDeclarations[variableId][4]["arrayDimensions"])
+		PRINT("variableId", variableId,"(",variableName,") is an array with arrayElementSize =",arrayElementSize,"arrayDimensions =",arrayDimensions)
+		PRINT("Global variableDeclarations[variableId][4][\"arrayDimensions\"] =",variableDeclarations[variableId][4]["arrayDimensions"])
 
 			
 	
@@ -18396,7 +18576,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				continue
 			elif dimension == LARGE_POSITIVE_NUMBER or dimension == ['TBD']:		# Basically, infinity:
 				# It is entirely possible that the array is a regular expression. So we have to get its size here
-				if arrayIndex != 0 and not variableDescription["isInitializedToRegularExpression"]:
+				if arrayIndex != 0 and not (hasRegExInformat or variableDescription["isInitializedToRegularExpression"]):
 					errorMessage = "ERROR in addVariableToUnraveled() - array index of 'TBD' only allowed as the first dimension (arrayDimensions = %s)"%STR(arrayDimensions)
 					errorRoutine(errorMessage)
 					return False
@@ -18427,7 +18607,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				else:
 					EXIT("Unknown code branch")
 				
-		if variableDescription["isInitializedToRegularExpression"] and checkIfIntegral(arrayDimensions[-1]):	# Unknown-sized RegExp
+		if (hasRegExInformat or variableDescription["isInitializedToRegularExpression"]) and checkIfIntegral(arrayDimensions[-1]):	# Unknown-sized RegExp
 
 			# Once possible dynamic values have been resolved, plug it back to the local copy of variableDescription immediately
 			PRINT("After resolving possible runtime values, arrayDimensions =",arrayDimensions,", and speculativeArrayDimensions =","None" if speculativeArrayDimensions == None else speculativeArrayDimensions)
@@ -18454,11 +18634,12 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 
 			offsetRE = offset
 			for countRE in range(totalNumberOfRE):
-				MUST_PRINT("\n","=="*15,"Dealing with RE #",countRE,"=="*15,"\n")
-				regExMatchingBytesLength = readBytesFromDatafileRegEx( offsetRE, variableDescription["initializationValue"])
-				MUST_PRINT("For array variable ", variableName,"read", regExMatchingBytesLength,"bytes for RegEx of",variableDescription["initializationValue"])
+				PRINT("\n","=="*15,"Dealing with RE #",countRE,"=="*15,"\n")
+				rePattern = variableDescription["origInitializationValue"][0] if hasRegExInformat else variableDescription["initializationValue"]
+				regExMatchingBytesLength = readBytesFromDatafileRegEx( offsetRE, rePattern)
+				PRINT("For array variable ", variableName,"read", regExMatchingBytesLength,"bytes for RegEx of",rePattern)
 				if regExMatchingBytesLength == False:
-					errorMessage = "ERROR in addVariableToUnraveled() - error trying to read the RegEx <%s> from address %s)"%(STR(variableDescription["initializationValue"]), STR(offsetRE))
+					errorMessage = "ERROR in addVariableToUnraveled() - error trying to read the RegEx <%s> from address %s)"%(STR(rePattern), STR(offsetRE))
 					errorRoutine(errorMessage)
 					return False
 				
@@ -18618,7 +18799,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				PRINT(unraveledSupplied[rowNumberOfArrayHeaderRowWithBlankEndAddr][4])
 
 		# After all the individual members are added to unraveled, check if there is any Array-level initialization
-		if variableDeclarations[variableId][4]["isInitialized"] and not variableDeclarations[variableId][4]["isInitializedToRegularExpression"]:
+		if variableDeclarations[variableId][4]["isInitialized"] and not (hasRegExInformat or variableDeclarations[variableId][4]["isInitializedToRegularExpression"]):
 			PRINT("\nFrom addVariableToUnraveled(), calling verifyInitialization() for array variable",variableName, "unraveledSupplied[rowNumberOfArrayHeaderRow=",rowNumberOfArrayHeaderRowWithBlankEndAddr,"] =\n",unraveledSupplied[rowNumberOfArrayHeaderRowWithBlankEndAddr],"\n")
 			verifyInitializationResult = verifyInitialization(unraveledSupplied, rowNumberOfArrayHeaderRowWithBlankEndAddr, silent)
 			PRINT("verifyInitializationResult =",verifyInitializationResult)
@@ -18976,36 +19157,39 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 		
 		PRINT("\n\nNow checking for INFORMAT in addVariableToUnraveled()")
 		if "INFORMAT" in getDictKeyList(variableDescription):
+			for informat in variableDescription['INFORMAT']:
+				if informat in ['RE', 'REGEX', 'REGEXP','REG_EX', 'REG_EXP','REGULAR EXPRESSION','REGULAR_EXPRESSION']:
+					PRINT("Skipping informat",informat,"since we already handled it")
+				else:
+					hasInformat = True
+					
+					if offset != unraveledSupplied[-1][3]:
+						EXIT("offset=",offset," != unraveledSupplied[-1][3] =", unraveledSupplied[-1][3])
+					
+					PRINT("We need to read the variable",variableName,"from offset",offset, "with INFORMAT=",variableDescription["INFORMAT"])
 
-			hasInformat = True
-			
-			if offset != unraveledSupplied[-1][3]:
-				EXIT("offset=",offset," != unraveledSupplied[-1][3] =", unraveledSupplied[-1][3])
-			
-			PRINT("We need to read the variable",variableName,"from offset",offset, "with INFORMAT=",variableDescription["INFORMAT"])
-
-			applyInformatResult = applyInformat(variableId, offset, variableDescription["INFORMAT"])
-			MUST_PRINT("applyInformatResult =",applyInformatResult)
-			nextOffset = applyInformatResult[0]
-			result = applyInformatResult[1]
-			numBytesToRead = nextOffset - offset
-			variableEndOffsetExclusive = nextOffset
-			valueLE = result
-			valueBE = result
-			'''
-			readNbytesNumberFromTextDataFileResult = readNbytesNumberFromTextDataFile(offset, variableId)
-			if readNbytesNumberFromTextDataFileResult == False:
-				errorMessage = "Error in addVariableToUnraveled(): Cannot enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
-				errorRoutine(errorMessage)
-				return False
-			numBytesToRead = readNbytesNumberFromTextDataFileResult[0]
-			
-			variableEndOffsetExclusive = offset+numBytesToRead
-			valueLE = readNbytesNumberFromTextDataFileResult[1]
-			valueBE = readNbytesNumberFromTextDataFileResult[2]
-			'''
-			PRINT("\n\nFor variable",variableName, "in addVariableToUnraveled(), offset =", offset, ", variableEndOffsetExclusive =",variableEndOffsetExclusive,", valueLE =",valueLE,", valueBE =",valueBE)
-			unraveledSupplied[-1][4] = variableEndOffsetExclusive
+					applyInformatResult = applyInformat(variableId, offset, variableDescription["INFORMAT"])
+					PRINT("applyInformatResult =",applyInformatResult)
+					nextOffset = applyInformatResult[0]
+					result = applyInformatResult[1]
+					numBytesToRead = nextOffset - offset
+					variableEndOffsetExclusive = nextOffset
+					valueLE = result
+					valueBE = result
+					'''
+					readNbytesNumberFromTextDataFileResult = readNbytesNumberFromTextDataFile(offset, variableId)
+					if readNbytesNumberFromTextDataFileResult == False:
+						errorMessage = "Error in addVariableToUnraveled(): Cannot enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
+						errorRoutine(errorMessage)
+						return False
+					numBytesToRead = readNbytesNumberFromTextDataFileResult[0]
+					
+					variableEndOffsetExclusive = offset+numBytesToRead
+					valueLE = readNbytesNumberFromTextDataFileResult[1]
+					valueBE = readNbytesNumberFromTextDataFileResult[2]
+					'''
+					PRINT("\n\nFor variable",variableName, "in addVariableToUnraveled(), offset =", offset, ", variableEndOffsetExclusive =",variableEndOffsetExclusive,", valueLE =",valueLE,", valueBE =",valueBE)
+					unraveledSupplied[-1][4] = variableEndOffsetExclusive
 			
 	
 		variableStartOffset = unraveledSupplied[-1][3]
@@ -19464,6 +19648,12 @@ def parseCommentForFormats(inputString):
 						formatTokens = inputList[i+len(formatPrefixTokens):j]
 						if formatTokens:
 							formatTokens[0]=formatTokens[0].upper()
+							if formatTokens[0] in ["DONOTPRINT","DO_NOT_PRINT","NO_PRINT","NOPRINT","SKIP","OMIT"]:
+								formatTokens[0] = "DO_NOT_PRINT"
+							elif formatTokens[0] in ["PRINT_ARRAY_HEADER_ONLY","PRINTARRAYHEADERONLY","PRINT_HEADER_ONLY","PRINTHEADERONLY","HEADER_ONLY","HEADERONLY"]:
+								formatTokens[0] = "PRINT_ARRAY_HEADER_ONLY"
+							elif formatTokens[0] in ["PRINT_ELEMENTS_ONLY", "PRINTELEMENTSONLY", "ELEMENTS_ONLY", "ELEMENTSONLY", "ELEMENTS"]:
+								formatTokens[0] = "PRINT_ELEMENTS_ONLY"
 							formatTokensString = list2plaintext(formatTokens, "")
 							PRINT("The custom format is", STR(formatTokens),", basically", formatTokensString)
 							PRINT("inputString = %s contains FORMAT <%s>" %(inputString, formatTokensString))
@@ -19511,6 +19701,8 @@ def parseCommentForFormats(inputString):
 						informatTokens = inputList[i+len(informatPrefixTokens):j]
 						if informatTokens:
 							informatTokens[0]=informatTokens[0].upper()
+							if informatTokens[0] in ['RE', 'REGEX', 'REGEXP','REG_EX', 'REG_EXP','REGULAR EXPRESSION','REGULAR_EXPRESSION']:
+								informatTokens[0] = 'REGULAR_EXPRESSION'
 							informatTokensString = list2plaintext(informatTokens, "")
 							PRINT("The custom informat is", STR(informatTokens),", basically", informatTokensString)
 							PRINT("inputString = %s contains INFORMAT <%s>" %(inputString, informatTokensString))
@@ -19533,12 +19725,19 @@ def parseCommentForFormats(inputString):
 			errorRoutine(errorMessage)
 			return [False, None, None]
 		else:
-			# Check the validity of that informat. We have no known value of the rawData, hence we pass "DUMMY" (otherwise, parseArithmeticExpression() doesn't like None
-			applyInformatResult = applyInformat(None, None,informatTokensStringList)
-			if applyInformatResult == False:
-				errorMessage = "ERROR in parseCommentForFormats(): Illegal informat(s) " + STR(informatTokensStringList)
-				errorRoutine(errorMessage)
-				return [False, None, None]
+			# We have a special case of <INFORMAT> REGULAR_EXPRESSION </INFORMAT>. Its argument is presented to as an initialization string. 
+			# In other words, some part of it is in the comments, while the other parts are in the regular code.
+			# Therefore, the validity of the regular expression couldn't be done either in the code for parsing a variable declaration (because it doesn't see the comment),
+			# or inside the code that parses comments for informats. You can only do it when both those parsing has been done.
+			if informatTokensStringList == ['REGULAR_EXPRESSION']:
+				pass
+			else:
+				# Check the validity of that informat. We have no known value of the rawData, hence we pass "DUMMY" (otherwise, parseArithmeticExpression() doesn't like None
+				applyInformatResult = applyInformat(None, None,informatTokensStringList)
+				if applyInformatResult == False:
+					errorMessage = "ERROR in parseCommentForFormats(): Illegal informat(s) " + STR(informatTokensStringList)
+					errorRoutine(errorMessage)
+					return [False, None, None]
 
 	return [True, formatTokensStringList, informatTokensStringList]
 
@@ -19988,7 +20187,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 									dummyStructVarCount = 0
 									for v in range(len(variableDeclarations)):
 										if variableDeclarations[v][0].startswith(structName+'#'+'dummyVar'):
-											MUST_PRINT("variableDeclarations[v=",v,"] =",variableDeclarations[v])
+											PRINT("variableDeclarations[v=",v,"] =",variableDeclarations[v])
 											dummyStructVarCount += 1
 									if dummyStructVarCount > 0:
 										errorMessage = "Error in parseCodeSnippet(): for struct "+structName+", somehow we have more than one dummy var"
@@ -20088,9 +20287,9 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 							PRINT("No format or informat found for",item[0],"at globalTokenListIndex=",globalTokenListIndex)
 						
 						item2add = [variableName,variableSize,variableDeclarationStatement,variableNameIndex,variableDescriptionExtended]
-						variableDeclarations.append(item2add) 
+						variableDeclarations.append(item2add)
 						totalVariableCount += 1
-
+						
 					if structDefinedHere and variableDescriptionExtended["datatype"] == structName and variableFoundWithDataOverlapWithStructMembers == False:
 						variableFoundWithDataOverlapWithStructMembers = True
 						variableIdsInGlobalScope.append([variableId, scopeStartVariableId, scopeEndVariableId])
@@ -20228,6 +20427,20 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 				continue
 			else:
 				i = declarationEndIndex + 1
+
+			# There was one missed check for informat validity that requires the item to be within the variableDeclarations
+			variableDescriptionExtended = variableDeclarations[-1][4]
+			if "INFORMAT" in getDictKeyList(variableDescriptionExtended):	# Means there were informats
+				if variableDescriptionExtended["INFORMAT"] == ['REGULAR_EXPRESSION']:
+					PRINT("Going to check the validity of variableDescriptionExtended[\"INFORMAT\"]="+STR(variableDescriptionExtended["INFORMAT"]))
+					# Check the validity of that informat. We have no known value of the rawData, hence we pass "DUMMY" (otherwise, parseArithmeticExpression() doesn't like None
+					applyInformatResult = applyInformat(len(variableDeclarations)-1, None,variableDescriptionExtended["INFORMAT"])
+					if applyInformatResult == False:
+						errorMessage = "ERROR in parseCodeSnippet(): Illegal informat REGULAR_EXPRESSION"
+						errorRoutine(errorMessage)
+						return False
+				else:
+					pass
 
 
 		##########################################################
@@ -20724,7 +20937,8 @@ def printHexStringWord (inputBytes):
 	'''
 def printASCIIStringWord (inputBytes):
 	if not checkIfValidRawInput(inputBytes):
-		PRINT ("ERROR: Inside printASCIIStringWord(), input byte stream <",inputBytes,"> is not a valid bytestream input" )
+		errorMessage = "ERROR: Inside printASCIIStringWord(), input byte stream <"+STR(inputBytes)+"> is not a valid bytestream input" 
+		errorRoutine(errorMessage)
 		return False
 	else:
 		returnString='"'
@@ -21350,6 +21564,8 @@ def charIsValidHex(c):
 		
 # This check if the input file is really binary, or rather text representation of Hex chars. If the latter, it fills out a binary array corresponding to it.
 def inputFileIsHexText():
+	
+#	PRINT=OUTPUT
 
 	global binaryArray, hexCharArray, inputIsHexChar, dataFileSizeInBytes
 	
@@ -21359,6 +21575,7 @@ def inputFileIsHexText():
 	# - Integral/list - this means it is not really an actual filename, but an index that tells which dataset is to be loaded (happens during Demo)
 	# - actual filename - not demo
 	if isinstance(dataFileName,list):	# Demo
+		PRINT("In Demo",dataFileName)
 		if len(dataFileName) != 2 or dataFileName[0] not in range(len(demoFeatureCodeData)) or dataFileName[1] not in range(len(demoFeatureCodeData[dataFileName[0]][1])):
 			EXIT("Coding bug in inputFileIsHexText() - the demo data # "+STR(dataFileName)+" does not exist!!")
 		data = demoFeatureCodeData[dataFileName[0]][1][dataFileName[1]][1]
@@ -21449,17 +21666,70 @@ def inputFileIsHexText():
 ################################################################################################################
 
 def readNBytesText(offset, N):
-	MUST_PRINT("\nInside readNBytesText(offset=",offset,", N=",N,")")
+	PRINT("\nInside readNBytesText(offset=",offset,", N=",N,")")
+	'''
 	with open(dataFileName, "r") as file:	# Open in text mode
 		file.seek(offset)
 		data = file.read(N)
 	return data
+	'''
+	if len(binaryArray)>0:	# Happens where the data is textified Hex (and also during Demo)
+		PRINT("\n\nThe data is textified Hex, len(binaryArray)=",len(binaryArray),"len(hexCharArray)=",len(hexCharArray),", inputIsHexChar=",inputIsHexChar,"\n\n")
+		blockRead = binaryArray[offset:offset+N]
+		if isinstance(blockRead,bytes):
+			PRINT("type(blockRead)=",type(blockRead))
+		text2match = ""
+		for byte in blockRead:
+			text2match += chr(ORD(byte))
+		PRINT("Final text2match=<",text2match,">")
+		data = text2match
+	# There are two formats for the dataFileName.
+	# - Integral/list - this means it is not really an actual filename, but an index that tells which dataset is to be loaded (happens during Demo)
+	# - actual filename - not demo
+	elif isinstance(dataFileName,list):	# Demo
+		if len(dataFileName) != 2 or dataFileName[0] not in range(len(demoFeatureCodeData)) or dataFileName[1] not in range(len(demoFeatureCodeData[dataFileName[0]][1])):
+			EXIT("Coding bug in readNBytesText() - the demo data # "+STR(dataFileName)+" does not exist!!")
+		data = demoFeatureCodeData[dataFileName[0]][1][dataFileName[1]][1][offset:offset+N]
+		dataFileSizeInBytes = len(data)
+		PRINT ( "len(data) = ",len(data),"type(data)=",type(data))		# str for Python2, bytes for Python3
+	elif checkIfString(dataFileName):
+		dataFileSizeInBytes = os.path.getsize(dataFileName)
+		PRINT("Length of the",dataFileName, "file = ",dataFileSizeInBytes)
+
+		with open(dataFileName, "r") as file:	# Open in text mode
+			file.seek(offset)
+			data = file.read(N)
+			PRINT ( "len(data) = ",len(data),"type(data)=",type(data))		# str for Python2, bytes for Python3
+			#PRINT ( "type(data[0])=",type(data[0]))							# str for Python2, int for Python3
+			#PRINT ( "type(data[0:1])=",type(data[0:1]))						# str for Python2, bytes for Python3
+
+			# We cannot operate RegEx on bytes in Python3, so we need to convert it to string first. If UTF-8 complains, we know it's not text file anyway
+			if PYTHON3x:
+				if isinstance(data,bytes):
+					try:
+						data = data.decode("utf-8")
+					except UnicodeDecodeError:
+						PRINT("Input file is NOT text")
+						return False
+					PRINT("Inside readNBytesText() in non-Demo mode - type(data)=",type(data))
+				elif not isinstance(data,str):
+					OUTPUT("Coding bug in readNBytesText() - the demo data # "+STR(dataFileName)+" does not exist!!")
+					return False
+					
+	else:
+		EXIT("Coding bug in readNBytesText() - illegal format of dataFileName "+STR(dataFileName)+" does not exist!!")
+		
+		
+	PRINT( "Returning from readNBytesText() - len(data) = ",len(data),"type(data)=",type(data),", data = <"+STR(data)+">")		# str for Python2, bytes for Python3
+
+	return data
+	
 	
 ################################################################################################################
 # Read N number of numeric bytes from a certain offset. Returns [next unconsumed offset, valueLE, valueBE]
 ################################################################################################################
 def readNbytesNumberFromTextDataFile (offset, variableId):
-	PRINT=OUTPUT
+#	PRINT=OUTPUT
 	PRINT("Inside readNbytesNumberFromTextDataFile()")
 	intendedDataType = ""
 	if variableId not in range(len(variableDeclarations)):
@@ -21864,16 +22134,16 @@ def prettyPrintUnraveled(displayAncestry=False):
 	unraveledVariablesHaveEnums = False		# This the C enum, not any Formatting ENUM
 	unraveledVariablesHaveFormatting = False
 	doNotPrintTheseManyLastColumns = 2
+	
 	for N in range(len(unraveled)):
 		doNotPrint = False
 		if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][10][-1]][4]["enumType"]!=None:
 			unraveledVariablesHaveEnums = True
 		if 'FORMAT' in getDictKeyList(variableDeclarations[unraveled[N][10][-1]][4]):
-			unraveledVariablesHaveFormatting = True
-			formats4var = variableDeclarations[unraveled[N][10][-1]][4]['FORMAT']
-			PRINT("formats4var =",formats4var)
-			if 'DONOTPRINT' in formats4var:
-				doNotPrint = True
+			for f in variableDeclarations[unraveled[N][10][-1]][4]['FORMAT']:
+				if f != "DO_NOT_PRINT":
+					unraveledVariablesHaveFormatting = True
+				
 	if unraveledVariablesHaveEnums or unraveledVariablesHaveFormatting:
 		PRINT("Has C enum or user-defined formatting - All formatted valued will be displayed")
 		doNotPrintTheseManyLastColumns = 0		# Basically, the two columns containing formatted values
@@ -21881,6 +22151,15 @@ def prettyPrintUnraveled(displayAncestry=False):
 		PRINT("Contains no C enum or user-defined formatting - no formatted valued will be displayed")
 
 	for N in range(len(unraveled)):
+		
+		doNotPrint = False
+		if 'FORMAT' in getDictKeyList(variableDeclarations[unraveled[N][10][-1]][4]):
+			formats4var = variableDeclarations[unraveled[N][10][-1]][4]['FORMAT']
+			PRINT("formats4var =",formats4var)
+			if 'DO_NOT_PRINT' in formats4var:
+				PRINT("\n\nWe are going to skip printing the value of variable",variableDeclarations[unraveled[N][10][-1]][0],"\n\n")
+				doNotPrint = True
+		
 		PRINT ("\nN =",N, "unraveled[",N,"][2] =",unraveled[N][2],"\n\n")
 		levelIndent = "    " * unraveled[N][0]
 
@@ -22128,20 +22407,67 @@ def checkIfDataFileIsValidAndGetItsLength(dataFileNameInput):
 # This routine opens the data file in text mode. It tried to match the supply regular expression from the supplied data offset. It returns how many matching bytes could be read.
 # It returns a [mactchingASCIIbytesCount, mactchingBinaryBytesCount]. The difference is because \n on Windows text files requires two binary characters.
 def readBytesFromDatafileRegEx(startAddress, rePattern):
-	PRINT=OUTPUT
-	PRINT("Seeking to find the RegEx pattern", rePattern, "from address", startAddress)
-	with open(dataFileName, "r") as file:
+#	PRINT=OUTPUT
+	PRINT("\nInside readBytesFromDatafileRegEx(), Seeking to find the RegEx pattern", rePattern, "from address", startAddress)
+	
+	# There are two formats for the dataFileName.
+	# - Integral/list - this means it is not really an actual filename, but an index that tells which dataset is to be loaded (happens during Demo)
+	# - actual filename - not demo
+	if len(binaryArray)>0:	# Happens where the data is textified Hex (and also during Demo)
+		PRINT("\n\nThe data is textified Hex, len(binaryArray)=",len(binaryArray),"len(hexCharArray)=",len(hexCharArray),", inputIsHexChar=",inputIsHexChar,"\n\n")
+		blockRead = binaryArray[startAddress:]
+		if isinstance(blockRead,bytes):
+			PRINT("type(blockRead)=",type(blockRead))
+		text2match = ""
+		for byte in blockRead:
+			text2match += chr(ORD(byte))
+		PRINT("Final text2match=<",text2match,">")
+		'''
 		try:
-			file.seek(startAddress, os.SEEK_SET)
-			numBytesToRead = dataFileSizeInBytes - startAddress
-			text2match = file.read(numBytesToRead)	
-			PRINT("type(text2match) =",type(text2match))	# This is of type "bytes" in Python3 but "str" in Python2
-		except ValueError: 
-			PRINT ("ValueError on trying to read ",numBytesToRead,"bytes from file offset",startAddress )
-			return False
-		except:
-			PRINT ("Unknown error while trying to read the file - exiting")
-			sys.exit()
+			if text2match != blockRead.decode("utf-8"):
+				PRINT("text2match != blockRead.decode(\"utf-8\")")
+			else:
+				PRINT("text2match == blockRead.decode(\"utf-8\")")
+		except UnicodeDecodeError:
+			PRINT("ERROR: UnicodeDecodeErrorif occurred in the statement: \n if text2match != blockRead.decode(\"utf-8\")")
+		'''	
+	elif isinstance(dataFileName,list):	# Demo
+		EXIT("ERROR in readBytesFromDatafileRegEx - The control should have never come here")
+		if len(dataFileName) != 2 or dataFileName[0] not in range(len(demoFeatureCodeData)) or dataFileName[1] not in range(len(demoFeatureCodeData[dataFileName[0]][1])):
+			EXIT("Coding bug in readNBytesText() - the demo data # "+STR(dataFileName)+" does not exist!!")
+		data = demoFeatureCodeData[dataFileName[0]][1][dataFileName[1]][1]
+		text2match = data[startAddress:]
+		PRINT("\n\ntype(data) =",type(data),"\n\n")	# This is of type "bytes" in Python3 but "str" in Python2
+		numBytesToRead = len(text2match)
+		PRINT("len(text2match) = ",len(text2match),"type(text2match)=",type(text2match))		# str for Python2, bytes for Python3
+	elif checkIfString(dataFileName):
+		with open(dataFileName, "r") as file:
+			try:
+				file.seek(startAddress, os.SEEK_SET)
+				numBytesToRead = dataFileSizeInBytes - startAddress
+				text2match = file.read(numBytesToRead)	
+				PRINT("type(text2match) =",type(text2match))	# This is of type "bytes" in Python3 but "str" in Python2
+			except ValueError: 
+				PRINT ("ValueError on trying to read ",numBytesToRead,"bytes from file offset",startAddress )
+				return False
+			except:
+				PRINT ("Unknown error in readBytesFromDatafileRegEx while trying to read the file - exiting")
+				sys.exit()
+			# We cannot operate RegEx on bytes in Python3, so we need to convert it to string first. If UTF-8 complains, we know it's not text file anyway
+			if PYTHON3x:
+				if isinstance(text2match,bytes):
+					try:
+						text2match = text2match.decode("utf-8")
+					except UnicodeDecodeError:
+						PRINT("Input file is NOT text")
+						return False
+				elif not isinstance(text2match,str):
+					OUTPUT("Coding bug in readNBytesText() - the demo data # "+STR(dataFileName)+" does not exist!!")
+					return False
+
+	else:
+		EXIT("Coding bug in readBytesFromDatafileRegEx() - illegal format of dataFileName "+STR(dataFileName)+" does not exist!!")
+		
 #	rePattern = ".*?(?=the)"
 	PRINT("Trying to match the pattern",rePattern,"on <"+text2match+"> of size",len(text2match),"bytes")
 #	rePattern = ".*There"
@@ -22166,13 +22492,15 @@ def readBytesFromDatafileRegEx(startAddress, rePattern):
 		if result.span()[0]!=0:	# The match is NOT found from the starting character
 			return 0
 		else:
-			extraCharCount = 0	# Newlines cause one extra char in Windows for Line feed and Carriage Return
+			extraCharCount = 0	# Newlines cause one extra char in Windows for Carriage Return (\r, 0x0D) before the Line feed (\n, 0x0A), which is only char for Unix newline. 
 			if "\n" in result.group(0):
 				PRINT("Newlines found in matched string.")
 				if sys.platform == 'win32':
 					PRINT("Running on Windows")
 					extraCharCount = len(re.findall("\n", result.group(0)))
 					PRINT ("Exactly", extraCharCount,"newlines")
+			if len(binaryArray)>0:	# Happens where the data is textified Hex (and also during Demo). Here, the extraCharCount does not need to be added
+				extraCharCount = 0	# Basically, 
 			if len(result.group(0)) != result.span()[1]-result.span()[0]:
 				PRINT("result.group(0)) ("+STR(result.group(0))+") != result.span()[1]-result.span()[0] ("+STR(result.span()[1]-result.span()[0])+")")
 				return [len(result.group(0)), len(result.group(0))+extraCharCount]
@@ -22181,16 +22509,33 @@ def readBytesFromDatafileRegEx(startAddress, rePattern):
 # The other routine, updateDisplayBlock(), reads a fixed-size displayBlock. This, OTOH, reads any-length block from anywhere, and returns that block.
 # This is useful when the data to be retrived are outside the BLOCK_SIZE display window. Two cases that are specifically useful are:
 def readBytesFromFile(startAddress, numBytesToRead):
-	PRINT("For Demo",dataFileName,", inside readBytesFromFile(startAddress=",startAddress,", numBytesToRead=",numBytesToRead)
-	if len(binaryArray)>0:	# Happens where the data is textified Hex
-		PRINT("the data is textified Hex, len(binaryArray)=",len(binaryArray),"len(hexCharArray)=",len(hexCharArray),", inputIsHexChar=",inputIsHexChar)
+#	PRINT=OUTPUT
+	PRINT("\n\nFor Demo",dataFileName,", inside readBytesFromFile(startAddress=",startAddress,", numBytesToRead=",numBytesToRead,"\n\n")
+	if len(binaryArray)>0:	# Happens where the data is textified Hex (also in Demo)
+		PRINT("\n\nThe data is textified Hex, len(binaryArray)=",len(binaryArray),"len(hexCharArray)=",len(hexCharArray),", inputIsHexChar=",inputIsHexChar,"\n\n")
 		blockRead = binaryArray[startAddress: startAddress+numBytesToRead]
+		if isinstance(blockRead,bytes):
+			PRINT("type(blockRead)=",type(blockRead))
+		'''	
+		text2match = ""
+		for byte in blockRead:
+			text2match += chr(ORD(byte))
+		PRINT("Final text2match=<",text2match,">")
+		try:
+			if text2match != blockRead.decode("utf-8"):
+				PRINT("text2match != blockRead.decode(\"utf-8\")")
+			else:
+				PRINT("text2match == blockRead.decode(\"utf-8\")")
+		except UnicodeDecodeError:
+			PRINT("ERROR: UnicodeDecodeErrorif occurred in the statement: \n if text2match != blockRead.decode(\"utf-8\")")
+		'''
 	elif isinstance(dataFileName,list):	# Demo
+		EXIT("ERROR in readBytesFromFile - The control should have never come here")
 		if len(dataFileName) != 2 or dataFileName[0] not in range(len(demoFeatureCodeData)) or dataFileName[1] not in range(len(demoFeatureCodeData[dataFileName[0]])):
 			EXIT("Coding bug in readBytesFromFile() - the demo data # "+STR(dataFileName)+" does not exist!!")
 		data = demoFeatureCodeData[dataFileName[0]][1][dataFileName[1]][1]
 		blockRead = data[startAddress: startAddress+numBytesToRead]
-		PRINT("For Demo",dataFileName,", inside readBytesFromFile(startAddress=",startAddress,", numBytesToRead=",numBytesToRead,", len(blockRead)=",len(blockRead))
+		PRINT("\n\nFor Demo",dataFileName,", inside readBytesFromFile(startAddress=",startAddress,", numBytesToRead=",numBytesToRead,", len(blockRead)=",len(blockRead),"type(blockRead)=",type(blockRead),"\n\n")
 	else:
 		with open(dataFileName, "rb") as file:
 			try:
@@ -24636,8 +24981,13 @@ class MainWindow:
 							errorRoutine(errorMessage)
 							dumpDetailsForDebug()
 
+				# Special logic for printing the ASCII newline
 				if ((0x20 <= ORD(byte) <= 0x7E) or (0x80 <= ORD(byte) <= 0xFE)):
 					byteToPrint = byte
+				elif sys.platform == 'win32' and displayBlock[rowStartOffset+i]==0x0D and rowStartOffset+i+1<len(displayBlock) and displayBlock[rowStartOffset+i+1]==0x0A:
+					byteToPrint = "\\"
+				elif sys.platform == 'win32' and displayBlock[rowStartOffset+i]==0x0A and rowStartOffset+i>0 and displayBlock[rowStartOffset+i-1]==0x0D  :
+					byteToPrint = "n"
 				else:
 					byteToPrint = "."
 				try:
@@ -28320,6 +28670,64 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			infoMessage = "As you can see, the _X_ operator mean i when it applies to variable i, and it means j when it applies to variable j.\n\nBeautiful, elegant and concise."
+			infoRoutine(infoMessage)
+			
+			self.endFeatureDemoMessage()
+			
+		elif self.demoIndex == 41:		# Parse Text files
+			
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,0])
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "Often, we need to parse not binary files but text files. "	\
+							+"Kernel log files are examples of that.  \n\n"	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "In the TEXT files, we end up seeing a lot of timestamps, and Hex/ binary values. We need to parse all that."
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+
+			infoMessage = "Now, this ability to parse texts often comes handy if we are parsing dates. Hit Enter to see"	
+			infoRoutine(infoMessage)
+			
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			infoMessage = "Here, we read in the date, convert it to Unix timestamp format (number of seconds passed since 1/1/1970). \n"	\
+							+"Hit enter to see the result. \n\n"	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "But, as you can see, just seeing the timestamp as an integer isn't that great. What if we want to display it in a different format?"
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,2])
+			self.openDataFile([self.demoIndex,2])
+			infoMessage = "For that we can use the <FORMAT>. INFORMATs are for input, FORMATs are for output. \n\nHere, we convert the Unix timestamp "	\
+							+"(number of seconds passed since 1/1/1970) to a different DD MMM, YYYY format. \n"	\
+							+"Hit enter to see the result. \n\n"	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+
+			infoMessage = "Looks pretty nice, right?"	
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,3])
+			self.openDataFile([self.demoIndex,3])
+			infoMessage = "In this case we have 2 dates on the two lines (first and third).\nAnd the month field takes 2 bytes in the first, and 1 byte in the third.\n\n"	\
+							+"Covering this kind of cases become hard for ordinary parsers. Yet, here we cover both cases pretty easily. \n"	\
+							+"Hit enter to see the result. \n\n"	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			
+			infoMessage = "As you can see, the same INFORMAT of DATETIME(MM/DD/YYYY-hh:mm:ss) was able to capture both 1-byte and 2-byte months."	
 			infoRoutine(infoMessage)
 			
 			self.endFeatureDemoMessage()
