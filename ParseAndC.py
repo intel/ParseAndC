@@ -873,6 +873,7 @@
 # 2026-02-28 - Pretty printing
 # 2026-03-10 - UI Redesign
 # 2026-03-16 - Barebone demo done
+# 2026-03-16 - Print only array elements
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -1862,13 +1863,16 @@ BCDencodedData = "0x12345671063426473456789A6346847E"
 
 Base64encodedData = "0x62476C6E61485167643239796179343D"
 
-textData1 = "0x3078414243443132333420307841424344626565662048690D0A"
+NL = "0D0A" if sys.platform == 'win32' else "0A"
+
+
+textData1 = "0x307841424344313233342030784142434462656566204869"+NL
 #textData1 = "0xABCD1234 0xABCDbeef Hi.."
 
 textDateRE =   "0x31302F33312F323032352D30333A31373A32392E3637352030313E6978775B30"+"5D20494E46206472697665725F6163695F64656275673A20435120434D443A20"		\
-				+"6F70636F6465203078303030312C20666C616773203078323030302C20646174"+"616C656E203078303030302C2072657476616C203078303030300D0A31302F33"		\
-				+"312F323032352D30333A31373A32392E3637352030313E6978775B305D20494E"+"4620647269766572205F6163695F64656275673A2009636F6F6B69652028682C"		\
-				+"6C29203078303030303030303020307830303030303030300D0A"
+				+"6F70636F6465203078303030312C20666C616773203078323030302C20646174"+"616C656E203078303030302C2072657476616C20307830303030"+NL+"312F32"		\
+				+"2F323032352D30333A31373A32392E3637352030313E6978775B305D20494E"+"4620647269766572205F6163695F64656275673A2009636F6F6B69652028682C"		\
+				+"6C2920307830303030303030302030783030303030303030"+NL
 '''				
 textDateRE =   "0x31302F33312F323032352D30333A31373A32392E3637352030313E6978775B30"+"5D20494E46206472697665725F6163695F64656275673A20435120434D443A20"		\
 				+"6F70636F6465203078303030312C20666C616773203078323030302C20646174"+"616C656E203078303030302C2072657476616C203078303030300D0A312F3331"		\
@@ -3272,7 +3276,7 @@ networkHdrs]
 
 #0
 [['//In C you can initialize\n',
-'char c[]="0x[A-Z]*"; //<INFORMAT> RE </INFORMAT> \n',
+'char c[]="0x[A-Z]*"; //<INFORMAT> REGEX </INFORMAT> \n',
 ' \n'
 ],
 textData1],
@@ -3302,13 +3306,46 @@ textDateRE],
 '          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
 '       */   \n',
 '    \n',
-'char c[] = ".*\\n"; //<INFORMAT>RE</INFORMAT>\n',
+'char junk[] = ".*\\n"; //<INFORMAT>REGEX</INFORMAT>\n',
 '\n',
 'int j; /* <informat>datetime(MM/dd/YYYY-hh:mm:ss) </informat> \n',
 '          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
 '       */'
 ],
-textDateRE]
+textDateRE],
+
+#4
+[['//Parsing date/time \n',
+'int i; /* <informat>datetime("MM/dd/YYYY-hh:mm:ss") </informat> \n',
+'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
+'       */   \n',
+'    \n',
+'char junk[] = ".*\\n"; /* <INFORMAT>REGEX</INFORMAT>\n',
+'                          <format> DO_NOT_PRINT </format> */\n',
+'\n',
+'int j; /* <informat>datetime(MM/dd/YYYY-hh:mm:ss) </informat> \n',
+'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
+'       */'
+],
+textDateRE],
+
+#5
+[['//Printing only certain elements in an array \n',
+'char charArray[10]; \n'
+],
+textData1],
+
+#6
+[['//Printing only certain elements in an array \n',
+'char charArray[10]; //<format> PRINT_ARRAY_ELEMENTS_ONLY([5]) </format> \n'
+],
+textData1],
+
+#7
+[['//Printing only certain elements in an array \n',
+'char charArray[10]; //<format> PRINT_ARRAY_ELEMENTS_ONLY([5]:[7]) </format> \n'
+],
+textData1]
 
 ]
 ]
@@ -17546,7 +17583,7 @@ formats = {	"HEX"				:	convert2Hex,
 			"MILLISECONDS"		:	convertMilliSecond2HH_MM_SS_mmm,
 			"DO_NOT_PRINT"		:	doNotPrint,
 			"PRINT_ARRAY_HEADER_ONLY":	doNotPrint,
-			"PRINT_ELEMENTS_ONLY":	doNotPrint}
+			"PRINT_ARRAY_ELEMENTS_ONLY":	doNotPrint}
 
 ###############################################################################
 # This routine applies various informats to the raw value of a data item
@@ -17749,15 +17786,15 @@ def applyFormat(endianness, variableId, unraveledRowNum, rawData, displayFormatL
 			errorRoutine(errorMessage)
 			return rawData if executionStage == "Map" else False
 		elif len(tokenizeLinesResult)>1:
-			parseArgumentListResult = parseArgumentList(tokenizeLinesResult[1:])
-			'''
+#			parseArgumentListResult = parseArgumentList(tokenizeLinesResult[1:])
+			
 			# For OPERATION(), we can have a ":" operator. Like OPERATION(x>0?x:-x). So, the ":" should be tokenized
 			# However, for others, there might be custom format string containing a ":". Like "YYYY-MM-DD, HH:mm:SS"
-			if tokenizeLinesResult[0] == "DATETIME":
+			if tokenizeLinesResult[0] in ["DATETIME","PRINT_ARRAY_ELEMENTS_ONLY"]:
 				parseArgumentListResult = parseArgumentList(tokenizeLinesResult[1:], True)
 			else:
 				parseArgumentListResult = parseArgumentList(tokenizeLinesResult[1:])
-			'''	
+				
 			if parseArgumentListResult == False:
 				errorMessage = "ERROR in applyFormat() attempting to parse the argument list for %s."%(displayFormatString)
 				errorRoutine(errorMessage)
@@ -19652,8 +19689,8 @@ def parseCommentForFormats(inputString):
 								formatTokens[0] = "DO_NOT_PRINT"
 							elif formatTokens[0] in ["PRINT_ARRAY_HEADER_ONLY","PRINTARRAYHEADERONLY","PRINT_HEADER_ONLY","PRINTHEADERONLY","HEADER_ONLY","HEADERONLY"]:
 								formatTokens[0] = "PRINT_ARRAY_HEADER_ONLY"
-							elif formatTokens[0] in ["PRINT_ELEMENTS_ONLY", "PRINTELEMENTSONLY", "ELEMENTS_ONLY", "ELEMENTSONLY", "ELEMENTS"]:
-								formatTokens[0] = "PRINT_ELEMENTS_ONLY"
+							elif formatTokens[0] in ["PRINT_ARRAY_ELEMENTS_ONLY", "PRINTARRAYELEMENTSONLY", "PRINT_ELEMENTS_ONLY", "PRINTELEMENTSONLY", "ELEMENTS_ONLY", "ELEMENTSONLY", "ELEMENTS"]:
+								formatTokens[0] = "PRINT_ARRAY_ELEMENTS_ONLY"
 							formatTokensString = list2plaintext(formatTokens, "")
 							PRINT("The custom format is", STR(formatTokens),", basically", formatTokensString)
 							PRINT("inputString = %s contains FORMAT <%s>" %(inputString, formatTokensString))
@@ -22136,7 +22173,6 @@ def prettyPrintUnraveled(displayAncestry=False):
 	doNotPrintTheseManyLastColumns = 2
 	
 	for N in range(len(unraveled)):
-		doNotPrint = False
 		if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][10][-1]][4]["enumType"]!=None:
 			unraveledVariablesHaveEnums = True
 		if 'FORMAT' in getDictKeyList(variableDeclarations[unraveled[N][10][-1]][4]):
@@ -22151,14 +22187,63 @@ def prettyPrintUnraveled(displayAncestry=False):
 		PRINT("Contains no C enum or user-defined formatting - no formatted valued will be displayed")
 
 	for N in range(len(unraveled)):
-		
+		printArrayHeaderOnly = False
 		doNotPrint = False
 		if 'FORMAT' in getDictKeyList(variableDeclarations[unraveled[N][10][-1]][4]):
 			formats4var = variableDeclarations[unraveled[N][10][-1]][4]['FORMAT']
-			PRINT("formats4var =",formats4var)
+			PRINT("\n\nFor variable",variableDeclarations[unraveled[N][10][-1]][0],", formats4var =",formats4var,"\n\n")
 			if 'DO_NOT_PRINT' in formats4var:
 				PRINT("\n\nWe are going to skip printing the value of variable",variableDeclarations[unraveled[N][10][-1]][0],"\n\n")
 				doNotPrint = True
+			if 'PRINT_ARRAY_HEADER_ONLY' in formats4var:
+				PRINT("\n\nWe are going to print only the header for the array variable",variableDeclarations[unraveled[N][10][-1]][0],"\n\n")
+				printArrayHeaderOnly = True
+			for f in formats4var:
+				prefix='PRINT_ARRAY_ELEMENTS_ONLY'
+				if prefix in f:
+					if " - Array of " in unraveled[N][1]:	# We want to skip the header row
+						doNotPrint = True
+					else:
+						PRINT("\n\nWe are going to check only the following elements for the array variable",variableDeclarations[unraveled[N][10][-1]][0],"<"+unraveled[N][1]+">\n\n")
+						# We need to extract the array indices. First, keep only the part after the last dot
+						lastLevelVarName = unraveled[N][1].split('.')[-1]
+						# Extract indices from the lastLevelVarName
+						indices = re.findall(r'\[(\d+)\]', lastLevelVarName)
+						indices = [int(index) for index in indices]
+						
+						# We need to extract the PRINT_ARRAY_ELEMENTS_ONLY(FROM_INDICES : TO_INDICES)
+						if f.startswith(prefix + '(') and f.endswith(')'):
+							content = f[len(prefix)+1:-1]
+							parts = content.split(':', 1)
+							for p in range(len(parts)):
+								matches = re.findall(r'\[([^\]]*)\]', parts[p])
+								parts[p] = matches
+								if len(parts[p])!=len(indices):
+									errorMessage="ERROR in prettyPrintUnraveled for N="+STR(N)+": dimension mismatch for indices("+STR(indices)+") and parts[p]=("+STR(parts[p])+")"
+									errorRoutine(errorMessage)
+								for q in range(len(parts[p])):
+									getRuntimeValueResult = getRuntimeValue(parts[p][q])
+									if getRuntimeValueResult[0]==True:
+										parts[p][q] = getRuntimeValueResult[1]
+							
+							PRINT("indices =",indices, ", parts =",parts)
+							if len(parts) == 1:
+								if parts[0]!=indices:
+									doNotPrint = True
+							elif len(parts) == 2:
+								greaterThanEqualToLeftBound = True
+								for x in range(len(indices)):
+									if indices[x] < parts[0][x]:
+										greaterThanEqualToLeftBound = False
+										break
+								lessThanEqualToRightBound = True
+								for x in range(len(indices)):
+									if indices[x] > parts[1][x]:
+										lessThanEqualToRightBound = False
+										break
+								if not (greaterThanEqualToLeftBound and lessThanEqualToRightBound):
+									doNotPrint = True
+								
 		
 		PRINT ("\nN =",N, "unraveled[",N,"][2] =",unraveled[N][2],"\n\n")
 		levelIndent = "    " * unraveled[N][0]
@@ -28727,8 +28812,80 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			
-			infoMessage = "As you can see, the same INFORMAT of DATETIME(MM/DD/YYYY-hh:mm:ss) was able to capture both 1-byte and 2-byte months."	
+			infoMessage = "As you can see, the same INFORMAT of DATETIME(MM/DD/YYYY-hh:mm:ss) was able to capture both 1-byte and 2-byte months and days."	
 			infoRoutine(infoMessage)
+			
+			infoMessage = "However, now we have a new problem. \n\nWe are obviously interested only in the timestamp and nothing else. \n"	\
+							+"\nSo, we have been able to put that inside some char-array aptly named \"junk\".\n\nUnfortunately, ParseAndC has no way to understand that "\
+							+"junk is really junk (nobody cares about its values. \n\nTherefore, on the console, every element of this junk array gets printed."	\
+							+"\n\nThis can easily overwhelm the output. \n\nThe solution is obvious. We do not want to print variables we do not care."
+			infoRoutine(infoMessage)
+			
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,4])
+			self.openDataFile([self.demoIndex,4])
+			infoMessage = "So, for ParseAndC 5.0, we added a new display format called DO_NOT_PRINT. \n\n"	\
+							+"We now added that to the variable junk now. \n\n"	\
+							+"Hit enter to see the result. It no longer clutters the console.\n\n"	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			
+			infoMessage = "As you can see, it's a small addition, but it can do wonders to the quality of the output."	
+			infoRoutine(infoMessage)
+			
+			infoMessage = "Now, we learned how we can skip whole variables.\n\nHoever, sometimes for array variables, we don't want to skip the whole array."	\
+						+ "We only want to print certain elements we care about, and ideally we would want to print only those."
+			infoRoutine(infoMessage)
+			
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,5])
+			self.openDataFile([self.demoIndex,5])
+			infoMessage = "For example, we have a character array c here. It's only 10 elements wide. \n\n"	\
+							+"So on the console there will be an individual line for each of the array indices. \n\n"	\
+							+"Here it is fine, but imagine if the array is hundreds or thousands elements wide. Then the unnecessary data will simply clutter the space.\n\n"	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			
+			infoMessage = "You can check on the console that there are individual lines for each of the array indices. \n\n"
+			infoRoutine(infoMessage)
+			
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,6])
+			self.openDataFile([self.demoIndex,6])
+			infoMessage = "However, suppose we only care about c[5] and do not want to print any other element of that array. \n\n"	\
+							+"We can achieve that by using the display format PRINT_ARRAY_ELEMENTS_ONLY([5]) \n\n"	\
+							+"Hit enter to see the result."	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "Now, it only prints the c[5] on the console. \n\n"	\
+							+"Everything else in that array is no longer printed.\n\n"	\
+							+"Hit enter to see the result."	
+			infoRoutine(infoMessage)
+			
+			
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,7])
+			self.openDataFile([self.demoIndex,7])
+			infoMessage = "Sometimes, we want to print not just a single element but rather a range. \n\n"	\
+							+"We can achieve that by using the display format PRINT_ARRAY_ELEMENTS_ONLY([5]:[7]) \n\n"	\
+							+"Hit enter to see the result."	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "Now, it only prints the c[5] thorugh c[7] on the console. \n\n"	\
+							+"Everything else in that array is no longer printed.\n\n"	\
+							+"Hit enter to see the result."	
+			infoRoutine(infoMessage)
+			
+			
+			
 			
 			self.endFeatureDemoMessage()
 			
