@@ -874,6 +874,7 @@
 # 2026-03-10 - UI Redesign
 # 2026-03-16 - Barebone demo done
 # 2026-03-16 - Print only array elements
+# 2026-03-21 - Changed parsing Hex/Dec/Oct/Bin/Float using RegEx
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -1865,9 +1866,18 @@ Base64encodedData = "0x62476C6E61485167643239796179343D"
 
 NL = "0D0A" if sys.platform == 'win32' else "0A"
 
+textDataHex = "0x427566666572206D656D6F727920616464726573732073746172742030784645"+"3030444130302020427566666572206D656D6F7279206164647265737320456E"		\
+				+"6420202030784646303044413030"
+
+textDataHex2 ="0x427566666572206D656D6F727920616464726573732073746172742030784645"+"2030302044412030302020427566666572206D656D6F72792061646472657373"		\
+				+"20456E642020203078464630305F44413030"
 
 textData1 = "0x307841424344313233342030784142434462656566204869"+NL
 #textData1 = "0xABCD1234 0xABCDbeef Hi.."
+
+textDataRaw =  "0x54686520666C6F617420726570726573656E746174696F6E206F66203132332E"+"34352069732030783432463645363636"
+
+textDataHexDecOctBin = "0x486578204445414442454546204465632031323334353637204F637420313233"+"343536372042696E203130313030303131"
 
 textDateRE =   "0x31302F33312F323032352D30333A31373A32392E3637352030313E6978775B30"+"5D20494E46206472697665725F6163695F64656275673A20435120434D443A20"		\
 				+"6F70636F6465203078303030312C20666C616773203078323030302C20646174"+"616C656E203078303030302C2072657476616C20307830303030"+NL+"312F32"		\
@@ -3273,6 +3283,76 @@ networkHdrs]
 ##############################################################################################	41
 ["Parsing Text Files",
 [
+
+#0
+[['//Start address of a buffer in memory\n',
+'char junk[28];   \n',
+'int buffAddrStart; \n'
+' \n'
+],
+textDataHex],
+
+#1
+[['//Start address of a buffer in memory\n',
+'char junk[28];   \n',
+'int buffAddrStart; //<informat>HEX(8)</informat>  \n',
+' \n'
+],
+textDataHex],
+
+#2
+[['//Start/End addresses of a buffer in memory\n',
+'char junk1[28];   \n',
+'int buffAddrStart; //<informat>HEX(8)</informat>  \n',
+'char junk2[27];   \n',
+'int buffAddrEnd; //<informat>HEX</informat>  \n',
+' \n'
+],
+textDataHex],
+
+#3
+[['//\n',
+'char junk1[28];   \n',
+'int buffAddrStart; //<informat>HEX(8)</informat>  \n',
+'char junk2[27];   \n',
+'int buffAddrEnd; //<informat>HEX(8)</informat>  \n',
+' \n'
+],
+textDataHex2],
+
+#4
+[['// Here the Hex bytes are NOT the value, \n',
+'// but rather raw bytes  \n',
+'    \n',
+'char junk[38];   \n',
+'float FloatVar; //<informat>HEX(raw)</informat>  \n',
+' \n'
+],
+textDataRaw],
+
+#5
+[['// The How\n',
+'    \n',
+'char junk1[4];   \n',
+'int HexVar; //<informat>HEX(8)</informat>  \n',
+'char junk2[4];   \n',
+'int DecVar; //<informat>Dec</informat>  \n',
+'char junk3[4];   \n',
+'int OctVar; //<informat>Oct</informat>  \n',
+'char junk4[4];   \n',
+'int BinVar; //<informat>bin</informat>  \n',
+' \n'
+],
+textDataHexDecOctBin]
+
+
+]
+],
+
+##############################################################################################	42
+["Parsing Input Date/Time",
+[
+
 
 #0
 [['//In C you can initialize\n',
@@ -16082,75 +16162,449 @@ def readRegExp(variableId, offset=None, parameters=[]):
 	
 	
 def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[]):
-	PRINT = OUTPUT
-	if desc not in ["Hex","Dec","Oct","Bin"]:
-		errorMessage = "ERROR in convertFromHexDecOctBin() - desc ("+STR(desc)+") not \"Hex\" / \"Dec\" / \"Oct\" / \"Bin\""
+#	PRINT = OUTPUT
+	if desc not in ["Hex","Dec","Oct","Bin","Real"]:
+		errorMessage = "ERROR in convertFromHexDecOctBin() - desc ("+STR(desc)+") not \"Hex\" / \"Dec\" / \"Oct\" / \"Bin\" / \"Real\""
 		errorRoutine(errorMessage)
 		return False
 	size = None
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
-	PRINT("Inside convertFromHexDecOctBin(desc=",desc,", variableId=",variableId,", offset=",offset, ", parameters=",STR(parameters),"during",executionStage)
+	PRINT("\n\n","=="*50,"\nInside convertFromHexDecOctBin(desc=",desc,", variableId=",variableId,", offset=",offset, ", parameters=",STR(parameters),"during",executionStage)
 	if executionStage not in ["Interpret","Map"]:
 		errorMessage = "ERROR in convertFromHexDecOctBin() - Neither Map nor Interpret"
 		errorRoutine(errorMessage)
 		return False
-		
+	
+	rawBytes = False
 	#Check for validity of Parameters
 	if parameters:
 		if not isinstance (parameters,list):
 			errorMessage = "ERROR in convertFromHexDecOctBin() - passed parameters ("+STR(parameters)+") is not a list"
 			errorRoutine(errorMessage)
 			return False
-		try:
-			size = int(parameters[0][0])
-			PRINT("Successfully converted passed parameter to integer:",size)
-			if size <= 0:
-				errorMessage = "ERROR in convertFromHexDecOctBin() - passed Parameter to "+desc+"("+STR(parameters)+") is <= 0"
+		if checkIfString(parameters[0][0]):
+			if parameters[0][0].replace(" ","").upper() in ["RAW", "RAWBYTES","RAW_BYTES"]:
+				rawBytes = True
+			else:		
+				try:
+					size = int(parameters[0][0])
+					PRINT("Successfully converted passed parameter to integer:",size)
+					if size <= 0:
+						errorMessage = "ERROR in convertFromHexDecOctBin() - passed Parameter (size) to "+desc+"("+STR(parameters)+") is <= 0"
+						errorRoutine(errorMessage)
+						return False
+					elif desc == "Hex" and size%2 != 0:
+						errorMessage = "ERROR in convertFromHexDecOctBin() - passed Parameter (size) to "+desc+"("+STR(parameters)+") must be an even number of nibbles"
+						errorRoutine(errorMessage)
+						return False
+				except ValueError:
+					errorMessage = "ERROR in convertFromHexDecOctBin() - passed Parameter to "+desc+"("+STR(parameters)+") not numeric"
+					errorRoutine(errorMessage)
+					return False
+		
+	if executionStage == "Interpret":
+		return
+
+
+	# From this point, only Map
+	if not checkIfIntegral(offset):
+		return False
+	if size == None:	# If not given explicitly, deduce it from the 
+		factor = 2 if desc == "Hex" else 8 if desc == "Bin" else 1
+		deducedSize = primitiveDatatypeLength[variableDeclarations[variableId][4]["datatype"]]*factor	# Remember that each binary byte gets translated to two Hex nibbles in text
+		PRINT("Deduced size = ",deducedSize)
+	else:
+		deducedSize = size
+		PRINT("Mandated size = ",size)
+
+	if desc == "Real":
+		rePattern = r'\s*-?\s*\d*\.\d+\s*([eE]\s*[+-]\d+)?\s*'
+	elif desc == "Hex":
+		rePattern = r'\s*[+-]?\s*(0[xX])?\s*([0-9a-fA-F][0-9a-fA-F]\s*_?\s*)*([0-9a-fA-F][0-9a-fA-F])+\s*'
+	elif desc == "Dec":
+		rePattern = r'\s*[+-]?\s*[\d+,?]*\d+\s*'
+	elif desc == "Oct":
+		rePattern = r'\s*[+-]?\s*(0[oO])?\s*([0-7]+,?)*[0-7]+\s*'
+	elif desc == "Bin":
+		rePattern = r'\s*[+-]?\s*(0[bB])?\s*([01]+\s*[_,]?\s*)*[01]+\s*'
+
+
+	PRINT ("From offset",offset,", trying to match rePattern =",rePattern)
+	
+	varLen = readBytesFromDatafileRegEx(offset, rePattern)
+	
+	if varLen == False:
+		errorMessage = "ERROR in convertFromHexDecOctBin() - cannot read the "+desc+" byte(s) from offset "+STR(offset)+" possibly due to a faulty rePattern of <"+rePattern+">"
+		errorRoutine(errorMessage)
+		return False
+	elif varLen == [0,0]:
+		errorMessage = "ERROR in convertFromHexDecOctBin() - cannot read the "+desc+" byte(s) from offset "+STR(offset)+" for rePattern of <"+rePattern+">"
+		errorRoutine(errorMessage)
+		return False
+		
+	bytesConsumed = varLen[1]
+	textBytes = readNBytesText(offset,bytesConsumed)
+	compressedTextBytes = textBytes.replace(" ","")
+	
+	if size != None:
+		PRINT("For size(",size,"), old textBytes = <"+textBytes+">, bytesConsumed =",bytesConsumed)
+
+		# We convert all the preambles to "QQ" and all the valid digits to "T", just so that we can stop when we reach "size" number of T's
+		if desc == "Hex":
+			temp = re.sub(r'[0-9a-fA-F]', 'T', textBytes.replace("0x","QQ").replace("0X","QQ"))
+		elif desc == "Dec":
+			temp = re.sub(r'[0-9]', 'T', textBytes)
+		elif desc == "Oct":
+			temp = re.sub(r'[0-7]', 'T', textBytes.replace("0o","QQ").replace("0O","QQ"))
+		elif desc == "Bin":
+			temp = re.sub(r'[01]', 'T', textBytes.replace("0b","QQ").replace("0B","QQ"))
+		elif desc == "Real":
+			pass
+		else:
+			EXIT("Bugggggggg")
+			
+		if desc in ["Hex","Dec","Oct","Bin"]:
+			T_count = 0
+			index2stop = None
+			for i in range(len(temp)):
+				if temp[i] == 'T':
+					T_count += 1
+					if T_count == size:
+						index2stop = i
+						break
+			if index2stop != None:
+				bytesConsumed = index2stop+1
+				textBytes = textBytes[:bytesConsumed]
+				PRINT("For size(",size,"), new textBytes = <"+textBytes+">, bytesConsumed =",bytesConsumed)
+
+	if desc == "Hex":
+		compressedTextBytes = re.sub(r'[^-0-9a-fA-F]','',textBytes.replace("0x","").replace("0X",""))
+	if desc == "Dec":
+		compressedTextBytes = re.sub(r'[^-0-9]','',textBytes)
+	elif desc == "Oct":
+		compressedTextBytes = re.sub(r'[^-0-7]','',textBytes)
+	elif desc == "Bin":
+		compressedTextBytes = re.sub(r'[^-01]','',textBytes)
+				
+	PRINT("compressedTextBytes =",compressedTextBytes)
+
+	if not rawBytes:
+
+		if desc == "Real":
+			try:
+				value = float(compressedTextBytes)
+			except ValueError:
+				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to float"
 				errorRoutine(errorMessage)
 				return False
-		except ValueError:
-			errorMessage = "ERROR in convertFromHexDecOctBin() - passed Parameter to "+desc+"("+STR(parameters)+") not numeric"
+				
+		elif desc == "Hex":
+			try:
+				value = int(compressedTextBytes,16)
+			except ValueError:
+				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to int"
+				errorRoutine(errorMessage)
+				return False
+		elif desc == "Dec":
+			try:
+				value = int(compressedTextBytes)
+			except ValueError:
+				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to int"
+				errorRoutine(errorMessage)
+				return False
+		elif desc == "Oct":
+			try:
+				value = int(compressedTextBytes,8)
+			except ValueError:
+				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to int"
+				errorRoutine(errorMessage)
+				return False
+		elif desc == "Bin":
+			try:
+				value = int(compressedTextBytes,2)
+			except ValueError:
+				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to int"
+				errorRoutine(errorMessage)
+				return False
+		else:
+			EXIT("Coding bug in convertFromHexDecOctBin()")
+
+		PRINT("Returning valueLE =", value, ", valueBE = ",value)
+		return [offset + bytesConsumed, value, value]
+
+			
+	else:	# Rawbytes
+		PRINT("Creating RAW bytes")
+		
+		if '-' in compressedTextBytes:
+			errorMessage = "ERROR in convertFromHexDecOctBin(): RAW bytes cannot have a negative sign in front = "+STR(compressedTextBytes)
 			errorRoutine(errorMessage)
 			return False
+
+		if PYTHON2x: 
+			binaryArray = ""
+		elif PYTHON3x:
+			binaryArray = bytearray()
 		
-	if executionStage == "Map":
-		if not checkIfIntegral(offset):
-			return False
-		if size == None:	# If not given explicitly, deduce it from the 
-			factor = 2 if desc == "Hex" else 8 if desc == "Bin" else 1
-			size = variableDeclarations[variableId][1]*factor	# Remember that each binary byte gets translated to two Hex nibbles in text
-			PRINT("Deduced size = ",size)
-	
-		bytesConsumed = 0
-		textBytes = ""
-		preambleAppeared = False
-		
-		while True:
-			if len(textBytes) >= size:
-				break
-			byte = readNBytesText(offset+bytesConsumed,1)
-			bytesConsumed += 1
-			if not byte.isspace():
-				textBytes += str(byte)
-				preamble = "0x" if desc == "Hex" else "0o" if desc == "Oct" else "0b" if desc == "Bin" else ""
-				if desc in ["Hex","Oct","Bin"] and len(textBytes) == 2: 
-					if textBytes==preamble:
-						if preambleAppeared:
-							errorMessage = "ERROR in convertFromHexDecOctBin() - We already found the \""+preamble+"\" symbol once"
-							errorRoutine(errorMessage)
-							return False
+#		binaryArray = []	# We need to recreate the bytearray from text
+
+		# If the code comes here, we presume we are talking about Raw bytes
+		if desc == "Hex":
+			if len(compressedTextBytes)%2 != 0:
+				errorMessage = "ERROR in convertFromHexDecOctBin(): odd number of nibbles in supposedly HEX compressedTextBytes = "+STR(compressedTextBytes)
+				errorRoutine(errorMessage)
+				return False
+			for i in range(len(compressedTextBytes)):
+				if i%2==0:
+					continue
+				else:
+					if charIsValidHex(compressedTextBytes[i-1]) and charIsValidHex(compressedTextBytes[i]):
+						byte0 = ord(compressedTextBytes[i-1]) - ord('0') if ('0' <= compressedTextBytes[i-1] <= '9') else 10 + ord(compressedTextBytes[i-1]) - ord('a') if ('a' <= compressedTextBytes[i-1] <= 'f') else 10 + ord(compressedTextBytes[i-1]) - ord('A') if ('A' <= compressedTextBytes[i-1] <= 'F') else 0
+						byte1 = ord(compressedTextBytes[i  ]) - ord('0') if ('0' <= compressedTextBytes[i  ] <= '9') else 10 + ord(compressedTextBytes[i  ]) - ord('a') if ('a' <= compressedTextBytes[i  ] <= 'f') else 10 + ord(compressedTextBytes[i  ]) - ord('A') if ('A' <= compressedTextBytes[i  ] <= 'F') else 0
+						if PYTHON2x:
+							binaryArray += chr(byte0*16+byte1) 
+						elif PYTHON3x:
+							binaryArray.append(byte0*16+byte1)
 						else:
-							textBytes = ""
-							hexBytesConsumed = 0
+							sys.exit()
+					else:
+						errorMessage = "ERROR in convertFromHexDecOctBin(): non-HEX character #"+STR(i-1)+":"+STR(i)+" <"+compressedTextBytes[i-1:i+1]+"> in supposedly HEX compressedTextBytes = "+STR(compressedTextBytes)
+						errorRoutine(errorMessage)
+						return False
+
+		elif desc == "Bin":
+			if len(compressedTextBytes)%8 != 0:
+				errorMessage = "ERROR in convertFromHexDecOctBin(): number of bytes("+STR(len(compressedTextBytes))+") in supposedly BIN compressedTextBytes = "+STR(compressedTextBytes)+"must be a multiple of 8"
+				errorRoutine(errorMessage)
+				return False
+			for i in range(len(compressedTextBytes)):
+				if not ('0' <= compressedTextBytes[i] <= '1'):
+					errorMessage = "ERROR in convertFromHexDecOctBin(): non-BIN character in supposedly BIN compressedTextBytes = "+STR(compressedTextBytes)
+					errorRoutine(errorMessage)
+					return False
+					
+			numBytes = integerDivision(len(compressedTextBytes),8)
+
+			for i in range(numBytes):
+				indivByte = int(compressedTextBytes[i*8:(i+1)*8],2)
+				if PYTHON2x:
+					binaryArray += chr(indivByte) 
+				elif PYTHON3x:
+					binaryArray.append(indivByte)
+				else:
+					sys.exit()
+
+		else:
+			errorMessage = "ERROR in convertFromHexDecOctBin(): We cannot have raw bytes in Octal or Decimal <"+STR(compressedTextBytes)+">"
+			errorRoutine(errorMessage)
+			return False
+
+
+
+		for i in range(len(binaryArray)):
+			PRINT("binaryArray[",i,"] = ", binaryArray[i])
+		
+		datatype = variableDeclarations[variableId][4]["datatype"]
+		datatypeSize = primitiveDatatypeLength[variableDeclarations[variableId][4]["datatype"]]
+		if len(binaryArray) != datatypeSize:
+			errorMessage = "ERROR in convertFromHexDecOctBin(): For raw bytes <"+compressedTextBytes+">, the raw byte size("+STR(len(binaryArray))+") does not match the "+datatype+" size ("+STR(datatypeSize)+")"
+			errorRoutine(errorMessage)
+			return False
+
+		# Didn't implement bitfield yet
+		valueLE = calculateInternalValue(binaryArray, LITTLE_ENDIAN, variableDeclarations[variableId][4]["datatype"], variableDeclarations[variableId][4]["signedOrUnsigned"])
+		valueBE = calculateInternalValue(binaryArray, BIG_ENDIAN,    variableDeclarations[variableId][4]["datatype"], variableDeclarations[variableId][4]["signedOrUnsigned"])
+		
+		PRINT("Returning valueLE =", valueLE, ", valueBE = ",valueBE)
+		return [offset + bytesConsumed, valueLE, valueBE]
+	
+		
+		
+		
+	'''	
+		
+		
+		
+	EXIT("Coding buggggggggggg")	
+		
+		
+		
+		
+		
+
+
+	bytesConsumed = 0
+	textBytes = ""
+	preambleAppeared = False
+	negativeValue = False
+	preamble = "0x" if desc == "Hex" else "0o" if desc == "Oct" else "0b" if desc == "Bin" else ""
+	
+	# These are counts for things that are supposed to occur only once
+	counts = {"+":0, "-":0, "0x":0, "0o":0, "0b":0, ".":0, "E":0, "E+":0, "E-":0}	
+	
+	while True:
+		if len(textBytes) >= deducedSize*100:	# Just for safety
+			break
+		byte = readNBytesText(offset+bytesConsumed,1)
+#		PRINT("type(byte) = ",type(byte))
+		if byte == False:	# This happends when we reach end of file too
+			if len(textBytes)>0:
+				break
+			else:
+				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot read the byte #"+STR(offset+bytesConsumed)+" with current textBytes = <"+textBytes+">"
+				errorRoutine(errorMessage)
+				return False
+		else:
+			byte = str(byte)
+#			PRINT("Changed type(byte) = ",type(byte))
+			
+#		PRINT("From offset",offset,", byte #",bytesConsumed," = ",byte)
+		bytesConsumed += 1
+		
+#		if byte == 'D' and charIsValidHex(byte):
+#			EXIT("Matched")
+		
+		if byte == '_':
+#			PRINT("Underscore")
+			if textBytes and textBytes!= preamble:
+				continue
+			else:
+				break
+		elif byte.isspace() or byte == ',' :
+#			PRINT("SPACE")
+			if size == None: 	# Size not specified, stop when you hit a whitespace after you hit some real data
+				if textBytes and textBytes!= preamble:
+					PRINT("We have some real data in textBytes(",textBytes,"), stopping right now")
+					break
+		elif ((desc == "Hex" and charIsValidHex(byte)) or (desc == "Dec" and ('0'<=byte<='9')) or (desc == "Oct" and ('0'<=byte<='7')) or (desc == "Bin" and ('0'<=byte<='1'))  
+			 or (not preambleAppeared and textBytes=="0" and byte in ['x','o','b']) ):
+#			PRINT("From offset",offset,", byte #",bytesConsumed-1," = ",byte)
+			textBytes += str(byte)
+			if desc in ["Hex","Oct","Bin"] and len(textBytes) == 2: 
+				if textBytes==preamble:
+					if preambleAppeared:
+						errorMessage = "ERROR in convertFromHexDecOctBin() - We already found the \""+preamble+"\" symbol once"
+						errorRoutine(errorMessage)
+						return False
+					else:
+						preambleAppeared = True
+						textBytes = ""
+						hexBytesConsumed = 0
+		elif byte in ["+","-"] and not textBytes:
+#			PRINT("+/-")
+			if byte == "-":
+				negativeValue = True if not negativeValue else False
+		elif byte == '.':
+			PRINT("PERIOD")
+			if counts[byte] >0:
+				errorMessage = "ERROR in convertFromHexDecOctBin() - We already found the \".\" symbol once"
+				errorRoutine(errorMessage)
+				return False
+			counts[byte] += 1
+			textBytes += byte
+		else:
+#			PRINT("HOW COME???")
+			break
+
+	PRINT("After parsing is done, textBytes = <",textBytes,"> length is ",len(textBytes))
+						
+	if not rawBytes:
 		try:
 			base = 16 if desc == "Hex" else 10 if desc == "Dec" else 8 if desc == "Oct" else 2 if desc == "Bin" else 1
+			PRINT("Converting <"+textBytes+"> to integer with base of ",base)
 			numericValue = int(textBytes,base)
+			numericValue = -numericValue if negativeValue else numericValue
 		except ValueError:
 			errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert <"+STR(textBytes)+"> to base "+STR(base)+" - not numeric"
 			errorRoutine(errorMessage)
 			return False
-			
-		return [offset + bytesConsumed, numericValue]
+		
+		# We send back the same value for LE and BE
+		return [offset + bytesConsumed, numericValue, numericValue]
+		
+	else:	# If the code comes here, we presume we are talking about Raw bytes
+		
+		PRINT("Creating RAW bytes")
+
+		if PYTHON2x: 
+			binaryArray = ""
+		elif PYTHON3x:
+			binaryArray = bytearray()
+		
+#		binaryArray = []	# We need to recreate the bytearray from text
+
+		# If the code comes here, we presume we are talking about Raw bytes
+		if desc == "Hex":
+			if len(textBytes)%2 != 0:
+				errorMessage = "ERROR in convertFromHexDecOctBin(): odd number of nibbles in supposedly HEX textBytes = "+STR(textBytes)
+				errorRoutine(errorMessage)
+				return False
+			for i in range(len(textBytes)):
+				if i%2==0:
+					continue
+				else:
+					if charIsValidHex(textBytes[i-1]) and charIsValidHex(textBytes[i]):
+						byte0 = ord(textBytes[i-1]) - ord('0') if ('0' <= textBytes[i-1] <= '9') else 10 + ord(textBytes[i-1]) - ord('a') if ('a' <= textBytes[i-1] <= 'f') else 10 + ord(textBytes[i-1]) - ord('A') if ('A' <= textBytes[i-1] <= 'F') else 0
+						byte1 = ord(textBytes[i  ]) - ord('0') if ('0' <= textBytes[i  ] <= '9') else 10 + ord(textBytes[i  ]) - ord('a') if ('a' <= textBytes[i  ] <= 'f') else 10 + ord(textBytes[i  ]) - ord('A') if ('A' <= textBytes[i  ] <= 'F') else 0
+						if PYTHON2x:
+							binaryArray += chr(byte0*16+byte1) 
+						elif PYTHON3x:
+							binaryArray.append(byte0*16+byte1)
+						else:
+							sys.exit()
+					else:
+						errorMessage = "ERROR in convertFromHexDecOctBin(): non-HEX character #"+STR(i-1)+":"+STR(i)+" <"+textBytes[i-1:i+1]+"> in supposedly HEX textBytes = "+STR(textBytes)
+						errorRoutine(errorMessage)
+						return False
+
+		elif desc == "Bin":
+			if len(textBytes)%8 != 0:
+				errorMessage = "ERROR in convertFromHexDecOctBin(): number of bytes("+STR(len(textBytes))+") in supposedly BIN textBytes = "+STR(textBytes)+"must be a multiple of 8"
+				errorRoutine(errorMessage)
+				return False
+			for i in range(len(textBytes)):
+				if not ('0' <= textBytes[i] <= '1'):
+					errorMessage = "ERROR in convertFromHexDecOctBin(): non-BIN character in supposedly BIN textBytes = "+STR(textBytes)
+					errorRoutine(errorMessage)
+					return False
+					
+			numBytes = integerDivision(len(textBytes),8)
+
+			for i in range(numBytes):
+				indivByte = int(textBytes[i*8:(i+1)*8],2)
+				if PYTHON2x:
+					binaryArray += chr(indivByte) 
+				elif PYTHON3x:
+					binaryArray.append(indivByte)
+				else:
+					sys.exit()
+
+		else:
+			errorMessage = "ERROR in convertFromHexDecOctBin(): We cannot have raw bytes in Octal or Decimal <"+STR(textBytes)+">"
+			errorRoutine(errorMessage)
+			return False
+
+
+
+		for i in range(len(binaryArray)):
+			PRINT("binaryArray[",i,"] = ", binaryArray[i])
+		
+		datatype = variableDeclarations[variableId][4]["datatype"]
+		datatypeSize = primitiveDatatypeLength[variableDeclarations[variableId][4]["datatype"]]
+		if len(binaryArray) != datatypeSize:
+			errorMessage = "ERROR in convertFromHexDecOctBin(): For raw bytes <"+textBytes+">, the raw byte size("+STR(len(binaryArray))+") does not match the "+datatype+" size ("+STR(datatypeSize)+")"
+			errorRoutine(errorMessage)
+			return False
+
+		# Didn't implement bitfield yet
+		valueLE = calculateInternalValue(binaryArray, LITTLE_ENDIAN, variableDeclarations[variableId][4]["datatype"], variableDeclarations[variableId][4]["signedOrUnsigned"])
+		valueBE = calculateInternalValue(binaryArray, BIG_ENDIAN,    variableDeclarations[variableId][4]["datatype"], variableDeclarations[variableId][4]["signedOrUnsigned"])
+		
+		PRINT("Returning valueLE =", valueLE, ", valueBE = ",valueBE)
+		return [offset + bytesConsumed, valueLE, valueBE]
+	'''
+
+
 
 def convertFromHex(variableId, offset=None, parameters=[]):
 	return convertFromHexDecOctBin("Hex",variableId, offset, parameters)
@@ -16160,135 +16614,8 @@ def convertFromOct(variableId, offset=None, parameters=[]):
 	return convertFromHexDecOctBin("Oct",variableId, offset, parameters)
 def convertFromBin(variableId, offset=None, parameters=[]):
 	return convertFromHexDecOctBin("Bin",variableId, offset, parameters)
-'''	
-def convertFromHex(variableId, offset=None, parameters=[]):
-	PRINT = OUTPUT
-	size = None
-	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
-	PRINT("Inside convertFromHex(variableId=",variableId,", offset=",offset, ", parameters=",STR(parameters),"druing",executionStage)
-	if executionStage not in ["Interpret","Map"]:
-		errorMessage = "ERROR in convertFromHex() - Neither Map nor Interpret"
-		errorRoutine(errorMessage)
-		return False
-		
-	#Check for validity of Parameters
-	if parameters:
-		if not isinstance (parameters,list):
-			errorMessage = "ERROR in convertFromHex() - passed parameters ("+STR(parameters)+") is not a list"
-			errorRoutine(errorMessage)
-			return False
-		try:
-			size = int(parameters[0][0])
-			PRINT("Successfully converted passed parameter to integer:",size)
-			if size <= 0:
-				errorMessage = "ERROR in convertFromHex() - passed Parameter to HEX("+STR(parameters)+" is <= 0"
-				errorRoutine(errorMessage)
-				return False
-		except ValueError:
-			errorMessage = "ERROR in convertFromHex() - passed Parameter to HEX("+STR(parameters)+" not numeric"
-			errorRoutine(errorMessage)
-			return False
-		
-	if executionStage == "Map":
-		if not checkIfIntegral(offset):
-			return False
-		if size == None:	# If not given explicitly, deduce it from the 
-			size = variableDeclarations[variableId][1]*2	# Remember that each binary byte gets translated to two Hex nibbles in text
-			PRINT("Deduced size = ",size)
-	
-		bytesConsumed = 0
-		hexBytes = ""
-		hexSymbolAppeared = False
-		
-		while True:
-			if len(hexBytes) >= size:
-				break
-			byte = readNBytesText(offset+bytesConsumed,1)
-			bytesConsumed += 1
-			if not byte.isspace():
-				hexBytes += str(byte)
-				if len(hexBytes) == 2: 
-					if hexBytes=="0x":
-						if hexSymbolAppeared:
-							errorMessage = "ERROR in convertFromHex() - We already found the \"0x\" symbol once"
-							errorRoutine(errorMessage)
-							return False
-						else:
-							hexBytes = ""
-							hexBytesConsumed = 0
-		try:
-			hexValue = int(hexBytes,16)
-		except ValueError:
-			errorMessage = "ERROR in convertFromHex() - cannot convert <"+STR(hexBytes)+"> - not numeric"
-			errorRoutine(errorMessage)
-			return False
-			
-		return [offset + bytesConsumed, hexValue]
-
-def convertFromBin(variableId, offset=None, parameters=[]):
-	PRINT = OUTPUT
-	size = None
-	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
-	PRINT("Inside convertFromBin(variableId=",variableId,", offset=",offset, ", parameters=",STR(parameters),"druing",executionStage)
-	if executionStage not in ["Interpret","Map"]:
-		errorMessage = "ERROR in convertFromBin() - Neither Map nor Interpret"
-		errorRoutine(errorMessage)
-		return False
-		
-	#Check for validity of Parameters
-	if parameters:
-		if not isinstance (parameters,list):
-			errorMessage = "ERROR in convertFromBin() - passed parameters ("+STR(parameters)+") is not a list"
-			errorRoutine(errorMessage)
-			return False
-		try:
-			size = int(parameters[0][0])
-			PRINT("Successfully converted passed parameter to integer:",size)
-			if size <= 0:
-				errorMessage = "ERROR in convertFromBin() - passed Parameter to HEX("+STR(parameters)+" is <= 0"
-				errorRoutine(errorMessage)
-				return False
-		except ValueError:
-			errorMessage = "ERROR in convertFromBin() - passed Parameter to HEX("+STR(parameters)+" not numeric"
-			errorRoutine(errorMessage)
-			return False
-		
-	if executionStage == "Map":
-		if not checkIfIntegral(offset):
-			return False
-		if size == None:	# If not given explicitly, deduce it from the 
-			size = variableDeclarations[variableId][1]*8	# Remember that each binary byte gets translated to two Hex nibbles in text
-			PRINT("Deduced size = ",size)
-	
-		bytesConsumed = 0
-		binBytes = ""
-		binSymbolAppeared = False
-		
-		while True:
-			if len(binBytes) >= size:
-				break
-			byte = readNBytesText(offset+bytesConsumed,1)
-			bytesConsumed += 1
-			if not byte.isspace():
-				binBytes += str(byte)
-				if len(binBytes) == 2: 
-					if binBytes.lower()=="0b":
-						if binSymbolAppeared:
-							errorMessage = "ERROR in convertFromBin() - We already found the \"0x\" symbol once"
-							errorRoutine(errorMessage)
-							return False
-						else:
-							binBytes = ""
-							binBytesConsumed = 0
-		try:
-			hexValue = int(binBytes,8)
-		except ValueError:
-			errorMessage = "ERROR in convertFromBin() - cannot convert <"+STR(binBytes)+"> - not numeric"
-			errorRoutine(errorMessage)
-			return False
-			
-		return [offset + bytesConsumed, hexValue]
-'''
+def convertFromReal(variableId, offset=None, parameters=[]):
+	return convertFromHexDecOctBin("Real",variableId, offset, parameters)
 
 ###############################################################################################################
 #
@@ -16688,7 +17015,7 @@ def readDateTime(variableId, offset=None, parameters=[]):
 		
 		unixTS = convert2UnixTimestamp(dateTime["YYYY"],dateTime["MM"],dateTime["DD"],dateTime["hh"],dateTime["mm"],dateTime["ss"])
 		PRINT("Converted unixTS =",unixTS)
-		return [currOffset, unixTS]
+		return [currOffset, unixTS, unixTS]
 
 def displayDATETIME(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
 	PRINT("Entered displayDATETIME(unraveledRowNum=",unraveledRowNum,", rawData="+STR(rawData)+", parameters="+STR(parameters)+")")
@@ -17541,24 +17868,16 @@ def formatENUM(endianness, variableId, unraveledRowNum, rawData, parameters=[]):
 
 informats = {"HEX"				:	convertFromHex,
 			"HEXADECIMAL"		:	convertFromHex,
+			"DEC"				:	convertFromDec,
+			"DECIMAL"			:	convertFromDec,
+			"OCT"				:	convertFromOct,
+			"OCTAL"				:	convertFromOct,
 			"BIN"				:	convertFromBin,
 			"BINARY"			:	convertFromBin, 
+			"REAL"				:	convertFromReal, 
 			"DATETIME"			:	readDateTime,
 			"UNIXDATETIME"		:	convert2UnixTimestamp,
-#			"RE"				:	readRegExp,
-#			"REGEX"				:	readRegExp,
-#			"REGEXP"			:	readRegExp,
-#			"REG_EX"			:	readRegExp,
-#			"REG_EXP"			:	readRegExp,
-#			"REGULAR EXPRESSION":	readRegExp,
 			"REGULAR_EXPRESSION":	readRegExp}
-'''
-			,
-			"OCT"				:	convertFromOct, 
-			"OCTAL"				:	convertFromOct, 
-			"DEC"				:	convertFromDec, 
-			"DECIMAL"			:	convertFromDec}
-'''
 formats = {	"HEX"				:	convert2Hex,
 			"HEXADECIMAL"		:	convert2Hex,
 			"OCT"				:	convert2Oct, 
@@ -17662,7 +17981,7 @@ def applyInformat(variableId, offset, informatList=[]):
 		PRINT("After applying",informatString,", the result is",result,"\n\n")
 		
 		if result == False:
-			errorMessage = "ERROR in applyInformat() after applying informat "+informat+"with parameters["+STR(parameters)
+			errorMessage = "ERROR in applyInformat() after applying informat "+informat+" with parameters "+STR(parameters)
 			errorRoutine(errorMessage)
 			return False
 			
@@ -19208,11 +19527,10 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 					applyInformatResult = applyInformat(variableId, offset, variableDescription["INFORMAT"])
 					PRINT("applyInformatResult =",applyInformatResult)
 					nextOffset = applyInformatResult[0]
-					result = applyInformatResult[1]
 					numBytesToRead = nextOffset - offset
 					variableEndOffsetExclusive = nextOffset
-					valueLE = result
-					valueBE = result
+					valueLE = applyInformatResult[1]
+					valueBE = applyInformatResult[2]
 					'''
 					readNbytesNumberFromTextDataFileResult = readNbytesNumberFromTextDataFile(offset, variableId)
 					if readNbytesNumberFromTextDataFileResult == False:
@@ -19740,6 +20058,8 @@ def parseCommentForFormats(inputString):
 							informatTokens[0]=informatTokens[0].upper()
 							if informatTokens[0] in ['RE', 'REGEX', 'REGEXP','REG_EX', 'REG_EXP','REGULAR EXPRESSION','REGULAR_EXPRESSION']:
 								informatTokens[0] = 'REGULAR_EXPRESSION'
+							if informatTokens[0] in ['REAL', 'FLOAT', 'DOUBLE']:
+								informatTokens[0] = 'REAL'
 							informatTokensString = list2plaintext(informatTokens, "")
 							PRINT("The custom informat is", STR(informatTokens),", basically", informatTokensString)
 							PRINT("inputString = %s contains INFORMAT <%s>" %(inputString, informatTokensString))
@@ -21704,15 +22024,20 @@ def inputFileIsHexText():
 
 def readNBytesText(offset, N):
 	PRINT("\nInside readNBytesText(offset=",offset,", N=",N,")")
-	'''
-	with open(dataFileName, "r") as file:	# Open in text mode
-		file.seek(offset)
-		data = file.read(N)
-	return data
-	'''
+	if not checkIfIntegral(offset) or offset <0:
+		errorMessage = "ERROR in readNBytesText(): Illegal offset "+STR(offset)
+		errorRoutine(errorMessage)
+		return False
+	if not checkIfIntegral(N) or N <1:
+		errorMessage = "ERROR in readNBytesText(): Illegal value of number of bytes to be fetched N="+STR(N)
+		errorRoutine(errorMessage)
+		return False
+		
 	if len(binaryArray)>0:	# Happens where the data is textified Hex (and also during Demo)
 		PRINT("\n\nThe data is textified Hex, len(binaryArray)=",len(binaryArray),"len(hexCharArray)=",len(hexCharArray),", inputIsHexChar=",inputIsHexChar,"\n\n")
 		blockRead = binaryArray[offset:offset+N]
+		if not blockRead:
+			return False
 		if isinstance(blockRead,bytes):
 			PRINT("type(blockRead)=",type(blockRead))
 		text2match = ""
@@ -21732,6 +22057,18 @@ def readNBytesText(offset, N):
 	elif checkIfString(dataFileName):
 		dataFileSizeInBytes = os.path.getsize(dataFileName)
 		PRINT("Length of the",dataFileName, "file = ",dataFileSizeInBytes)
+		if dataFileSizeInBytes == 0:
+			errorMessage = "ERROR in readNBytesText(): trying to go past the file name with offset ("+STR(offset)+") >= dataFileSizeInBytes ("+STR(dataFileSizeInBytes)+")"
+			errorRoutine(errorMessage)
+			return False
+		if offset >= dataFileSizeInBytes:
+			errorMessage = "ERROR in readNBytesText(): trying to go past the file name with offset ("+STR(offset)+") >= dataFileSizeInBytes ("+STR(dataFileSizeInBytes)+")"
+			errorRoutine(errorMessage)
+			return False
+		if offset+N > dataFileSizeInBytes:
+			errorMessage = "ERROR in readNBytesText(): trying to go past the file name with offset ("+STR(offset)+") + N("+STR(N)+") >= dataFileSizeInBytes ("+STR(dataFileSizeInBytes)+")"
+			errorRoutine(errorMessage)
+			return False
 
 		with open(dataFileName, "r") as file:	# Open in text mode
 			file.seek(offset)
@@ -21760,302 +22097,7 @@ def readNBytesText(offset, N):
 	PRINT( "Returning from readNBytesText() - len(data) = ",len(data),"type(data)=",type(data),", data = <"+STR(data)+">")		# str for Python2, bytes for Python3
 
 	return data
-	
-	
-################################################################################################################
-# Read N number of numeric bytes from a certain offset. Returns [next unconsumed offset, valueLE, valueBE]
-################################################################################################################
-def readNbytesNumberFromTextDataFile (offset, variableId):
-#	PRINT=OUTPUT
-	PRINT("Inside readNbytesNumberFromTextDataFile()")
-	intendedDataType = ""
-	if variableId not in range(len(variableDeclarations)):
-		errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): Illegal variableId "+STR(variableId)
-		errorRoutine(errorMessage)
-		return False
-	
-	#Find out the input data size
-	N = variableDeclarations[variableId][1]
-	
-	#Find if there is any input format specified. If there is any specified, then the text data either must have no data format specification, or matching data specification
-	if "INFORMAT" in getDictKeyList(variableDeclarations[variableId][4]) and not variableDeclarations[variableId][4]["INFORMAT"]:
-		# Currently, we are supporting only a single-element list like ["HEX"]
-		informats = variableDeclarations[variableId][4]["INFORMAT"]
-		if not isinstance(informats, list) or len(informats)!=1:
-			errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): Illegal INFORMAT "+STR(informats)+" - not a single-element list"
-			errorRoutine(errorMessage)
-			return False
-		intendedDataType = variableDeclarations[variableId][4]["INFORMAT"][0]	# current
-		if intendedDataType not in ["HEX","OCT","DEC","BIN"]:
-			errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): Illegal INFORMAT "+STR(informats)+" - must be HEX / OCT / DEC / BIN"
-			errorRoutine(errorMessage)
-			return False
-		
-	currentDataType = ""	# default value of currentDataType could be "BIN" / "OCT" / "HEX"
 
-	# There are two formats for the dataFileName.
-	# - Integral/list - this means it is not really an actual filename, but an index that tells which dataset is to be loaded (happens during Demo)
-	# - actual filename - not demo
-	if isinstance(dataFileName,list):	# Demo
-		if len(dataFileName) != 2 or dataFileName[0] not in range(len(demoFeatureCodeData)) or dataFileName[1] not in range(len(demoFeatureCodeData[dataFileName[0]][1])):
-			EXIT("Coding bug in readNbytesNumberFromTextDataFile() - the demo data # "+STR(dataFileName)+" does not exist!!")
-		data = demoFeatureCodeData[dataFileName[0]][1][dataFileName[1]][1]
-		dataFileSizeInBytes = len(data)
-		PRINT ( "len(data) = ",len(data),"type(data)=",type(data))		# str for Python2, bytes for Python3
-	elif checkIfString(dataFileName):
-		dataFileSizeInBytes = os.path.getsize(dataFileName)
-		PRINT("Length of the",dataFileName, "file = ",dataFileSizeInBytes)
-
-		with open(dataFileName, "r") as file:	# Open in text mode
-			data = file.read()
-			PRINT ( "len(data) = ",len(data),"type(data)=",type(data))		# str for Python2, bytes for Python3
-			#PRINT ( "type(data[0])=",type(data[0]))							# str for Python2, int for Python3
-			#PRINT ( "type(data[0:1])=",type(data[0:1]))						# str for Python2, bytes for Python3
-
-			# We cannot operate RegEx on bytes in Python3, so we need to convert it to string first. If UTF-8 complains, we know it's not text file anyway
-			if PYTHON3x:
-				if isinstance(data,bytes):
-					try:
-						data = data.decode("utf-8")
-					except UnicodeDecodeError:
-						PRINT("Input file is NOT text")
-						return False
-				elif not isinstance(data,str):
-					OUTPUT("Coding bug in readNbytesNumberFromTextDataFile() - the demo data # "+STR(dataFileName)+" does not exist!!")
-					return False
-					
-	else:
-		EXIT("Coding bug in readNbytesNumberFromTextDataFile() - illegal format of dataFileName "+STR(dataFileName)+" does not exist!!")
-
-	# A big challenge while reading a numberic value in a text file is that if we are reading the actual value, or raw bytes (a numeric representation of that value).
-	# For example, if we see "-1", we know we are talking about a value of -1. But, if we see 0xFFFFFFFF, we do not know if we are seeing raw bytes represengting the  
-	# 2's complement representation of -1, or an unsigned integer of value 2^32-1.
-	
-	valueOrRawbytes = "Value"
-	needToCheckForNegativeSign = True
-	isNegative = False
-	
-	if intendedDataType == "HEX":
-		maxTextBytes2Consume = N * 2
-	elif intendedDataType == "BIN":
-		maxTextBytes2Consume = N * 8
-	else:
-		maxTextBytes2Consume = N*8+2	# We don't know if the layout is going to be Hex, Decimal or Binary.
-	
-	PRINT("maxTextBytes2Consume is set at",maxTextBytes2Consume)
-	
-	consumedByteArray = []
-
-	readDataByteCount = 0		# We need to read N bytes
-	prefixFound = False			# Sometimes the data might have a prefix like 0x or 0b
-	n = offset					# data pointer
-	
-	#First consume any preceding negative or positive sign. If there is one, then it is absolutely the value, NOT the representation for sure
-	x = re.match("[,\\s]*-[\\s]*",data)
-	PRINT(x) 
-	if x:
-		PRINT(x.group(0))
-		PRINT("len(x.group(0)) =",len(x.group(0)))
-		if len(x.group(0)) > 0 and x.group(0).strip() in ['-','+']:
-			if valueOrRawbytes != "Value":
-				errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): found +/- sign yet the data is supposed to be raw bytes"+STR(n)
-				errorRoutine(errorMessage)
-				return False
-			n += len(x.group(0))
-			if x.group(0).strip() == '-':
-				isNegative = True
-				needToCheckForNegativeSign = False
-	
-	while (True):
-		PRINT("\n\nCurrently dealing with offset",n,", where data[",n,"] = ",data[n],"len(consumedByteArray)=",len(consumedByteArray), ", N =",N,", maxTextBytes2Consume =", maxTextBytes2Consume)
-		if n >= len(data) or len(consumedByteArray) >= maxTextBytes2Consume:
-			break
-		PRINT ("data[",n,"] =",data[n],"type(data[",n,"]) =",type(data[n]))
-#		if re.match("[,\\s]+",data[n:n+1]) and (n<len(data)-1) and re.match("[,\\s]+",data[n+1:n+2]):		# Why???????
-		if re.match("[,\\s]+",data[n:n+1]):	# We consume all the commas and whitespaces
-			bytesConsumed = len(re.match("[,\\s+]+",data[n:n+1]).group(0))
-			PRINT("bytesConsumed =",bytesConsumed)
-			n += bytesConsumed
-			continue
-		elif data[n] == '0' and n<len(data)-1 and data[n+1] in ['x', 'X', 'b', 'B', 'o', 'O']:	# Make sure you do not count the 0 in 0x as part of a valid Hex byte
-			
-			if prefixFound:		# You are allowed to find the prefix only once
-				errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): multiple prefix starting at data offset "+STR(n)
-				errorRoutine(errorMessage)
-				return False
-			else:
-				prefixFound = True
-				PRINT( "Prefix found")
-				
-			if data[n+1] in ['x', 'X']:
-				if not currentDataType or currentDataType == "HEX":
-					currentDataType = "HEX"
-					maxTextBytes2Consume = N * 2
-				else:
-					errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): the currentDataType "+currentDataType+" is already something other than HEX"
-					errorRoutine(errorMessage)
-					return False
-			elif data[n+1] in ['o', 'O']:
-				if not currentDataType or currentDataType == "OCT":
-					currentDataType = "OCT"
-				else:
-					errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): the currentDataType "+currentDataType+" is already something other than OCT"
-					errorRoutine(errorMessage)
-					return False
-			elif data[n+1] in ['b', 'B']:
-				if not currentDataType or currentDataType == "BIN":
-					currentDataType = "BIN"
-					maxTextBytes2Consume = N * 8
-				else:
-					errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): the currentDataType "+currentDataType+" is already something other than BIN"
-					errorRoutine(errorMessage)
-					return False
-					
-				if data[n+1] in ['b', 'B']:
-					currentDataType = "BIN"
-			else:
-				EXIT("Coding bug in readNbytesNumberFromTextDataFile()")
-				
-			n += 2
-			continue
-		elif ('0' <= data[n] <= '9') or ('a' <= data[n] <= 'f') or ('A' <= data[n] <= 'F'):
-			consumedByteArray.append(data[n])
-			n += 1
-			continue
-		else:
-			errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): the data["+STR(n)+"] = "+data[n]
-			errorRoutine(errorMessage)
-			return False
-
-	PRINT("The consumedByteArray["+STR(len(consumedByteArray))+"] = ", STR(consumedByteArray))
-	
-	offsetNext = n	# Basically, we have consumed the data[offset:offsetNext]
-	PRINT("We have consumed the data[",offset,":",offsetNext,"], or",offsetNext-offset,"bytes")
-
-	# If there is no 0x kind of explicit data format, try to deduce it from the data itself
-	if not currentDataType:
-		dataTypeArray = ["","BIN","OCT","DEC","HEX"]
-		dataTypeArrayIndex = 0
-
-		for i in range(min(N*2,len(consumedByteArray))):	# For Hex, we anticipate 2N nibbles.
-			if ('a' <= consumedByteArray[i] <= 'f') or ('A' <= consumedByteArray[i] <= 'F'):
-				dataTypeArrayIndex = max(4,dataTypeArrayIndex)
-			elif ('8' <= consumedByteArray[i] <= '9'):
-				dataTypeArrayIndex = max(3,dataTypeArrayIndex)
-			elif ('2' <= consumedByteArray[i] <= '7'):
-				dataTypeArrayIndex = max(2,dataTypeArrayIndex)
-			elif ('0' <= consumedByteArray[i] <= '1'):
-				dataTypeArrayIndex = max(1,dataTypeArrayIndex)
-				
-		if dataTypeArrayIndex == 0:
-			errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): cannot deduce currentDataType for consumedByteArray = "+STR(consumedByteArray)
-			errorRoutine(errorMessage)
-			return False
-		else:
-			currentDataType = dataTypeArray[dataTypeArrayIndex]
-		
-	binaryArray = []
-
-	if valueOrRawbytes not in ["Value","Rawbytes"]:
-		errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): unknown value of valueOrRawbytes "+valueOrRawbytes+" for consumedByteArray = "+STR(consumedByteArray)
-		errorRoutine(errorMessage)
-		return False
-
-	
-	if valueOrRawbytes == "Value":
-		if currentDataType == "HEX":
-			hexValue = "0x"+"".join(consumedByteArray)
-			value = int(hexValue,16)
-			PRINT("Converted hexValue =",hexValue,"to",value)
-		elif currentDataType == "OCT":
-			octValue = "0o"+"".join(consumedByteArray)
-			value = int(octValue,8)
-			PRINT("Converted octValue =",octValue,"to",value)
-		elif currentDataType == "BIN":
-			binValue = "0b"+"".join(consumedByteArray)
-			value = int(binValue,2)
-			PRINT("Converted binValue =",binValue,"to",value)
-		elif currentDataType == "DEC":
-			decValue = "".join(consumedByteArray)
-			value = int(decValue,10)
-			PRINT("Converted decValue =",decValue,"to",value)
-		else:
-			errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): unknown value of currentDataType "+currentDataType+" for consumedByteArray = "+STR(consumedByteArray)
-			errorRoutine(errorMessage)
-			return False
-			
-		# We send the same value for LE and BE
-		return [offsetNext,value,value]
-
-	# If the code comes here, we presume we are talking about Raw bytes
-	if currentDataType == "HEX":
-		numBytes = integerDivision(len(consumedByteArray),2)
-		for i in range(numBytes*2):
-			if charIsValidHex(consumedByteArray[i]) and (i<len(consumedByteArray)-1) and charIsValidHex(consumedByteArray[i+1]):
-				byte0 = ord(consumedByteArray[i-1]) - ord('0') if ('0' <= consumedByteArray[i-1] <= '9') else 10 + ord(consumedByteArray[i-1]) - ord('a') if ('a' <= consumedByteArray[i-1] <= 'f') else 10 + ord(consumedByteArray[i-1]) - ord('A') if ('A' <= consumedByteArray[i-1] <= 'F') else 0
-				byte1 = ord(consumedByteArray[i  ]) - ord('0') if ('0' <= consumedByteArray[i  ] <= '9') else 10 + ord(consumedByteArray[i  ]) - ord('a') if ('a' <= consumedByteArray[i  ] <= 'f') else 10 + ord(consumedByteArray[i  ]) - ord('A') if ('A' <= consumedByteArray[i  ] <= 'F') else 0
-				if PYTHON2x:
-					binaryArray += chr(byte0*16+byte1) 
-				elif PYTHON3x:
-					binaryArray.append(byte0*16+byte1)
-				else:
-					sys.exit()
-			else:
-				errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): non-HEX character in supposedly HEX consumedByteArray = "+STR(consumedByteArray)
-				errorRoutine(errorMessage)
-				return False
-
-	elif currentDataType == "BIN":
-		numBytes = integerDivision(len(consumedByteArray),8)
-		indivByte = 0
-		for i in range(numBytes * 8):
-			if '0' <= consumedByteArray[i] <= '1':
-				pass
-			else:
-				errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): non-BIN character in supposedly BIN consumedByteArray = "+STR(consumedByteArray)
-				errorRoutine(errorMessage)
-				return False
-
-		for i in range(numBytes):
-			indivByte = int(consumedByteArray[i*8:(i+1)*8],2)
-			if PYTHON2x:
-				binaryArray += chr(indivByte) 
-			elif PYTHON3x:
-				binaryArray.append(indivByte)
-			else:
-				sys.exit()
-
-	elif currentDataType == "OCT":
-		numBytes = integerDivision(consumedByteArray)
-		indivByte = 0
-		for i in range(numBytes * 8):
-			if '0' <= consumedByteArray[i] <= '7':
-				pass
-			else:
-				errorMessage = "ERROR in readNbytesNumberFromTextDataFile(): non-OCT character in supposedly OCT consumedByteArray = "+STR(consumedByteArray)
-				errorRoutine(errorMessage)
-				return False
-
-		for i in range(numBytes):
-			indivByte = int(consumedByteArray[i*8:(i+1)*8],2)
-			if PYTHON2x:
-				binaryArray += chr(indivByte) 
-			elif PYTHON3x:
-				binaryArray.append(indivByte)
-			else:
-				sys.exit()
-
-
-	for i in binaryArray:
-		PRINT("binaryArray[",i,"] = ", binaryArray[i])
-
-	# Didn't implement bitfield yet
-	valueLE = calculateInternalValue(binaryArray, LITTLE_ENDIAN, variableDeclarations[variableId][4]["datatype"], variableDeclarations[variableId][4]["signedOrUnsigned"])
-	valueBE = calculateInternalValue(binaryArray, BIG_ENDIAN,    variableDeclarations[variableId][4]["datatype"], variableDeclarations[variableId][4]["signedOrUnsigned"])
-	
-	PRINT("Returning valueLE =", valueLE, ", valueBE = ",valueBE)
-	return [offsetNext, valueLE, valueBE]
-	
 ################################################################################################
 # This routine takes in a variableId and its value, and it returns its enum literal value.
 ################################################################################################
@@ -22566,16 +22608,16 @@ def readBytesFromDatafileRegEx(startAddress, rePattern):
 	except re.error:
 		errorMessage = "Error in readBytesFromDatafileRegEx(): The regular expression pattern \""+rePatternFinal+"\" is not valid."
 		errorRoutine(errorMessage)
-		return 0
+		return False
 		
 	result = re.match(rePatternFinal,text2match)
 	PRINT("result =",result)
 	if result == None:
-		return 0
+		return [0,0]
 	else:
 		PRINT("result.span() =",result.span(),", matching string = <"+result.group(0)+"> of length",len(result.group(0)))
 		if result.span()[0]!=0:	# The match is NOT found from the starting character
-			return 0
+			return [0,0]
 		else:
 			extraCharCount = 0	# Newlines cause one extra char in Windows for Carriage Return (\r, 0x0D) before the Line feed (\n, 0x0A), which is only char for Unix newline. 
 			if "\n" in result.group(0):
@@ -28759,7 +28801,105 @@ class MainWindow:
 			
 			self.endFeatureDemoMessage()
 			
-		elif self.demoIndex == 41:		# Parse Text files
+		elif self.demoIndex == 41:		# Text Data file
+			
+			self.clearDemo()
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "Often, we need to parse not binary files but text files. "	\
+							+"Kernel log files (and many other log files) are examples of that.  \n\n"	
+			infoRoutine(infoMessage)
+			self.openCodeFile([self.demoIndex,0])
+			infoMessage = "Now, it gets tricky regarding how to parse that value. In this case, the memory start and end addresses are printed in Hex.\n\n "	\
+							+"For example, even if we know that the Memory addresses are 32-bit (4 bytes), when printed in a text file, they occupy much more "	\
+							+"than 4 bytes. Here, because it is printed in hex, each nibble (4 bits) occupy a full 1 byte in TEXT, doubling it in size.\n\n"	\
+							+"Also, a Hex printing may bear the added \"0x\" in front of the Hex value, so it can occupy even more bytes.\n\n"					\
+							+"Here we simply tried to parse it using a regular int. Hit Enter to see what happens."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "As expected, the int variable failed to capture the full 10 TEXT bytes and assumed that it was binary.\n\n"	\
+							+"This is NOT the correct parsing of results."
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			infoMessage = "That's where we introduce the concept of INFORMAT. It tells the tool which format the data is in, and how it should be read in. \n\n"	\
+							+"All INFORMATs pertain to TEXT files only. They do not apply to binary. \n\nHere, we tell that the variable is expecting a value "		\
+							+"consisting of 8 HEX digits in TEXT.\n\nPress Enter to see how "
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "Now the int variable correctly captured the full 10 TEXT bytes.\n\n"	\
+							+"Now the question is, what will happen if we do NOT specify how many Hex TEXT bytes to look for?\n\nPress Enter to see."
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,2])
+			self.openDataFile([self.demoIndex,2])
+			infoMessage = "Observe that while for buffAddrStart we did tell to read in 8 bytes of Hex TEXT bytes, for buffAddrEnd we did not specify the size. \n\n"	\
+							+"So it will try to get the largest HEX number anyway.\n\n "		\
+							+"Please note that if we give a smaller size (less than 8 for int), it will stop after reading that many bytes."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "Observe that both buffAddrStart and buffAddrEnd are now read correctly.\n\n"	
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+			
+			self.openDataFile([self.demoIndex,3])
+			infoMessage = "Now, because TEXT files can often be arbitrarily formatted, it's not necessary that every byte in a HEX value will be contiguously located.\n\n "	\
+							+"Bytes may be punctuated by space or even underscore (\"_\").  \n\n However, if you tell ParseAndC how many total TEXT bytes to capture, "	\
+							+"it will ignore those intermittent space and undrescores and consume only the numeric bytes.\n\nHit enter to see."
+			infoRoutine(infoMessage)
+			self.openCodeFile([self.demoIndex,3])
+			infoMessage = "Here, the buffer start address is punctuated by space while the end address has underscores.\n\n "	\
+							+"But since ParseAndC knows how many total TEXT bytes to capture, "	\
+							+"it will ignore those intermittent space and undrescores and consume only the numeric bytes.\n\nHit enter to see."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "Looks great, right?.\n\n "	
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+			
+			self.openDataFile([self.demoIndex,4])
+			infoMessage = "Now, Till this time we have presumed that the printed bytes we were seeing on a TEXT file were all \"values\".\n\n "				\
+							+"What if they were NOT actual values, but rather the computer representation of how the variable is stored?\n\n "				\
+							+"Basically, if you see a text string 0x42F6E666, it might represent a 32-bit floating point number with value of 123.45.\n\n"	\
+							+"How do you deal with such cases where those HEX/BIN bytes on the TEXT values are NOT values but rather raw bytes?"
+			infoRoutine(infoMessage)
+			self.openCodeFile([self.demoIndex,4])
+			infoMessage = "In ParseAndC, all you have to do is that instead of mentioninig the numeric size, just put in \"raw\".\n\n "									\
+							+"Then ParseAndC will understand that it is NOT actual values, but rather the computer representation of how the variable is stored.\n\n "	\
+							+"Hit Enter to see the result"
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "Looks great, right?"	
+			infoRoutine(infoMessage)
+			infoMessage = "Now, INFORAMTs don't have to be HEX only. \n\nWe can use INFORMATs of HEX, BIN (for Binary), OCT (for Octal) and DEC (for Decimal)."	
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+			
+			self.openDataFile([self.demoIndex,5])
+			self.openCodeFile([self.demoIndex,5])
+			infoMessage = "Here we are using different INFORMATs for HEX (for Hexadecimal), BIN (for Binary), OCT (for Octal) and DEC (for Decimal) values.\n\n "				\
+							+"Hit Enter to see the result"
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "All those values here have been read in accordingly.\n\n "	
+			infoRoutine(infoMessage)
+			
+			self.endFeatureDemoMessage()
+			
+		elif self.demoIndex == 42:		# Parse Input Date/Time
 			
 			self.clearDemo()
 			self.openCodeFile([self.demoIndex,0])
