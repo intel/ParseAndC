@@ -689,7 +689,7 @@
 # 2020-01-27 - Before trying to use the same offsets from the offsetDetails. Now this fixed some bugs regarding functions.
 # 2020-01-27 - After trying to use the same offsets from the offsetDetails. Also fixed the bug in mapStructure where populateDataMap() was getting called before performInterpretedCodeColoring()
 # 2020-01-28 - The Address start and end in the 4th Window now working. Also, fixed the bug in previously not using removeColorTags() so that if we now re-choose, previous colors remain.
-# 2020-01-28 - Now the inserting-into-typedef part has been moved into where it should belong (parseVariableDeclaration() function). Corresponding code in parseStructre() and parseCodeSnippet() are now commented out.
+# 2020-01-28 - Now the inserting-into-typedef part has been moved into where it should belong (parseVariableDeclaration() function). Corresponding code in parseStructure() and parseCodeSnippet() are now commented out.
 # 2020-01-28 - Fixed the bug where I was not deducting the offset while reading from the blockRead in populateDataMap(). Previous versions would give wrong result.
 # 2020-01-29 - Now even struct members can use derived type declarations.
 # 2020-01-29 - Now variable description is also part of unravel, so it can decode any kind of value. Next will display the bytes for each field.
@@ -875,6 +875,7 @@
 # 2026-03-16 - Barebone demo done
 # 2026-03-16 - Print only array elements
 # 2026-03-21 - Changed parsing Hex/Dec/Oct/Bin/Float using RegEx
+# 2026-03-25 - Implemented demo properly
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -1865,6 +1866,7 @@ BCDencodedData = "0x12345671063426473456789A6346847E"
 Base64encodedData = "0x62476C6E61485167643239796179343D"
 
 NL = "0D0A" if sys.platform == 'win32' else "0A"
+NLwidth = 2 if sys.platform == 'win32' else 1
 
 textDataHex = "0x427566666572206D656D6F727920616464726573732073746172742030784645"+"3030444130302020427566666572206D656D6F7279206164647265737320456E"		\
 				+"6420202030784646303044413030"
@@ -1878,6 +1880,18 @@ textData1 = "0x307841424344313233342030784142434462656566204869"+NL
 textDataRaw =  "0x54686520666C6F617420726570726573656E746174696F6E206F66203132332E"+"34352069732030783432463645363636"
 
 textDataHexDecOctBin = "0x486578204445414442454546204465632031323334353637204F637420313233"+"343536372042696E203130313030303131"
+
+#12-Nov-2020   \n
+#Dec 10,2020   \n
+textDateNL =   "0x31322D4E6F762D32303230202020"+NL+"4465632031302C32303230202020"+NL
+
+#10/23/2025  \n
+#9/8/2025    \n
+textDateNL2 =   "0x31302F32332F3230323520202020"+NL+"392F382F32303235202020202020"+NL
+
+
+textDateNL3 =  "0x31322D4E6F762D32303230202020"+NL+"426C616820626C616820626C6168"+NL+"546869732077617320746F74616C"+NL+"556E6E65636573736172792E2E2E"+NL	\
+				+"4465632031302C32303230202020"+NL
 
 textDateRE =   "0x31302F33312F323032352D30333A31373A32392E3637352030313E6978775B30"+"5D20494E46206472697665725F6163695F64656275673A20435120434D443A20"		\
 				+"6F70636F6465203078303030312C20666C616773203078323030302C20646174"+"616C656E203078303030302C2072657476616C20307830303030"+NL+"312F32"		\
@@ -3355,47 +3369,153 @@ textDataHexDecOctBin]
 
 
 #0
-[['//In C you can initialize\n',
-'char c[]="0x[A-Z]*"; //<INFORMAT> REGEX </INFORMAT> \n',
+[['//This is painful\n',
+'struct Date { \n',
+'   char DD[2]; \n',
+'   char hyphen1; \n',
+'   char MMM[3]; \n',
+'   char hyphen2; \n',
+'   char YYYY[4]; \n',
+'  } Date1; \n',
+' \n',
+'//Needless to say we need to \n',
+'//code additional logic to \n',
+'//convert all those DD/MMM/YYYY \n',
+'//to appropriate formats.\n',
 ' \n'
 ],
-textData1],
-
+textDateNL],
+#12-Nov-2020   \n
+#Dec 10,2020   \n
 
 #1
-[['//In C you can initialize\n',
-'int i; // <informat>datetime("MM/dd/YYYY-hh:mm:ss") </informat> \n',
+[['//It doesn\' work for the second date\n',
+'struct Date { \n',
+'   char DD[2]; \n',
+'   char hyphen1; \n',
+'   char MMM[3]; \n',
+'   char hyphen2; \n',
+'   char YYYY[4]; \n',
+'  } Date1; \n',
+' \n',
+'char spaces['+str(3+NLwidth)+']; \n',
+' \n',
+'struct Date Date2; \n',
 ' \n'
 ],
-textDateRE],
+textDateNL],
+#12-Nov-2020   \n
+#Dec 10,2020   \n
 
 
 #2
-[['//In C you can initialize\n',
-'int i; /* <informat>datetime("MM/dd/YYYY-hh:mm:ss") </informat> \n',
-'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
-'       */   \n',
+[['//It doesn\' work for the second date\n',
+'struct Date1 { \n',
+'   char DD[2]; \n',
+'   char hyphen1; \n',
+'   char MMM[3]; \n',
+'   char hyphen2; \n',
+'   char YYYY[4]; \n',
+'  } DateVar1; \n',
+' \n',
+'char spaces['+str(3+NLwidth)+']; \n',
+' \n',
+'struct Date2 { \n',
+'   char MMM[3]; \n',
+'   char space; \n',
+'   char DD[2]; \n',
+'   char comma; \n',
+'   char YYYY[4]; \n',
+'  } DateVar2; \n',
+' \n'
+],
+textDateNL],
+#12-Nov-2020   \n
+#Dec 10,2020   \n
+
+
+#3
+[['//It doesn\' work for the second date\n',
+'  \n',
+'struct Date { \n',
+'   char MM[2]; \n',
+'   char slash1; \n',
+'   char DD[2]; \n',
+'   char slash2; \n',
+'   char YYYY[4]; \n',
+'   char spaces['+str(4+NLwidth)+']; \n',
+'  } DateVar[2]; \n',
+' \n'
+],
+textDateNL2],
+#10/23/2025  \n
+#9/8/2025    \n
+
+
+
+#4
+[['//Now the same thing for the second date\n',
+'  \n',
+'struct Date { \n',
+'   int i;    /*\n',
+'  <informat>datetime("MM/DD/YYYY")</informat> \n',
+'  <  format>datetime("MM/DD/YYYY")</  format> \n',
+'  */  \n',
+'   char newLine['+str(4+NLwidth)+']; \n',
+'  } DateVar[2]; \n',
+' \n'
+],
+textDateNL2]
+#10/23/2025  \n
+#9/8/2025    \n
+
+
+
+
+]
+],
+
+##############################################################################################	43
+["Parsing Using Regular Expression",
+[
+
+
+#0
+[['//Capture a line ending with a Hex number\n',
+'              \n',
+'char c[]=".*0x[0-9a-zA-Z]+.*\\n"; //<INFORMAT> REGEX </INFORMAT> \n',
 ' \n'
 ],
 textDateRE],
 
 
-#3
-[['//Parsing date/time \n',
-'int i; /* <informat>datetime("MM/dd/YYYY-hh:mm:ss") </informat> \n',
-'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
-'       */   \n',
-'    \n',
-'char junk[] = ".*\\n"; //<INFORMAT>REGEX</INFORMAT>\n',
-'\n',
-'int j; /* <informat>datetime(MM/dd/YYYY-hh:mm:ss) </informat> \n',
-'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
-'       */'
-],
-textDateRE],
 
-#4
-[['//Parsing date/time \n',
+#1
+[['//Read date from multiple lines\n',
+'              \n',
+'struct log {  \n',
+'    int timestamp; /*    \n', 
+'        <informat>datetime("MM/dd/YYYY-hh:mm:ss") </informat> \n',
+'          <format>datetime("MM/dd/YYYY-hh:mm:ss") </format> \n',
+'     */   \n',
+'    char junk[] = ".*\\n";  //<INFORMAT>REGEX</INFORMAT> \n',
+'   } var[2];   \n',
+' \n'
+],
+textDateRE]
+
+
+
+]
+],
+
+##############################################################################################	44
+["Print only thing you want on Console",
+[
+
+#0
+[['//Printing TimeStamp only \n',
+'                             \n',
 'int i; /* <informat>datetime("MM/dd/YYYY-hh:mm:ss") </informat> \n',
 '          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
 '       */   \n',
@@ -3409,19 +3529,20 @@ textDateRE],
 ],
 textDateRE],
 
-#5
+
+#1
 [['//Printing only certain elements in an array \n',
 'char charArray[10]; \n'
 ],
 textData1],
 
-#6
+#2
 [['//Printing only certain elements in an array \n',
 'char charArray[10]; //<format> PRINT_ARRAY_ELEMENTS_ONLY([5]) </format> \n'
 ],
 textData1],
 
-#7
+#3
 [['//Printing only certain elements in an array \n',
 'char charArray[10]; //<format> PRINT_ARRAY_ELEMENTS_ONLY([5]:[7]) </format> \n'
 ],
@@ -12034,6 +12155,7 @@ def parseEnum(tokenList, i):
 								variableDescriptionExtended["FORMAT"] = parseFormatForTokenIndexResult[1]
 							if parseFormatForTokenIndexResult[2]:
 								variableDescriptionExtended["INFORMAT"] = parseFormatForTokenIndexResult[2]
+								variableDescriptionExtended["isDynamic"] = True
 						else:
 							PRINT("No format or informat found for",item[0],"at globalTokenListIndex=",globalTokenListIndex)
 						
@@ -12962,6 +13084,7 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 							variableDescriptionExtended["FORMAT"] = parseFormatForTokenIndexResult[1]
 						if parseFormatForTokenIndexResult[2]:
 							variableDescriptionExtended["INFORMAT"] = parseFormatForTokenIndexResult[2]
+							variableDescriptionExtended["isDynamic"] = True
 					else:
 						PRINT("No format or informat found for",item[0],"at globalTokenListIndex=",globalTokenListIndex)
 
@@ -13077,6 +13200,7 @@ def parseStructureDefinition(tokenListInformation, i, parentStructName, level):
 						variableDescriptionExtended["FORMAT"] = parseFormatForTokenIndexResult[1]
 					if parseFormatForTokenIndexResult[2]:
 						variableDescriptionExtended["INFORMAT"] = parseFormatForTokenIndexResult[2]
+						variableDescriptionExtended["isDynamic"] = True
 				else:
 					PRINT("No format or informat found for",item[0],"at globalTokenListIndex=",globalTokenListIndex)
 				
@@ -14497,6 +14621,7 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 	structSizeBytes = 0		
 #	structSizeBits = 0 # Keep in mind that a struct size can never be an incomplete byte. It must always end at a byte boundary.
 	largestMemberLevelAlignmentBytes = 1
+	structHasInformats = False
 	
 	# For bitfields, there are two ways to calculate the bit offsets (GCC and Microsoft).
 	# Technically, once can mix the storage containers. For example, struct MixedContainers { short s:2; int i:4; long l:20;}; is legal in C.
@@ -14723,6 +14848,9 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 		isArray					= structDetails["components"][N][4]["isArray"]
 		datatype				= structDetails["components"][N][4]["datatype"]
 		variableId				= structDetails["components"][N][4]["variableId"]
+		
+		if "INFORMAT" in getDictKeyList(structDetails["components"][N][4]):
+			structHasInformats = True
 
 		# During Map, we take two different actions at the beginning and the ending of this loop for actual member variables.
 		#
@@ -15283,7 +15411,7 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 			else:
 				PRINT(structMemberName,"is NOT a packed bitfield, so naturalSizeBytes =",naturalSizeBytes)
 			PRINT("For structMemberName",structMemberName,", naturalSizeBytes = ",naturalSizeBytes,", memberAlignmentBytes =",memberAlignmentBytes)
-			effectiveSizeBytes = max(naturalSizeBytes, memberAlignmentBytes)
+			effectiveSizeBytes = naturalSizeBytes if structHasInformats else max(naturalSizeBytes, memberAlignmentBytes)		# Added for INFORMAT
 			
 			if len(executedStructMemberIndex)==1 or structDetails["type"]=="union":
 				bitOffsetWithinStruct = 0
@@ -15431,7 +15559,10 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 				bitOffsetWithinStruct = 0
 				offsetWithinStructBytes = 0
 			else:
-				trailingPadSizeBytes = integerDivision((trailingPadSizeBits - (trailingPadSizeBits % BITS_IN_BYTE)), BITS_IN_BYTE)
+				if structHasInformats:
+					trailingPadSizeBytes = 0
+				else:
+					trailingPadSizeBytes = integerDivision((trailingPadSizeBits - (trailingPadSizeBits % BITS_IN_BYTE)), BITS_IN_BYTE)
 				PRINT("The trailing pad size is",trailingPadSizeBits,"bits, or FULL", trailingPadSizeBytes,"bytes, with possible few (<8) bits extra")
 				# See if we can fit it in current member of effectiveSizeBytes within the trailing pads
 				
@@ -15445,6 +15576,8 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 				
 				# First find out exactly where the current member data starts
 				leadingPadSizeBytes = 0 if previousMemberEndedAtSizeBytes % memberAlignmentBytes == 0 else memberAlignmentBytes - (previousMemberEndedAtSizeBytes % memberAlignmentBytes)
+				if structHasInformats:
+					leadingPadSizeBytes = 0
 				# Remember that offsetWithinStructBytes starts from 0, not 1
 				offsetWithinStructBytes = previousMemberEndedAtSizeBytes + leadingPadSizeBytes
 				PRINT ("For previousMemberEndedAtSizeBytes =",previousMemberEndedAtSizeBytes,"memberAlignmentBytes =",memberAlignmentBytes,"leadingPadSizeBytes =",leadingPadSizeBytes,", resulting in offsetWithinStructBytes =",offsetWithinStructBytes)
@@ -15484,7 +15617,7 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 					if datatype in getDictKeyList(suDict) and structuresAndUnions[suDict[datatype][-1]]["isDynamic"]:
 						structMemberSizeBytes = newBytesAdded
 					# Also, for blank-dimension arrays, its structMemberSizeBytes is not resolved yet, so don't trust that either
-					elif not checkIfIntegral(structMemberSizeBytes):
+					elif not checkIfIntegral(structMemberSizeBytes) or isDynamic:
 						structMemberSizeBytes = newBytesAdded
 					elif checkIfIntegral(structMemberSizeBytes) and newBytesAdded != structMemberSizeBytes:
 						errorMessage = "ERROR in calculateStructureLength() - for Dynamic struct "+ structName +" member variable " + structMemberName + " of type "+ datatype+", the structMemberSizeBytes = "+STR(structMemberSizeBytes)+", but newBytesAdded = "+STR(newBytesAdded)
@@ -15500,7 +15633,10 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 			# Once we know the alignment, calculate its effective size. It must be at least as big as the natural size (except for non-packed bitfields), otherwise we will lose data
 			# For bitfields, when it is packed, the natural size defaults to 1 byte, irrespective of whether the container is char/short/int/long etc.
 			PRINT("For structMemberName",structMemberName,", naturalSizeBytes = ",naturalSizeBytes,", memberAlignmentBytes =",memberAlignmentBytes)
-			effectiveSizeBytes = max(naturalSizeBytes, memberAlignmentBytes)
+			if structHasInformats:
+				effectiveSizeBytes = naturalSizeBytes
+			else:
+				effectiveSizeBytes = max(naturalSizeBytes, memberAlignmentBytes)
 
 			PRINT("After processing all the attributes for struct member",structMemberName,"of original naturalSizeBytes =",naturalSizeBytes,"and effectiveSizeBytes =",effectiveSizeBytes,"and member-level alignment =",memberAlignmentBytes,", set largestMemberLevelAlignmentBytes = ",largestMemberLevelAlignmentBytes) 
 
@@ -15514,9 +15650,13 @@ def calculateStructureLength(structName, level=-1, structVariableId=-1, prefix="
 			
 			# MUST NOT define trailingPadSizeBytes before this since it will be used by the next struct member in next iteration
 			# Right in this statement below, we are OVERWRITING the trailingPadSizeBytes
-			trailingPadSizeBytes = structSizeBytes - currentMemberRealDataEndByte
-			trailingPadSizeBits = trailingPadSizeBytes * BITS_IN_BYTE
-			PRINT("Reset the trailing pad to",trailingPadSizeBits,"bits, or",trailingPadSizeBytes,"bytes")
+			if structHasInformats:
+				trailingPadSizeBytes = 0
+				trailingPadSizeBits = 0
+			else:
+				trailingPadSizeBytes = structSizeBytes - currentMemberRealDataEndByte
+				trailingPadSizeBits = trailingPadSizeBytes * BITS_IN_BYTE
+				PRINT("Reset the trailing pad to",trailingPadSizeBits,"bits, or",trailingPadSizeBytes,"bytes")
 
 			# Update within the main structure dictionary from which bit number this struct is starting
 			bitOffsetWithinStruct = offsetWithinStructBytes * BITS_IN_BYTE
@@ -16629,12 +16769,13 @@ def convertFromReal(variableId, offset=None, parameters=[]):
 # For example, if the input format string is "MMM DD, YYYY" it will get tokenized as ["MMM","DD",",","YYYY"]. There will be no space between the comma and the YYYY.
 # We want it to get tokenized as ["MMM","DD",","," ", "YYYY"], which has one extra space before the "YYYY" token.
 def insertWhitespace2TokenizeLines(stringWithWhitespaces, stringWithWhitespacesTokenized):
+	PRINT("Entering insertWhitespace2TokenizeLines(stringWithWhitespaces = <"+stringWithWhitespaces+">, stringWithWhitespacesTokenized = "+STR(stringWithWhitespacesTokenized)+")")
 	j = 0		# Char index within stringWithWhitespaces
 	newListWithWhitespaceTokens = []
 	i = 0	# Token index
 	spaceToken = ""
 	creatingDummyWhitespaceToken = False
-	while (j<len(stringWithWhitespaces)):
+	while (j<len(stringWithWhitespaces) and i<len(stringWithWhitespacesTokenized)):
 		currentToken = stringWithWhitespacesTokenized[i]
 		if stringWithWhitespaces[j]==currentToken[0]:
 			if creatingDummyWhitespaceToken:
@@ -16653,6 +16794,10 @@ def insertWhitespace2TokenizeLines(stringWithWhitespaces, stringWithWhitespacesT
 				spaceToken += " "
 				creatingDummyWhitespaceToken = True
 				j+= 1
+	
+	# Covering the corner case that there might be a space at the end
+	if j<len(stringWithWhitespaces):
+		newListWithWhitespaceTokens.append(" "*(len(stringWithWhitespaces)-j))
 	
 	PRINT("stringWithWhitespaces = <"+stringWithWhitespaces+">")
 	PRINT("Old tokenized list =",STR(stringWithWhitespacesTokenized))
@@ -16780,7 +16925,7 @@ def convertUnixTimestamp(rawData):
 # It could get complicated since there may not be any delimiter around it
 ###########################################################################################################################################################
 def tokenizeDateTimeFormatString(dateTimeFormatString):
-	PRINT("Entering tokenizeDateTimeFormatString(dateTimeFormatString=",dateTimeFormatString,")")
+	PRINT("Entering tokenizeDateTimeFormatString(dateTimeFormatString= <"+dateTimeFormatString+">)")
 	tokenizeLinesResult = tokenizeLines(dateTimeFormatString)
 	if tokenizeLinesResult == False:
 		errorMessage = "ERROR in tokenizeDateTimeFormatString() tokenizing <%s>"%(dateTimeFormatString)
@@ -16966,7 +17111,7 @@ def readDateTime(variableId, offset=None, parameters=[]):
 		
 		currOffset = offset
 		for t in dateTimeFormatStringTokenized:
-			PRINT("\n\nNow looking for token",t,"of length",len(t),"bytes")
+			PRINT("\n\nNow looking for token",t,"of length",len(t),"bytes from currOffset=",currOffset)
 			data = readNBytesText(currOffset,len(t))
 			PRINT("\nFor token",t,"of length",len(t),"we got",len(data), "bytes =",STR(data),",type(data)=",type(data),"\n\n")
 			if t in getDictKeyList(dateTime):
@@ -16984,6 +17129,7 @@ def readDateTime(variableId, offset=None, parameters=[]):
 				dateTime[t]=int(realData)
 			else:
 				if t != data:
+					PRINT("Current state of dateTime =",dateTime)
 					errorMessage = "ERROR in readDateTime() - expected "+STR(t)+" but got "+STR(data)+" instead"
 					errorRoutine(errorMessage)
 					return False
@@ -17876,7 +18022,7 @@ informats = {"HEX"				:	convertFromHex,
 			"BINARY"			:	convertFromBin, 
 			"REAL"				:	convertFromReal, 
 			"DATETIME"			:	readDateTime,
-			"UNIXDATETIME"		:	convert2UnixTimestamp,
+#			"UNIXDATETIME"		:	convert2UnixTimestamp,
 			"REGULAR_EXPRESSION":	readRegExp}
 formats = {	"HEX"				:	convert2Hex,
 			"HEXADECIMAL"		:	convert2Hex,
@@ -18859,12 +19005,12 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 	variableIsDynamic = variableDescription["isDynamic"]
 	# The tool supports RegEx two ways. You can either say it like char c[] = RE"ab.*"; where we are breaking the C syntax (not advertized),
 	# or we can specify it as char c[] = "ab.*";  // <INFORMAT> REGEXP </INFORMAT> (advertized)
+	hasInformat = False
 	hasRegExInformat = False
 	if "INFORMAT" in getDictKeyList(variableDescription):
-		for r in ['RE', 'REGEX', 'REGEXP','REG_EX', 'REG_EXP','REGULAR EXPRESSION','REGULAR_EXPRESSION']:
-			if r in variableDescription["INFORMAT"]:
-				hasRegExInformat = True
-				break
+		hasInformat = True
+		if 'REGULAR_EXPRESSION' in variableDescription["INFORMAT"]:
+			hasRegExInformat = True
 	'''
 	selectedVariable = deepCopy(variableDeclarations[variableId])
 	if isinstance(variableIdOrDescription, dict):
@@ -18876,6 +19022,8 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 	'''
 	variableBaseType				= variableDescription["baseType"]	# For a declaration like int * pInt; baseType is int, but datatype is pointer
 	variableDatatype				= variableDescription["datatype"]   # That's the difference between baseType and datatype
+	
+	# First we deal wtih arrays with blank dimensions (like char c[] or char c[][2]), provided it is not a RegEx (RegEx gets handled separately)
 	if variableDescription["isArray"] and variableDescription["arrayDimensions"][0]==['TBD'] and not (hasRegExInformat or variableDescription["isInitializedToRegularExpression"]): 
 		if not speculativeArrayDimensions or not isinstance(speculativeArrayDimensions,list):
 			if not arrayAlreadyUnraveled:	# We only flash this warning once
@@ -20009,6 +20157,8 @@ def parseCommentForFormats(inputString):
 								formatTokens[0] = "PRINT_ARRAY_HEADER_ONLY"
 							elif formatTokens[0] in ["PRINT_ARRAY_ELEMENTS_ONLY", "PRINTARRAYELEMENTSONLY", "PRINT_ELEMENTS_ONLY", "PRINTELEMENTSONLY", "ELEMENTS_ONLY", "ELEMENTSONLY", "ELEMENTS"]:
 								formatTokens[0] = "PRINT_ARRAY_ELEMENTS_ONLY"
+							elif formatTokens[0] in ["DATETIME","DATE_TIME","TIMESTAMP","UNIXDATETIME","UNIX_DATE_TIME","UNIXTIMESTAMP","UNIX_TIME_STAMP","UNIXTS","UNIX_TS"]:
+								formatTokens[0] = "UNIXDATETIME"
 							formatTokensString = list2plaintext(formatTokens, "")
 							PRINT("The custom format is", STR(formatTokens),", basically", formatTokensString)
 							PRINT("inputString = %s contains FORMAT <%s>" %(inputString, formatTokensString))
@@ -20058,8 +20208,10 @@ def parseCommentForFormats(inputString):
 							informatTokens[0]=informatTokens[0].upper()
 							if informatTokens[0] in ['RE', 'REGEX', 'REGEXP','REG_EX', 'REG_EXP','REGULAR EXPRESSION','REGULAR_EXPRESSION']:
 								informatTokens[0] = 'REGULAR_EXPRESSION'
-							if informatTokens[0] in ['REAL', 'FLOAT', 'DOUBLE']:
+							elif informatTokens[0] in ['REAL', 'FLOAT', 'DOUBLE']:
 								informatTokens[0] = 'REAL'
+							elif informatTokens[0] in ['DATE', 'DATETIME', 'DATE_TIME', 'TIMESTAMP', 'TIME_STAMP', 'TS', 'UNIXTS', 'UNIX_TS', 'UNIXDATETIME', 'UNIX_DATE_TIME', 'UNIX_DATETIME']:
+								informatTokens[0] = 'DATETIME'
 							informatTokensString = list2plaintext(informatTokens, "")
 							PRINT("The custom informat is", STR(informatTokens),", basically", informatTokensString)
 							PRINT("inputString = %s contains INFORMAT <%s>" %(inputString, informatTokensString))
@@ -20640,6 +20792,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 								variableDescriptionExtended["FORMAT"] = parseFormatForTokenIndexResult[1]
 							if parseFormatForTokenIndexResult[2]:
 								variableDescriptionExtended["INFORMAT"] = parseFormatForTokenIndexResult[2]
+								variableDescriptionExtended["isDynamic"] = True
 						else:
 							PRINT("No format or informat found for",item[0],"at globalTokenListIndex=",globalTokenListIndex)
 						
@@ -20765,6 +20918,7 @@ def parseCodeSnippet(tokenListInformation, rootNode):
 						variableDescriptionExtended["FORMAT"] = parseFormatForTokenIndexResult[1]
 					if parseFormatForTokenIndexResult[2]:
 						variableDescriptionExtended["INFORMAT"] = parseFormatForTokenIndexResult[2]
+						variableDescriptionExtended["isDynamic"] = True
 				else:
 					PRINT("No format or informat found for",item[0],"at globalTokenListIndex=",globalTokenListIndex)
 					
@@ -28902,57 +29056,130 @@ class MainWindow:
 		elif self.demoIndex == 42:		# Parse Input Date/Time
 			
 			self.clearDemo()
-			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
-			infoMessage = "Often, we need to parse not binary files but text files. "	\
-							+"Kernel log files are examples of that.  \n\n"	
+			infoMessage = "Often, we need to parse text files containing dates or timestamps. Kernel log files are examples of that. \n\n"	\
+							+"Here, there are two dates. \n\nHow do we parse that?"	
+			infoRoutine(infoMessage)
+			self.openCodeFile([self.demoIndex,0])
+			infoMessage = "Of course, we can create individual fields for each part of the date (month, day, year etc.) and also be mindful about the separator chars. \n\n"	\
+							+"However, just reading them into char is not enough. We need to convert them into numbers and then extract the actual date and time from it. "		\
+							+"Needless to say, it is very painful."
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
-			infoMessage = "In the TEXT files, we end up seeing a lot of timestamps, and Hex/ binary values. We need to parse all that."
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "This is NOT the intended result. We need to do a better job."
 			infoRoutine(infoMessage)
 
 			self.clearDemo()
 
-			infoMessage = "Now, this ability to parse texts often comes handy if we are parsing dates. Hit Enter to see"	
-			infoRoutine(infoMessage)
-			
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
-			infoMessage = "Here, we read in the date, convert it to Unix timestamp format (number of seconds passed since 1/1/1970). \n"	\
-							+"Hit enter to see the result. \n\n"	
+			infoMessage = "Here, we are trying to do read two different dates with the new struct that we just defined. \n\n"	\
+							+"Problem is that the two date formats are different. One is DD-MMM-YYYY, other is MMM DD,YYYY.\n\n"	
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
-			infoMessage = "But, as you can see, just seeing the timestamp as an integer isn't that great. What if we want to display it in a different format?"
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "The second date read was wrong since we tried to read a MMM DD,YYYY date as if it is DD-MMM-YYYY. \n\n"	\
+							+"Obviously it doesn't work since the two date formats are different.\n\n"	
 			infoRoutine(infoMessage)
-
+			infoMessage = "Let's try it in a different way. \n"	
+			infoRoutine(infoMessage)
+			
 			self.clearDemo()
 
 			self.openCodeFile([self.demoIndex,2])
 			self.openDataFile([self.demoIndex,2])
-			infoMessage = "For that we can use the <FORMAT>. INFORMATs are for input, FORMATs are for output. \n\nHere, we convert the Unix timestamp "	\
-							+"(number of seconds passed since 1/1/1970) to a different DD MMM, YYYY format. \n"	\
-							+"Hit enter to see the result. \n\n"	
+			infoMessage = "Here, we have defined two different structs do read two different dates."	
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
-
-			infoMessage = "Looks pretty nice, right?"	
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "Our strategy of defining two different structs to read two different dates worked.\n\nHowever, it means for every new format of date we "	\
+							+"would need to create a different struct. That's simply not scalable. \n\nWe need a better, concise and scalabale method."	
 			infoRoutine(infoMessage)
-
+			infoMessage = "One might think - \"Sure, when the date format changes, of course you need to define a new structure.\" \n\n But the problem is, "	\
+							+"even when the date format does NOT change, we could STILL face problems.  \n\n"	\
+							+"Hit Enter to see why. \n\n"	
+			infoRoutine(infoMessage)
+			
+			
+			
 			self.clearDemo()
 
 			self.openCodeFile([self.demoIndex,3])
 			self.openDataFile([self.demoIndex,3])
-			infoMessage = "In this case we have 2 dates on the two lines (first and third).\nAnd the month field takes 2 bytes in the first, and 1 byte in the third.\n\n"	\
-							+"Covering this kind of cases become hard for ordinary parsers. Yet, here we cover both cases pretty easily. \n"	\
+			infoMessage = "Here, we try to read two dates with a single struct. \n\nUnfortunately, those two different dates are not of same size."	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(3)
+			infoMessage = "As you can see, the MM and DD fields - both char arrays - cannot change its size just like that. It cannot consume two "		\
+							+"chars in the first date and just one char in the second date.\n\nWe need a different method. \n\nhit Enter to see how."	
+			infoRoutine(infoMessage)
+			
+			
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,4])
+			self.openDataFile([self.demoIndex,4])
+			infoMessage = "Here, we to read two dates with a single struct that uses a single INFORMAT of date. \n\nNote that we are also using display FORMATs to display the captured date."	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(2)
+			self.showUnraveledRowNumInTreeView(9)
+			infoMessage = "Now you see that a single declaration can capture a varying-sized date. \n\nhit Enter to see how."	
+			infoRoutine(infoMessage)
+			
+
+			self.endFeatureDemoMessage()
+			
+		elif self.demoIndex == 43:		# Parse using Regular Expression
+
+			self.clearDemo()
+			
+			infoMessage = "In the previous demo feature we watched how we can handle dates. \n\nCreating built-in handling for dates make sense since handling "	\
+							+"timestamps is complicated. \n\nHowever, the users often would want to harness the power of Regular Expressions "	\
+							+"to match \n"	\
+							+"Hit enter to see the result. \n\n"	
+			infoRoutine(infoMessage)
+
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "Here is a real excerpt from a kernel log. \n\nSuppose we want to capture a line that ends with a HEX number"	\
+							+"\n\nIt's hard to do it without Regular Expression. \n\n"	\
+							+"But the problem is, how exactly do we specify the regular expression?\n\nRemember, we cannot break the C syntax!"	
+			infoRoutine(infoMessage)
+			self.openCodeFile([self.demoIndex,0])
+			infoMessage = "Here we use the usual C array initialization to mention the RegEx pattern.\n\n"	\
+							+"\n\nAnd via the INFORMAT Regular Expression, we tell that it is no regular initialization. \n"		\
 							+"Hit enter to see the result. \n\n"	
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
+
+			infoMessage = "Looks pretty nice, right?\n\nRemember that RegEx stops matching when it hits newline"	
+			infoRoutine(infoMessage)
+
+			infoMessage = "Let's make this a bit interesting. Suppose we want to capture the timestamp at the beginning of every line. \n\nHow do we do that?"	
+			infoRoutine(infoMessage)
 			
-			infoMessage = "As you can see, the same INFORMAT of DATETIME(MM/DD/YYYY-hh:mm:ss) was able to capture both 1-byte and 2-byte months and days."	
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			infoMessage = "Here we read in the timestamp into an integer variable called timestamp (following the Unix convention of converting a Timestamp into " 	\
+							+"a number representing how many seconds have passed since 1/1/1970). \n\nThen we capture the rest of the line into the char array "	\
+							+"appropriately named \"junk\".\n\n"	\
+							+"Hit enter to see the result. \n\n"	
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			self.showUnraveledRowNumInTreeView(2)
+#			self.showUnraveledRowNumInTreeView(108)
+
+			infoMessage = "Looks pretty nice, right?"	
 			infoRoutine(infoMessage)
 			
 			infoMessage = "However, now we have a new problem. \n\nWe are obviously interested only in the timestamp and nothing else. \n"	\
@@ -28960,18 +29187,31 @@ class MainWindow:
 							+"junk is really junk (nobody cares about its values. \n\nTherefore, on the console, every element of this junk array gets printed."	\
 							+"\n\nThis can easily overwhelm the output. \n\nThe solution is obvious. We do not want to print variables we do not care."
 			infoRoutine(infoMessage)
+
+			self.endFeatureDemoMessage()
 			
+		elif self.demoIndex == 44:		# Pretty printing
+
 			self.clearDemo()
 
-			self.openCodeFile([self.demoIndex,4])
-			self.openDataFile([self.demoIndex,4])
+
+			self.openCodeFile([self.demoIndex,0])
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "Remember that we have a new problem of ParseAndC printing everything on the console. \n\nWe are obviously interested only in the timestamp and nothing else. \n"	\
+							+"\nSo, we have been able to put that inside some char-array aptly named \"junk\".\n\nUnfortunately, ParseAndC has no way to understand that "\
+							+"junk is really junk (nobody cares about its values. \n\nTherefore, on the console, every element of this junk array gets printed."	\
+							+"\n\nThis can easily overwhelm the output. \n\nThe solution is obvious. We do not want to print variables we do not care."
+			infoRoutine(infoMessage)
 			infoMessage = "So, for ParseAndC 5.0, we added a new display format called DO_NOT_PRINT. \n\n"	\
 							+"We now added that to the variable junk now. \n\n"	\
 							+"Hit enter to see the result. It no longer clutters the console.\n\n"	
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
-			
+
+			infoMessage = "Please take a look at the console output. \n\nLooks pretty nice, right?"	
+			infoRoutine(infoMessage)
+
 			infoMessage = "As you can see, it's a small addition, but it can do wonders to the quality of the output."	
 			infoRoutine(infoMessage)
 			
@@ -28981,8 +29221,8 @@ class MainWindow:
 			
 			self.clearDemo()
 
-			self.openCodeFile([self.demoIndex,5])
-			self.openDataFile([self.demoIndex,5])
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
 			infoMessage = "For example, we have a character array c here. It's only 10 elements wide. \n\n"	\
 							+"So on the console there will be an individual line for each of the array indices. \n\n"	\
 							+"Here it is fine, but imagine if the array is hundreds or thousands elements wide. Then the unnecessary data will simply clutter the space.\n\n"	
@@ -28995,8 +29235,8 @@ class MainWindow:
 			
 			self.clearDemo()
 
-			self.openCodeFile([self.demoIndex,6])
-			self.openDataFile([self.demoIndex,6])
+			self.openCodeFile([self.demoIndex,2])
+			self.openDataFile([self.demoIndex,2])
 			infoMessage = "However, suppose we only care about c[5] and do not want to print any other element of that array. \n\n"	\
 							+"We can achieve that by using the display format PRINT_ARRAY_ELEMENTS_ONLY([5]) \n\n"	\
 							+"Hit enter to see the result."	
@@ -29011,8 +29251,8 @@ class MainWindow:
 			
 			self.clearDemo()
 
-			self.openCodeFile([self.demoIndex,7])
-			self.openDataFile([self.demoIndex,7])
+			self.openCodeFile([self.demoIndex,3])
+			self.openDataFile([self.demoIndex,3])
 			infoMessage = "Sometimes, we want to print not just a single element but rather a range. \n\n"	\
 							+"We can achieve that by using the display format PRINT_ARRAY_ELEMENTS_ONLY([5]:[7]) \n\n"	\
 							+"Hit enter to see the result."	
