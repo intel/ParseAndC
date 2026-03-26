@@ -876,6 +876,7 @@
 # 2026-03-16 - Print only array elements
 # 2026-03-21 - Changed parsing Hex/Dec/Oct/Bin/Float using RegEx
 # 2026-03-25 - Implemented demo properly
+# 2026-03-25 - Fixed the GUI redesign
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -3345,7 +3346,7 @@ textDataHex2],
 textDataRaw],
 
 #5
-[['// The How\n',
+[['// All different INFORMATs\n',
 '    \n',
 'char junk1[4];   \n',
 'int HexVar; //<informat>HEX(8)</informat>  \n',
@@ -3549,7 +3550,32 @@ textData1],
 textData1]
 
 ]
+],
+
+##############################################################################################	45
+["UI redesign",
+[
+
+#0
+[['//Printing TimeStamp only \n',
+'                             \n',
+'int i; /* <informat>datetime("MM/dd/YYYY-hh:mm:ss") </informat> \n',
+'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
+'       */   \n',
+'    \n',
+'char junk[] = ".*\\n"; /* <INFORMAT>REGEX</INFORMAT>\n',
+'                          <format> DO_NOT_PRINT </format> */\n',
+'\n',
+'int j; /* <informat>datetime(MM/dd/YYYY-hh:mm:ss) </informat> \n',
+'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
+'       */'
+],
+textDateRE]
+
+
 ]
+]
+
 
 ]	# End of demos
 '''
@@ -24093,6 +24119,7 @@ class MainWindow:
 		self.hideOriginalVar.set(False)
 		self.hideInterpretedVar = tk.BooleanVar()
 		self.hideInterpretedVar.set(False)
+		self.ClickedOnHideOriginal = False
 
 		# The demoIndex
 		self.demoIndex = -1
@@ -24356,7 +24383,6 @@ class MainWindow:
 #		self.style.configure("WhiteBackground", background="white")
 #		self.style.configure("DefaultBackground", background=self.originalBackgroundColor)
 		
-#		self.messageLabel = ttk.(frame
 		
 		self.createBasicTags()
 
@@ -24614,7 +24640,7 @@ class MainWindow:
 		return
 
 	# --- Window visibility controls ---
-	def layout_default(self):
+	def layoutDefault(self):
 		# Restore defaults for row 1 layout and widths
 		try:
 			self.originalCodeText.grid(row=1, column=0, columnspan=5, sticky=tk.NSEW)
@@ -24628,8 +24654,10 @@ class MainWindow:
 			self.interpretedCodeText.config(width=DISPLAY_BLOCK_WIDTH * 3)
 		except tk.TclError:
 			pass
+		self.hideOriginalVar.set(False)
+		self.hideInterpretedVar.set(False)
 
-	def layout_hide_original(self):
+	def layoutHideOriginal(self):
 		# Hide the Original window and expand Interpreted to use its space
 		try:
 			self.originalCodeText.grid_remove()
@@ -24640,7 +24668,7 @@ class MainWindow:
 		self.interpretedCodeTextVerticalScrollbar.grid(row=1, column=11, sticky=tk.NSEW)
 		self.interpretedCodeText.config(width=DISPLAY_BLOCK_WIDTH * 6)
 
-	def layout_hide_interpreted(self):
+	def layoutHideInterpreted(self):
 		# Hide the Interpreted window and expand Original to use its space
 		try:
 			self.interpretedCodeText.grid_remove()
@@ -24651,21 +24679,42 @@ class MainWindow:
 		self.originalCodeTextVerticalScrollbar.grid(row=1, column=11, sticky=tk.NSEW)
 		self.originalCodeText.config(width=DISPLAY_BLOCK_WIDTH * 6)
 
+
 	def updateWindowVisibility(self):
+		PRINT("Entered updateWindowVisibility()")
+		PRINT("self.hideOriginalVar.get() =",self.hideOriginalVar.get(),", self.hideInterpretedVar.get() =",self.hideInterpretedVar.get())
 		# Enforce mutual exclusivity and apply layout
-		if self.hideOriginalVar.get():
+		if self.hideOriginalVar.get() and self.hideInterpretedVar.get():
+			if self.ClickedOnHideOriginal == True:
+				PRINT("Hide Interpreted was already checked before, now Hide Original is checked too.")
+				self.hideInterpretedVar.set(False)
+				self.layoutHideOriginal()
+			elif self.ClickedOnHideOriginal == False:
+				PRINT("Hide Original was already checked before, now Hide Interpreted is checked too.")
+				self.hideOriginalVar.set(False)
+				self.layoutHideInterpreted()
+			else:
+				EXIT("Coding bug in updateWindowVisibility")
+		elif self.hideOriginalVar.get():
+			PRINT("Neither button was checked before, now Hide Original is checked.")
 			self.hideInterpretedVar.set(False)
-			self.layout_hide_original()
+			self.layoutHideOriginal()
 		elif self.hideInterpretedVar.get():
+			PRINT("Neither button was checked before, now Hide Interpreted is checked.")
 			self.hideOriginalVar.set(False)
-			self.layout_hide_interpreted()
+			self.layoutHideInterpreted()
 		else:
-			self.layout_default()
+			PRINT("Neither button is checked NOW after clicking")
+			self.layoutDefault()
 
 	def onHideOriginalToggle(self):
+		PRINT("Entered onHideOriginalToggle()")
+		self.ClickedOnHideOriginal = True
 		self.updateWindowVisibility()
 
 	def onHideInterpretedToggle(self):
+		PRINT("Entered onHideInterpretedToggle()")
+		self.ClickedOnHideOriginal = False
 		self.updateWindowVisibility()
 
 
@@ -29153,7 +29202,7 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
 			infoMessage = "Here we use the usual C array initialization to mention the RegEx pattern.\n\n"	\
-							+"\n\nAnd via the INFORMAT Regular Expression, we tell that it is no regular initialization. \n"		\
+							+"And via the INFORMAT Regular Expression, we tell that it is no regular initialization. \n\n"		\
 							+"Hit enter to see the result. \n\n"	
 			infoRoutine(infoMessage)
 			self.interpret()
@@ -29184,7 +29233,7 @@ class MainWindow:
 			
 			infoMessage = "However, now we have a new problem. \n\nWe are obviously interested only in the timestamp and nothing else. \n"	\
 							+"\nSo, we have been able to put that inside some char-array aptly named \"junk\".\n\nUnfortunately, ParseAndC has no way to understand that "\
-							+"junk is really junk (nobody cares about its values. \n\nTherefore, on the console, every element of this junk array gets printed."	\
+							+"junk is really junk (nobody cares about its values). \n\nTherefore, on the console, every element of this junk array gets printed."	\
 							+"\n\nThis can easily overwhelm the output. \n\nThe solution is obvious. We do not want to print variables we do not care."
 			infoRoutine(infoMessage)
 
@@ -29264,10 +29313,52 @@ class MainWindow:
 							+"Hit enter to see the result."	
 			infoRoutine(infoMessage)
 			
+			self.endFeatureDemoMessage()
+
 			
+		elif self.demoIndex == 45:		# UI Redesign
+
+			self.clearDemo()
+
+
+			self.openCodeFile([self.demoIndex,0])
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "One of the biggest problems in any GUI-based application is the scarcity of screen real estate. \n\n"	\
+							+"We have 4 screens (Original Code, Interpreted Code, HEX Data, ASCII Data) competing for the same screen width. \n\n"	\
+							+"Sometimes code has lines that are too wide, or has comments that cause the line to wrap around. Wrapping around "		\
+							+"creates a big problem with readability."
+			infoRoutine(infoMessage)
+			self.interpret()
+			self.mapStructureToData()
+			infoMessage = "Ideally, both the Original Code Window and the Interpreted Code Window should be much wider.\n\n"	\
+							+"However, we observe that we rarely need both to be displayed at the same time.\n\n"				\
+							+"When we are coding (or pasting) the original code, we do not need the Interpreted Code window. \n\n"	\
+							+"Similarly, after we have clicked on the Interpret and Map, we do not need the Original Code window. \n\n"	
+			infoRoutine(infoMessage)
+			infoMessage = "This gives us an idea - we can choose to display either the Original Code Window, or the Interpreted Code Window (if we choose).\n\n"	\
+							+"Hence we put two checkboxes for hiding either the Original Code Window, or the Interpreted Code Window.\n\n"	\
+							+"Obviously, you cannot hide both."
+			infoRoutine(infoMessage)
 			
+			infoMessage = "Hit Enter to see what would happen if we click on the \"Hide Original\" checkbox."	
+			infoRoutine(infoMessage)
+			self.hideOriginalVar.set(True)
+			self.onHideOriginalToggle()
+			infoMessage = "As you can see, now the Original Code Window is hidden, and the Interpreted Code Window is twice the size. \n\n"		\
+							+"Hit Enter to see what would happen if we click on the \"Hide Interpreted\" checkbox."	
+			infoRoutine(infoMessage)
+			self.hideOriginalVar.set(False)
+			self.hideInterpretedVar.set(True)
+			self.onHideInterpretedToggle()
+			infoMessage = "As you can see, now the Interpreted Code Window is hidden, and the Original Code Window is twice the size. \n\n"		\
+							+"This really helps."	
+			infoRoutine(infoMessage)
+			self.hideInterpretedVar.set(False)
+
+			self.layoutDefault()
 			
 			self.endFeatureDemoMessage()
+
 			
 		elif 0 <= self.demoIndex < len(demoFeatureCodeData):
 			warningMessage = "Valid value of demoIndex "+STR(self.demoIndex)+" but code is yet to to be written"
@@ -29345,6 +29436,8 @@ class MainWindow:
 		binaryArray = ""
 		hexCharArray = []
 		totalBytesToReadFromDataFile = 0
+		
+		self.layoutDefault()
 		
 		# Then delete the code and data windows
 		self.dataOffsetEntry.delete(0, tk.END)
