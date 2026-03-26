@@ -877,6 +877,7 @@
 # 2026-03-21 - Changed parsing Hex/Dec/Oct/Bin/Float using RegEx
 # 2026-03-25 - Implemented demo properly
 # 2026-03-25 - Fixed the GUI redesign
+# 2026-03-26 - Added the capability to print only the LE or BE values
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -912,6 +913,8 @@ WARN_FOR_HASH_ERROR_DIRECTIVES = True	# The tool currently ignores all #error pr
 EMULATE_GCC_COMPILATION_ENVIRONMENT = False	# This loads the builtin macros that GCC has
 VERIFICATION_WARNING_COUNT_MAX = 1000000000000000000000000000	# It will show maximum these many warnings after verification fails
 TEXT_DATAFILE = False		# The data file is text, not binary
+PRINT_LE_ONLY = False
+PRINT_BE_ONLY = False
 
 anonymousStructPrefix = "Anonymous#"
 dummyVariableNamePrefix = "DummyVar#"
@@ -3570,7 +3573,14 @@ textData1]
 '          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
 '       */'
 ],
-textDateRE]
+textDateRE],
+
+
+#1
+[['//Print the integer in Hexadecimal format \n',
+'int i; //<format> HEX </format> \n'
+],
+generalData]
 
 
 ]
@@ -4187,10 +4197,13 @@ def printHelp():
 	OUTPUT("-v, --verbose, --debug    to indicate if debug messages will be printed or not")
 	OUTPUT("-w [Y/N/maxcount]         To turn on/off the verification warning messages, and not to display such message after a certain max count has been reached")
 	OUTPUT("-x, --hex                 Prints the integral values in Hex (default is Decimal)")
+	OUTPUT("-le, --le                 Prints only values in Little-Endian mode only")
+	OUTPUT("-be, --be                 Prints only values in Big-Endian mode only")
 
 def parseCommandLineArguments():
 	global BATCHMODE, DISPLAY_INTEGRAL_VALUES_IN_HEX, PRINT_UNDEF_WARNING, PRINT_ENUM_LITERALS, codeFileName, dataLocationOffset, inputVariables, VERIFICATION_WARNING_COUNT_MAX
 	global PRINT_DEBUG_MSG, MAP_TYPEDEFS_TOO, COMPILER_PADDING_ON, STRUCT_END_PADDING_ON, INCLUDE_FILE_PATHS, dummyVariableNamePrefix, EMULATE_GCC_COMPILATION_ENVIRONMENT, SNAPSHOT_FILE_NAME
+	global PRINT_LE_ONLY, PRINT_BE_ONLY
 	PRINT ("sys.argv = ",sys.argv)
 	
 	DATAFILENAME = None
@@ -4417,6 +4430,12 @@ def parseCommandLineArguments():
 						VERIFICATION_WARNING_COUNT_MAX = convertByteUnits2DecimalResult[1]
 						OUTPUT("Will not be displaying verification warnings after a max count of ",VERIFICATION_WARNING_COUNT_MAX)
 				N +=1
+		elif sys.argv[N].lower() in ("-le", "--le", "-le_only","--le_only","-print_le_only","--print_le_only"):
+			PRINT_LE_ONLY = True
+			N += 1
+		elif sys.argv[N].lower() in ("-be", "--be", "-be_only","--be_only","-print_be_only","--print_be_only"):
+			PRINT_BE_ONLY = True
+			N += 1
 		else:
 			PRINT ("N = ",N,"len(sys.argv)-1 =",len(sys.argv)-1)
 			if DATAFILENAME == None and N == len(sys.argv)-1:
@@ -4460,6 +4479,9 @@ def parseCommandLineArguments():
 		PRINT ("Chosen top-level variable name(s) = ",VARIABLENAMES)
 		inputVariables = re.sub("[,\\s]+"," ",VARIABLENAMES.strip()).split(" ")
 	
+	if PRINT_LE_ONLY and PRINT_BE_ONLY:
+		OUTPUT("Cannot mention both LE and BE to be printed exclusively. Please mention only one.")
+		sys.exit()
 
 	return True
 
@@ -22393,6 +22415,7 @@ def prettyPrintUnraveled(displayAncestry=False):
 	unraveledVariablesHaveEnums = False		# This the C enum, not any Formatting ENUM
 	unraveledVariablesHaveFormatting = False
 	doNotPrintTheseManyLastColumns = 2
+	omitColumnNumbers = []		# These are the columns we will NOT print to the console and the snapshot file
 	
 	for N in range(len(unraveled)):
 		if PRINT_ENUM_LITERALS and variableDeclarations[unraveled[N][10][-1]][4]["enumType"]!=None:
@@ -22405,8 +22428,16 @@ def prettyPrintUnraveled(displayAncestry=False):
 	if unraveledVariablesHaveEnums or unraveledVariablesHaveFormatting:
 		PRINT("Has C enum or user-defined formatting - All formatted valued will be displayed")
 		doNotPrintTheseManyLastColumns = 0		# Basically, the two columns containing formatted values
+		if PRINT_LE_ONLY:
+			omitColumnNumbers = [6,8]	# These are the BE and formatted BE values
+		if PRINT_BE_ONLY:
+			omitColumnNumbers = [5,7]	# These are the LE and formatted LE values
 	else:
 		PRINT("Contains no C enum or user-defined formatting - no formatted valued will be displayed")
+		if PRINT_LE_ONLY:
+			omitColumnNumbers = [6,7,8]	# These are the BE and formatted LE/BE values
+		if PRINT_BE_ONLY:
+			omitColumnNumbers = [5,7,8]	# These are the LE and formatted LE/BE values
 
 	for N in range(len(unraveled)):
 		printArrayHeaderOnly = False
@@ -22540,18 +22571,26 @@ def prettyPrintUnraveled(displayAncestry=False):
 		for c in range(len(treeViewSingleRowValues)):
 			newLength = 0 if treeViewSingleRowValues[c] == None else 5 if type(treeViewSingleRowValues[c]) == bool else len(treeViewSingleRowValues[c])
 #			unraveledColumnMaxWidths[c] = newLength if newLength > unraveledColumnMaxWidths[c] else unraveledColumnMaxWidths[c]
-			if not doNotPrint and newLength > unraveledColumnMaxWidths[c]:
+			if c == 4 and "- Array of " in treeViewSingleRowValues[0]:
+				pass
+			elif doNotPrint:
+				pass
+			elif newLength > unraveledColumnMaxWidths[c]:
 				unraveledColumnMaxWidths[c] = newLength
 
 	# Now that we have gotten the maximum length, let's print it
-	PRINT("Now we are going to print the header. maxNumberOfColumns =",maxNumberOfColumns,", doNotPrintTheseManyLastColumns =",doNotPrintTheseManyLastColumns)
+	PRINT("Now we are going to print the header. maxNumberOfColumns =",maxNumberOfColumns,", omitColumnNumbers =",omitColumnNumbers)
 	headerString = ""
 	bottomLine = ""
-	for c in range(maxNumberOfColumns-doNotPrintTheseManyLastColumns):
+	for c in range(maxNumberOfColumns):
+#	for c in range(maxNumberOfColumns-doNotPrintTheseManyLastColumns):
 		# The last 5 (or 3, if no formatting) column headers need to be right-justified
 #		if c < maxNumberOfColumns-5:
 #		if c < maxNumberOfColumns-5-doNotPrintTheseManyLastColumns:	# These first 
-		if c < 2:	# Left-justified
+
+		if c in omitColumnNumbers:
+			pass
+		elif c < 2:	# Left-justified
 			headerString +=         treeViewHeadings[c] +" "* (unraveledColumnMaxWidths[c]-len(treeViewHeadings[c])) + "   "
 			bottomLine   += "="*len(treeViewHeadings[c])+" "* (unraveledColumnMaxWidths[c]-len(treeViewHeadings[c])) + "   "
 		else:	# Right justified
@@ -22563,14 +22602,18 @@ def prettyPrintUnraveled(displayAncestry=False):
 		
 	for N in range(len(treeViewAllRowsValues)):
 		rowText = ""
-#		for c in range(len(treeViewAllRowsValues[N])):
-		for c in range(len(treeViewAllRowsValues[N])-doNotPrintTheseManyLastColumns):
+		for c in range(len(treeViewAllRowsValues[N])):
+#		for c in range(len(treeViewAllRowsValues[N])-doNotPrintTheseManyLastColumns):
+			if c in omitColumnNumbers:
+				continue
 			lengthCurrentItem = len(treeViewAllRowsValues[N][c]) if not checkIfBoolean(treeViewAllRowsValues[N][c]) else 5 
 			currentItem = treeViewAllRowsValues[N][c] if not checkIfBoolean(treeViewAllRowsValues[N][c]) else "True " if treeViewAllRowsValues[N][c] else "False"
 			if c < 2:
 				rowText += currentItem + " "* (unraveledColumnMaxWidths[c]-lengthCurrentItem) + "   "
 			else:
-				rowText += " "* (unraveledColumnMaxWidths[c]-lengthCurrentItem) + currentItem + "   "
+				padding = "" if unraveledColumnMaxWidths[c]<=lengthCurrentItem else " "* (unraveledColumnMaxWidths[c]-lengthCurrentItem)
+#				rowText += " "* (unraveledColumnMaxWidths[c]-lengthCurrentItem) + currentItem + "   "
+				rowText += padding + currentItem + "   "
 				
 		if displayAncestry:
 #			currentRowAncestryVariableIds = unraveled[N][8]
@@ -22592,15 +22635,23 @@ def prettyPrintUnraveled(displayAncestry=False):
 			warningRoutine(warningMessage)
 #			return False
 	headerString = ""
-	for c in range(maxNumberOfColumns-doNotPrintTheseManyLastColumns):
-		headerString += treeViewHeadings[c] + ("," if c < maxNumberOfColumns-doNotPrintTheseManyLastColumns-1 else "\n")
+#	for c in range(maxNumberOfColumns-doNotPrintTheseManyLastColumns):
+	for c in range(maxNumberOfColumns):
+		if c in omitColumnNumbers:
+			continue
+#		headerString += treeViewHeadings[c] + ("," if c < maxNumberOfColumns-doNotPrintTheseManyLastColumns-1 else "\n")
+		headerString += treeViewHeadings[c] + ("," if c < maxNumberOfColumns-len(omitColumnNumbers)-1 else "\n")
 	outputFile.write(headerString)
 			
 	for N in range(len(treeViewAllRowsValues)):
 		rowText = ""
-		for c in range(maxNumberOfColumns-doNotPrintTheseManyLastColumns):
+#		for c in range(maxNumberOfColumns-doNotPrintTheseManyLastColumns):
+		for c in range(maxNumberOfColumns):
+			if c in omitColumnNumbers:
+				continue
 			currentItem = treeViewAllRowsValues[N][c] if not checkIfBoolean(treeViewAllRowsValues[N][c]) else "True " if treeViewAllRowsValues[N][c] else "False"
-			rowText += currentItem + ("," if c < maxNumberOfColumns-doNotPrintTheseManyLastColumns-1 else "\n")
+#			rowText += currentItem + ("," if c < maxNumberOfColumns-doNotPrintTheseManyLastColumns-1 else "\n")
+			rowText += currentItem + ("," if c < maxNumberOfColumns-len(omitColumnNumbers)-1 else "\n")
 		outputFile.write(rowText)
 		
 	outputFile.close()
@@ -26835,6 +26886,8 @@ class MainWindow:
 	#                                                                                                                        #
 	##########################################################################################################################
 	def runDemoIndex(self, event=None):
+		
+		global PRINT_LE_ONLY, PRINT_BE_ONLY
 
 		# Make the middle button original color
 		self.demoThisFeatureButton.configure(bg="gray80")
@@ -29356,6 +29409,61 @@ class MainWindow:
 			self.hideInterpretedVar.set(False)
 
 			self.layoutDefault()
+
+			infoMessage = "So, we have solved the wrapping problem in Original Code and Interpreted Code window.  \n\n"		\
+						+"In the bottom window, we already have the ability to Expand or Collapse arrays and structs, so we are in control of what we want to see.\n\n"	\
+						+"Unfortunately, by default the tool prints everything on the Console. Ideally, it should not wrap for the sake of readability. \n\n"	\
+						+"If a line wraps, that creates a big clutter on the Console.\n\n"
+			infoRoutine(infoMessage)
+			infoMessage = "Often the main culprit for this line-wrapping is having to print both the Little-Endian and Big-Endian values, and their formatted counterparts.\n\n"	\
+						+"However, Lot of people do not care about seeing both the Little-Endian and Big-Endian values for their variables.\n\n"		\
+						+"They want to see either the Little-Endian values, OR the Big-Endian values. Not BOTH.\n\n"	
+			infoRoutine(infoMessage)
+			infoMessage = "In ParseAndC 5.0, you can actually specify it while invoking the tool itself.\n\n"	\
+						+"Just use the command-line parameters \"--LE\" (or \"--BE\") to print only the Little-Endian (or the Big-Endian) values on the console. \n\n"
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+
+
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			self.interpret()
+			self.mapStructureToData()
+
+			infoMessage = "Here is a simple example of how an integer is displayed on the Console.\n\n"	\
+						+"Please take a look at the Console to see that it has printed BOTH the Little-Endian and the Big-Endian values. \n\n"
+			infoRoutine(infoMessage)
+			
+
+			self.clearDemo()
+
+
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			PRINT_LE_ONLY = True
+			self.interpret()
+			self.mapStructureToData()
+			
+			infoMessage = "Now suppose we used the \"--LE\" command-line option.\n\n"	\
+						+"Please take a look at the Console to see that it has printed ONLY the Little-Endian values (NO Big-Endian values). \n\n"
+			infoRoutine(infoMessage)
+			
+			self.clearDemo()
+
+
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
+			PRINT_LE_ONLY = False
+			PRINT_BE_ONLY = True
+			self.interpret()
+			self.mapStructureToData()
+			
+			infoMessage = "Now suppose we used the \"--BE\" command-line option.\n\n"	\
+						+"Please take a look at the Console to see that it has printed ONLY the Big-Endian values (NO Little-Endian values). \n\n"
+			infoRoutine(infoMessage)
+			PRINT_BE_ONLY = False
+			
 			
 			self.endFeatureDemoMessage()
 
@@ -29386,6 +29494,7 @@ class MainWindow:
 		global pragmaPackCurrentValue, pragmaPackStack, blankArraysAndTerminationInfo, dummyZeroWidthBitfieldVariableCount, variableSelectedIndices
 		global dataFileSizeInBytes, inputIsHexChar, binaryArray, hexCharArray, totalBytesToReadFromDataFile, inputVariables, executionStateStack, runtimeStatementLineNumbers
 		global runtimeStatementLocationsInGlobalScope, runtimeStatementOrGlobalScopedVariableIdOrStructId, globalScopedBuddies, globalScopedRuntimeBlocks, globalScopesSelected
+		global PRINT_LE_ONLY, PRINT_BE_ONLY 
 
 		PRINT ("\n\n\n============ Entered ClearDemo() ==================\n\n\n")
 		
@@ -29462,7 +29571,10 @@ class MainWindow:
 			self.toggleHexDec()
 		if MAP_TYPEDEFS_TOO == False:
 			self.toggleMapTypedefsToo()
-			
+		
+		PRINT_LE_ONLY = False
+		PRINT_BE_ONLY = False
+		
 		# Just to make doubly sure
 		self.colorTagsFG = []	
 		self.colorTagsData = []
