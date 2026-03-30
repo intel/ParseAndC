@@ -878,6 +878,7 @@
 # 2026-03-25 - Implemented demo properly
 # 2026-03-25 - Fixed the GUI redesign
 # 2026-03-26 - Added the capability to print only the LE or BE values
+# 2026-03-30 - Fixed the RegEx bug
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -921,6 +922,8 @@ dummyVariableNamePrefix = "DummyVar#"
 dummyUnnamedBitfieldNamePrefix = "dummyUnnamedBitfieldVar#"
 dummyUnnamedBitfieldCount = 0
 preProcessorSymbol = '#'
+#nextRegExpString = "____NEXT_REG_EXP____"
+nextRegExpString = "NEXT"
 
 CHAR_SIZE = 1
 SHORT_SIZE = 2
@@ -5224,7 +5227,7 @@ def escapeREmetacharacters(inputString):
 		outputString = ''
 		reMetacharacters = ['*','+','\\','[',']','(',')','.','^','$','{','}','|','?']
 		for c in inputString:
-			outputString = outputString + ('\\' + c if c in reMetacharacters else c)
+			outputString = outputString + (('\\' + c) if c in reMetacharacters else c)
 		return outputString
 		
 #######################################################################################################################################################
@@ -16315,7 +16318,7 @@ def splitName(namedVariable, variableIdOrParentStructName=""):
 #
 ###############################################################################################################
 
-def readRegExp(variableId, offset=None, parameters=[]):
+def readRegExp(variableId, offset=None, parameters=[], onlyNeedRegExPattern=False):
 #	PRINT = OUTPUT
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
 	PRINT("Inside readRegExp(variableId=",variableId,", offset=",offset, ", parameters=",STR(parameters),"during",executionStage)
@@ -16349,7 +16352,7 @@ def readRegExp(variableId, offset=None, parameters=[]):
 		return
 	
 	
-def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[]):
+def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[], onlyNeedRegExPattern=False):
 #	PRINT = OUTPUT
 	if desc not in ["Hex","Dec","Oct","Bin","Real"]:
 		errorMessage = "ERROR in convertFromHexDecOctBin() - desc ("+STR(desc)+") not \"Hex\" / \"Dec\" / \"Oct\" / \"Bin\" / \"Real\""
@@ -16372,8 +16375,40 @@ def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[]):
 			return False
 		if checkIfString(parameters[0][0]):
 			if parameters[0][0].replace(" ","").upper() in ["RAW", "RAWBYTES","RAW_BYTES"]:
-				rawBytes = True
-			else:		
+				if desc in ["Hex","Bin"]:
+					rawBytes = True
+					if variableId != None:
+						datatype = variableDeclarations[variableId][4]["datatype"]
+						datatypeSize = primitiveDatatypeLength[variableDeclarations[variableId][4]["datatype"]]
+						size = datatypeSize * 2 if desc=="Hex" else datatypeSize * 8
+					else:
+						if executionStage == "Map":
+							EXIT("Coding bug in convertFromHexDecOctBin")
+				else:
+					errorMessage = "ERROR in convertFromHexDecOctBin() - passed parameters ("+STR(parameters)+") indicates RAW bytes but NOT Hex or Bin"
+					errorRoutine(errorMessage)
+					return False
+			else:
+				getRuntimeValueResult = getRuntimeValue(parameters[0][0])
+				if getRuntimeValueResult[0] == False:
+					errorMessage = "ERROR in convertFromHexDecOctBin(): while calculating size value after calling getRuntimeValue( <%s> )"%(list2plaintext(parameters[0][0],""))
+					errorRoutine(errorMessage)
+					return False
+				elif getRuntimeValueResult[1] == LOGICAL_TEST_RESULT_INDETERMINATE: 
+					if executionStage == "Map":
+						errorMessage = "ERROR in convertFromHexDecOctBin(): while calculating size value after calling getRuntimeValue( <%s> )"%(list2plaintext(parameters[0][0],""))
+						errorRoutine(errorMessage)
+						return False
+					else:
+						PRINT("It is OK not being able to resolve the value of size ("+list2plaintext(parameters[0][0],"")+") during ",executionStage)
+				elif not checkIfIntegral(getRuntimeValueResult[1]) or getRuntimeValueResult[1] <=0:
+					errorMessage = "ERROR in convertFromHexDecOctBin(): while calculating size value after calling getRuntimeValue( <%s> ) - calculated size <%d> is not allowed"%(list2plaintext(parameters[0][0],""),getRuntimeValueResult[1])
+					errorRoutine(errorMessage)
+					return False
+				elif getRuntimeValueResult[0] == True:
+					PRINT("SUCCESS in convertFromHexDecOctBin(): while calculating size value after calling getRuntimeValue( <%s> )"%(list2plaintext(parameters[0][0],"")))
+					size = getRuntimeValueResult[1]
+				
 				try:
 					size = int(parameters[0][0])
 					PRINT("Successfully converted passed parameter to integer:",size)
@@ -16396,28 +16431,52 @@ def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[]):
 
 	# From this point, only Map
 	if not checkIfIntegral(offset):
+		errorMessage = "ERROR in convertFromHexDecOctBin() - illegal offset "+STR(offset)
+		errorRoutine(errorMessage)
 		return False
-	if size == None:	# If not given explicitly, deduce it from the 
-		factor = 2 if desc == "Hex" else 8 if desc == "Bin" else 1
-		deducedSize = primitiveDatatypeLength[variableDeclarations[variableId][4]["datatype"]]*factor	# Remember that each binary byte gets translated to two Hex nibbles in text
-		PRINT("Deduced size = ",deducedSize)
-	else:
-		deducedSize = size
-		PRINT("Mandated size = ",size)
 
-	if desc == "Real":
-		rePattern = r'\s*-?\s*\d*\.\d+\s*([eE]\s*[+-]\d+)?\s*'
+	# If we are talking about raw bytes, there cannot be any + or - symbol upfront
+	plusMinusPattern = r'\s*' if rawBytes else r'\s*[+-]?\s*'
+
+	if desc == "Real":	# We don't allow too big a space around the e/E (signifying the exponent)
+		rePattern = r'\s*-?\s*\d*\.\d+\s{0,5}([eE]\s{0,5}[+-]\d+)?\s*'
 	elif desc == "Hex":
-		rePattern = r'\s*[+-]?\s*(0[xX])?\s*([0-9a-fA-F][0-9a-fA-F]\s*_?\s*)*([0-9a-fA-F][0-9a-fA-F])+\s*'
+		rePattern =  plusMinusPattern
+		if size:
+			nibblePairCount = integerDivision(size,2)
+			rePattern += r'(0[xX])?\s*([0-9a-fA-F][0-9a-fA-F]\s*_?\s*){'
+			rePattern += str(nibblePairCount-1)
+			rePattern += r'}([0-9a-fA-F][0-9a-fA-F])\s*'
+		else:
+			rePattern += r'(0[xX])?\s*([0-9a-fA-F][0-9a-fA-F]\s*_?\s*)*([0-9a-fA-F][0-9a-fA-F])\s*'
 	elif desc == "Dec":
-		rePattern = r'\s*[+-]?\s*[\d+,?]*\d+\s*'
+		if size:
+			rePattern = r'\s*[+-]?\s*[\d,?]{'
+			rePattern += str(size-1)
+			rePattern += r'}\d\s*'
+		else:
+			rePattern = r'\s*[+-]?\s*[\d+,?]*\d+\s*'
 	elif desc == "Oct":
-		rePattern = r'\s*[+-]?\s*(0[oO])?\s*([0-7]+,?)*[0-7]+\s*'
+		if size:
+			rePattern = r'\s*[+-]?\s*(0[oO])?\s*([0-7]){'
+			rePattern += str(size)
+			rePattern += r'}\s*'
+		else:
+			rePattern = r'\s*[+-]?\s*(0[oO])?\s*[0-7]+\s*'
 	elif desc == "Bin":
-		rePattern = r'\s*[+-]?\s*(0[bB])?\s*([01]+\s*[_,]?\s*)*[01]+\s*'
+		rePattern =  plusMinusPattern
+		if size:
+			rePattern += r'(0[bB])?\s*([01]\s*[_,]?\s*){'
+			rePattern += str(size-1)
+			rePattern +=r'}[01]\s*'
+		else:
+			rePattern += r'(0[bB])?\s*([01]+\s*[_,]?\s*)*[01]\s*'
 
 
-	PRINT ("From offset",offset,", trying to match rePattern =",rePattern)
+	MUST_PRINT ("From offset",offset,", trying to match rePattern =",rePattern)
+	
+	if onlyNeedRegExPattern:	# We only need to know the generated RE pattern, nothing else
+		return [ None, None, None, rePattern]
 	
 	varLen = readBytesFromDatafileRegEx(offset, rePattern)
 	
@@ -16432,6 +16491,8 @@ def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[]):
 		
 	bytesConsumed = varLen[1]
 	textBytes = readNBytesText(offset,bytesConsumed)
+	
+	'''
 	compressedTextBytes = textBytes.replace(" ","")
 	
 	if size != None:
@@ -16464,19 +16525,27 @@ def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[]):
 				bytesConsumed = index2stop+1
 				textBytes = textBytes[:bytesConsumed]
 				PRINT("For size(",size,"), new textBytes = <"+textBytes+">, bytesConsumed =",bytesConsumed)
-
+	'''
 	if desc == "Hex":
 		compressedTextBytes = re.sub(r'[^-0-9a-fA-F]','',textBytes.replace("0x","").replace("0X",""))
-	if desc == "Dec":
+	elif desc == "Dec":
 		compressedTextBytes = re.sub(r'[^-0-9]','',textBytes)
 	elif desc == "Oct":
-		compressedTextBytes = re.sub(r'[^-0-7]','',textBytes)
+		compressedTextBytes = re.sub(r'[^-0-7]','',textBytes.replace("0o","").replace("0O",""))
 	elif desc == "Bin":
-		compressedTextBytes = re.sub(r'[^-01]','',textBytes)
+		compressedTextBytes = re.sub(r'[^-01]','',textBytes.replace("0b","").replace("0B",""))
+	elif desc == "Real":
+		compressedTextBytes = textBytes.replace(" ","")
+	else:
+		EXIT("Bugggggggg")
 				
 	PRINT("compressedTextBytes =",compressedTextBytes)
 
 	if not rawBytes:
+		
+		base = 16 if desc == "Hex" else 10 if desc == "Dec" else 8 if desc == "Oct" else 2 if desc == "Bin" else 0
+		if base == 0:
+			EXIT("Bugggggggg")
 
 		if desc == "Real":
 			try:
@@ -16485,40 +16554,16 @@ def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[]):
 				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to float"
 				errorRoutine(errorMessage)
 				return False
-				
-		elif desc == "Hex":
-			try:
-				value = int(compressedTextBytes,16)
-			except ValueError:
-				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to int"
-				errorRoutine(errorMessage)
-				return False
-		elif desc == "Dec":
-			try:
-				value = int(compressedTextBytes)
-			except ValueError:
-				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to int"
-				errorRoutine(errorMessage)
-				return False
-		elif desc == "Oct":
-			try:
-				value = int(compressedTextBytes,8)
-			except ValueError:
-				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to int"
-				errorRoutine(errorMessage)
-				return False
-		elif desc == "Bin":
-			try:
-				value = int(compressedTextBytes,2)
-			except ValueError:
-				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to int"
-				errorRoutine(errorMessage)
-				return False
 		else:
-			EXIT("Coding bug in convertFromHexDecOctBin()")
+			try:
+				value = int(compressedTextBytes,base)
+			except ValueError:
+				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to "+desc
+				errorRoutine(errorMessage)
+				return False
 
 		PRINT("Returning valueLE =", value, ", valueBE = ",value)
-		return [offset + bytesConsumed, value, value]
+		return [offset + bytesConsumed, value, value, rePattern]
 
 			
 	else:	# Rawbytes
@@ -16604,206 +16649,20 @@ def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[]):
 		valueBE = calculateInternalValue(binaryArray, BIG_ENDIAN,    variableDeclarations[variableId][4]["datatype"], variableDeclarations[variableId][4]["signedOrUnsigned"])
 		
 		PRINT("Returning valueLE =", valueLE, ", valueBE = ",valueBE)
-		return [offset + bytesConsumed, valueLE, valueBE]
+		return [offset + bytesConsumed, valueLE, valueBE, rePattern]
 	
-		
-		
-		
-	'''	
-		
-		
-		
-	EXIT("Coding buggggggggggg")	
-		
-		
-		
-		
-		
 
 
-	bytesConsumed = 0
-	textBytes = ""
-	preambleAppeared = False
-	negativeValue = False
-	preamble = "0x" if desc == "Hex" else "0o" if desc == "Oct" else "0b" if desc == "Bin" else ""
-	
-	# These are counts for things that are supposed to occur only once
-	counts = {"+":0, "-":0, "0x":0, "0o":0, "0b":0, ".":0, "E":0, "E+":0, "E-":0}	
-	
-	while True:
-		if len(textBytes) >= deducedSize*100:	# Just for safety
-			break
-		byte = readNBytesText(offset+bytesConsumed,1)
-#		PRINT("type(byte) = ",type(byte))
-		if byte == False:	# This happends when we reach end of file too
-			if len(textBytes)>0:
-				break
-			else:
-				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot read the byte #"+STR(offset+bytesConsumed)+" with current textBytes = <"+textBytes+">"
-				errorRoutine(errorMessage)
-				return False
-		else:
-			byte = str(byte)
-#			PRINT("Changed type(byte) = ",type(byte))
-			
-#		PRINT("From offset",offset,", byte #",bytesConsumed," = ",byte)
-		bytesConsumed += 1
-		
-#		if byte == 'D' and charIsValidHex(byte):
-#			EXIT("Matched")
-		
-		if byte == '_':
-#			PRINT("Underscore")
-			if textBytes and textBytes!= preamble:
-				continue
-			else:
-				break
-		elif byte.isspace() or byte == ',' :
-#			PRINT("SPACE")
-			if size == None: 	# Size not specified, stop when you hit a whitespace after you hit some real data
-				if textBytes and textBytes!= preamble:
-					PRINT("We have some real data in textBytes(",textBytes,"), stopping right now")
-					break
-		elif ((desc == "Hex" and charIsValidHex(byte)) or (desc == "Dec" and ('0'<=byte<='9')) or (desc == "Oct" and ('0'<=byte<='7')) or (desc == "Bin" and ('0'<=byte<='1'))  
-			 or (not preambleAppeared and textBytes=="0" and byte in ['x','o','b']) ):
-#			PRINT("From offset",offset,", byte #",bytesConsumed-1," = ",byte)
-			textBytes += str(byte)
-			if desc in ["Hex","Oct","Bin"] and len(textBytes) == 2: 
-				if textBytes==preamble:
-					if preambleAppeared:
-						errorMessage = "ERROR in convertFromHexDecOctBin() - We already found the \""+preamble+"\" symbol once"
-						errorRoutine(errorMessage)
-						return False
-					else:
-						preambleAppeared = True
-						textBytes = ""
-						hexBytesConsumed = 0
-		elif byte in ["+","-"] and not textBytes:
-#			PRINT("+/-")
-			if byte == "-":
-				negativeValue = True if not negativeValue else False
-		elif byte == '.':
-			PRINT("PERIOD")
-			if counts[byte] >0:
-				errorMessage = "ERROR in convertFromHexDecOctBin() - We already found the \".\" symbol once"
-				errorRoutine(errorMessage)
-				return False
-			counts[byte] += 1
-			textBytes += byte
-		else:
-#			PRINT("HOW COME???")
-			break
-
-	PRINT("After parsing is done, textBytes = <",textBytes,"> length is ",len(textBytes))
-						
-	if not rawBytes:
-		try:
-			base = 16 if desc == "Hex" else 10 if desc == "Dec" else 8 if desc == "Oct" else 2 if desc == "Bin" else 1
-			PRINT("Converting <"+textBytes+"> to integer with base of ",base)
-			numericValue = int(textBytes,base)
-			numericValue = -numericValue if negativeValue else numericValue
-		except ValueError:
-			errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert <"+STR(textBytes)+"> to base "+STR(base)+" - not numeric"
-			errorRoutine(errorMessage)
-			return False
-		
-		# We send back the same value for LE and BE
-		return [offset + bytesConsumed, numericValue, numericValue]
-		
-	else:	# If the code comes here, we presume we are talking about Raw bytes
-		
-		PRINT("Creating RAW bytes")
-
-		if PYTHON2x: 
-			binaryArray = ""
-		elif PYTHON3x:
-			binaryArray = bytearray()
-		
-#		binaryArray = []	# We need to recreate the bytearray from text
-
-		# If the code comes here, we presume we are talking about Raw bytes
-		if desc == "Hex":
-			if len(textBytes)%2 != 0:
-				errorMessage = "ERROR in convertFromHexDecOctBin(): odd number of nibbles in supposedly HEX textBytes = "+STR(textBytes)
-				errorRoutine(errorMessage)
-				return False
-			for i in range(len(textBytes)):
-				if i%2==0:
-					continue
-				else:
-					if charIsValidHex(textBytes[i-1]) and charIsValidHex(textBytes[i]):
-						byte0 = ord(textBytes[i-1]) - ord('0') if ('0' <= textBytes[i-1] <= '9') else 10 + ord(textBytes[i-1]) - ord('a') if ('a' <= textBytes[i-1] <= 'f') else 10 + ord(textBytes[i-1]) - ord('A') if ('A' <= textBytes[i-1] <= 'F') else 0
-						byte1 = ord(textBytes[i  ]) - ord('0') if ('0' <= textBytes[i  ] <= '9') else 10 + ord(textBytes[i  ]) - ord('a') if ('a' <= textBytes[i  ] <= 'f') else 10 + ord(textBytes[i  ]) - ord('A') if ('A' <= textBytes[i  ] <= 'F') else 0
-						if PYTHON2x:
-							binaryArray += chr(byte0*16+byte1) 
-						elif PYTHON3x:
-							binaryArray.append(byte0*16+byte1)
-						else:
-							sys.exit()
-					else:
-						errorMessage = "ERROR in convertFromHexDecOctBin(): non-HEX character #"+STR(i-1)+":"+STR(i)+" <"+textBytes[i-1:i+1]+"> in supposedly HEX textBytes = "+STR(textBytes)
-						errorRoutine(errorMessage)
-						return False
-
-		elif desc == "Bin":
-			if len(textBytes)%8 != 0:
-				errorMessage = "ERROR in convertFromHexDecOctBin(): number of bytes("+STR(len(textBytes))+") in supposedly BIN textBytes = "+STR(textBytes)+"must be a multiple of 8"
-				errorRoutine(errorMessage)
-				return False
-			for i in range(len(textBytes)):
-				if not ('0' <= textBytes[i] <= '1'):
-					errorMessage = "ERROR in convertFromHexDecOctBin(): non-BIN character in supposedly BIN textBytes = "+STR(textBytes)
-					errorRoutine(errorMessage)
-					return False
-					
-			numBytes = integerDivision(len(textBytes),8)
-
-			for i in range(numBytes):
-				indivByte = int(textBytes[i*8:(i+1)*8],2)
-				if PYTHON2x:
-					binaryArray += chr(indivByte) 
-				elif PYTHON3x:
-					binaryArray.append(indivByte)
-				else:
-					sys.exit()
-
-		else:
-			errorMessage = "ERROR in convertFromHexDecOctBin(): We cannot have raw bytes in Octal or Decimal <"+STR(textBytes)+">"
-			errorRoutine(errorMessage)
-			return False
-
-
-
-		for i in range(len(binaryArray)):
-			PRINT("binaryArray[",i,"] = ", binaryArray[i])
-		
-		datatype = variableDeclarations[variableId][4]["datatype"]
-		datatypeSize = primitiveDatatypeLength[variableDeclarations[variableId][4]["datatype"]]
-		if len(binaryArray) != datatypeSize:
-			errorMessage = "ERROR in convertFromHexDecOctBin(): For raw bytes <"+textBytes+">, the raw byte size("+STR(len(binaryArray))+") does not match the "+datatype+" size ("+STR(datatypeSize)+")"
-			errorRoutine(errorMessage)
-			return False
-
-		# Didn't implement bitfield yet
-		valueLE = calculateInternalValue(binaryArray, LITTLE_ENDIAN, variableDeclarations[variableId][4]["datatype"], variableDeclarations[variableId][4]["signedOrUnsigned"])
-		valueBE = calculateInternalValue(binaryArray, BIG_ENDIAN,    variableDeclarations[variableId][4]["datatype"], variableDeclarations[variableId][4]["signedOrUnsigned"])
-		
-		PRINT("Returning valueLE =", valueLE, ", valueBE = ",valueBE)
-		return [offset + bytesConsumed, valueLE, valueBE]
-	'''
-
-
-
-def convertFromHex(variableId, offset=None, parameters=[]):
-	return convertFromHexDecOctBin("Hex",variableId, offset, parameters)
-def convertFromDec(variableId, offset=None, parameters=[]):
-	return convertFromHexDecOctBin("Dec",variableId, offset, parameters)
-def convertFromOct(variableId, offset=None, parameters=[]):
-	return convertFromHexDecOctBin("Oct",variableId, offset, parameters)
-def convertFromBin(variableId, offset=None, parameters=[]):
-	return convertFromHexDecOctBin("Bin",variableId, offset, parameters)
-def convertFromReal(variableId, offset=None, parameters=[]):
-	return convertFromHexDecOctBin("Real",variableId, offset, parameters)
+def convertFromHex(variableId, offset=None, parameters=[], onlyNeedRegExPattern=False):
+	return convertFromHexDecOctBin("Hex",variableId, offset, parameters, onlyNeedRegExPattern)
+def convertFromDec(variableId, offset=None, parameters=[], onlyNeedRegExPattern=False):
+	return convertFromHexDecOctBin("Dec",variableId, offset, parameters, onlyNeedRegExPattern)
+def convertFromOct(variableId, offset=None, parameters=[], onlyNeedRegExPattern=False):
+	return convertFromHexDecOctBin("Oct",variableId, offset, parameters, onlyNeedRegExPattern)
+def convertFromBin(variableId, offset=None, parameters=[], onlyNeedRegExPattern=False):
+	return convertFromHexDecOctBin("Bin",variableId, offset, parameters, onlyNeedRegExPattern)
+def convertFromReal(variableId, offset=None, parameters=[], onlyNeedRegExPattern=False):
+	return convertFromHexDecOctBin("Real",variableId, offset, parameters, onlyNeedRegExPattern)
 
 ###############################################################################################################
 #
@@ -16854,13 +16713,22 @@ def insertWhitespace2TokenizeLines(stringWithWhitespaces, stringWithWhitespacesT
 
 
 ###########################################################################################################################
-# Input is a human readable date  [YYYY,MM,DD,hh,mm,ss]. Returns the number of seconds since 1/1/1970 (could be negative)
+# Input is a human readable date  [YYYY/YY, MM, DD, hh, mm, ss, ms]. Returns the number of seconds since 1/1/1970 (could be negative)
 ###########################################################################################################################
-def convert2UnixTimestamp(YYYY,MM,DD,hh=0,mm=0,ss=0):
-	if not checkIfIntegral(YYYY) or not checkIfIntegral(MM) or not checkIfIntegral(DD) or not checkIfIntegral(hh) or not checkIfIntegral(mm) or not checkIfIntegral(ss):
+def convert2UnixTimestamp(YYYY,MM,DD,hh=0,mm=0,ss=0, ms=0):
+	if not checkIfIntegral(YYYY) or not checkIfIntegral(MM) or not checkIfIntegral(DD) or not checkIfIntegral(hh) or not checkIfIntegral(mm) or not checkIfIntegral(ss) or not checkIfIntegral(ms):
 		errorMessage = "ERROR in convert2UnixTimestamp() - non-integral value supplied for YYYY("+STR(YYYY)+"), MM("+STR(MM)+"), DD("+STR(DD)+"), hh("+STR(hh)+"), mm("+STR(mm)+"), ss("+STR(ss)+")"
 		errorRoutine(errorMessage)
 		return False
+	
+	# If a two-digit year is supplied, then depending on whether it is less than this epochYear or more, we make it 20- or 19-
+	epochYear = 30
+	if 0<=YYYY<100:
+		if YYYY <= epochYear:
+			YYYY += 2000
+		else:
+			YYYY += 1900
+		
 	months = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 	secsSince1970 = 0
 	# If YYYY is a leap year, we will count its leap day anyway. But what we need to know is that how many leap days have passed since 1/1/1970 till LAST year
@@ -17111,7 +16979,7 @@ def tokenizeDateTimeFormatString(dateTimeFormatString):
 # This routine reads a data in the given date/time format
 ################################################################################################################################
 	
-def readDateTime(variableId, offset=None, parameters=[]):
+def readDateTime(variableId, offset=None, parameters=[], onlyNeedRegExPattern=False):
 #	PRINT = OUTPUT
 	PRINT("Entered readDateTime(variableId=",variableId,", offset="+STR(offset)+", parameters="+STR(parameters)+")")
 	
@@ -17151,16 +17019,44 @@ def readDateTime(variableId, offset=None, parameters=[]):
 				
 	dateTimeFormatStringTokenized = tokenizeDateTimeFormatString(dateTimeFormatString)
 	PRINT("datetime format string <"+dateTimeFormatString+"> is tokenized as", STR(dateTimeFormatStringTokenized))
+
+
+	REpattern = ""
+	for t in dateTimeFormatStringTokenized:
+		if t == "YYYY":
+			REpattern += "\\d{4}"
+		elif t == "YY":
+			REpattern += "\\d{2}"
+		elif t in ["MM","DD","hh","mm","ss"]:
+			REpattern += "\\d{1,2}"
+		elif t == "Mmm":
+			REpattern += "(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+		elif t == "Mmm":
+			REpattern += "(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)"
+		elif t == "Month":
+			REpattern += "(January|February|March|April|May|June|July|August|September|October|November|December)"
+		elif t == "MONTH":
+			REpattern += "(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)"
+		else:
+			for c in t:
+				REpattern += escapeREmetacharacters(c)	#If the token contains RE metacharacters accidentally, we need to  ensure that from happening
+	PRINT("For ",parameters[0],", the corresponding RE matching string is",REpattern)
+
+	if onlyNeedRegExPattern:
+		return [None, None, None, REpattern]
 	
 	if executionStage == "Map":
 		
 		# This is the dictionary we plan to populate
-		dateTime = {"YYYY":False,"MM":False,"DD":False,"hh":False,"mm":False,"ss":False}
+		dateTime = {"YYYY":False,"MM":False,"DD":False,"hh":False,"mm":False,"ss":False, "ms":False}
+		
 		
 		currOffset = offset
 		for t in dateTimeFormatStringTokenized:
 			PRINT("\n\nNow looking for token",t,"of length",len(t),"bytes from currOffset=",currOffset)
+			
 			data = readNBytesText(currOffset,len(t))
+			
 			PRINT("\nFor token",t,"of length",len(t),"we got",len(data), "bytes =",STR(data),",type(data)=",type(data),"\n\n")
 			if t in getDictKeyList(dateTime):
 				#It's possible that we have variable-sized field, like "9" instead of "09" for date or month. We need to account for that
@@ -18070,7 +17966,6 @@ informats = {"HEX"				:	convertFromHex,
 			"BINARY"			:	convertFromBin, 
 			"REAL"				:	convertFromReal, 
 			"DATETIME"			:	readDateTime,
-#			"UNIXDATETIME"		:	convert2UnixTimestamp,
 			"REGULAR_EXPRESSION":	readRegExp}
 formats = {	"HEX"				:	convert2Hex,
 			"HEXADECIMAL"		:	convert2Hex,
@@ -18098,10 +17993,10 @@ formats = {	"HEX"				:	convert2Hex,
 			"PRINT_ARRAY_HEADER_ONLY":	doNotPrint,
 			"PRINT_ARRAY_ELEMENTS_ONLY":	doNotPrint}
 
-###############################################################################
-# This routine applies various informats to the raw value of a data item
-###############################################################################
-def applyInformat(variableId, offset, informatList=[]):
+############################################################################################################################################
+# This routine applies various informats to the raw value of a data item. It returns the [nextOffset, valueLE, valueBE, rePattern]
+############################################################################################################################################
+def applyInformat(variableId, offset, informatList=[], onlyNeedRegExPattern = False):
 #	PRINT=OUTPUT
 	executionStage = "Interpret" if lastActionWasInterpret else "Map" if lastActionWasMap  else "Undefined Execution Stage"
 	PRINT("\n","=="*50,"\nInside applyInformat()\n","=="*50,"\n")
@@ -18171,7 +18066,7 @@ def applyInformat(variableId, offset, informatList=[]):
 		if executionStage == "Map":
 			variableName = variableDeclarations[variableId][0]
 			PRINT("for the variableName=",variableName)
-		result = informats[informat](variableId, offset, parameters)
+		result = informats[informat](variableId, offset, parameters, onlyNeedRegExPattern)
 		PRINT("After applying",informatString,", the result is",result,"\n\n")
 		
 		if result == False:
@@ -19188,13 +19083,33 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 			for countRE in range(totalNumberOfRE):
 				PRINT("\n","=="*15,"Dealing with RE #",countRE,"=="*15,"\n")
 				rePattern = variableDescription["origInitializationValue"][0] if hasRegExInformat else variableDescription["initializationValue"]
+				
+				rePatternToCheck = r'.*\(\?\='+str(nextRegExpString)+r'\)'
+				PRINT("rePatternToCheck =",rePatternToCheck)
+				X = re.match(rePatternToCheck,rePattern)
+				if X:
+					PRINT("rePattern <"+rePattern+"> matches <"+rePatternToCheck+">")
+				else:
+					PRINT("rePattern <"+rePattern+"> doesn't match <"+rePatternToCheck+">")
+				
 				regExMatchingBytesLength = readBytesFromDatafileRegEx( offsetRE, rePattern)
+				
 				PRINT("For array variable ", variableName,"read", regExMatchingBytesLength,"bytes for RegEx of",rePattern)
 				if regExMatchingBytesLength == False:
-					errorMessage = "ERROR in addVariableToUnraveled() - error trying to read the RegEx <%s> from address %s)"%(STR(rePattern), STR(offsetRE))
+					errorMessage = "ERROR in addVariableToUnraveled() - error trying to read the RegEx <%s> from address %s"%(STR(rePattern), STR(offsetRE))
 					errorRoutine(errorMessage)
 					return False
-				
+				else:
+					# Correct the array prefix for RegEx
+					arrayPrefix = unraveledSupplied[rowNumberOfArrayHeaderRowWithBlankEndAddr][1]
+					match = re.match(r'(.* )(\d+)( .*)', arrayPrefix)
+					arrayPrefix = match.group(1) + STR(regExMatchingBytesLength[1]) + match.group(3)
+					unraveledSupplied[rowNumberOfArrayHeaderRowWithBlankEndAddr][1] = arrayPrefix
+					
+				if regExMatchingBytesLength[1] == 0:	# Zero length, which is valid for RegEx
+					unraveledSupplied[rowNumberOfArrayHeaderRowWithBlankEndAddr][4] = offset
+					continue
+					
 				reArrayDimensions = arrayDimensions[:-1]
 				position = 0
 				while True:
@@ -19244,7 +19159,7 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				PRINT("The end addr column for the array header row is blank for",variableName," - now filling it")
 				minOrMaxValueInColumnResult = minOrMaxValueInColumn(unraveledSupplied, 4, "max")	# The Addr end (exclusive) is the column #4 in unraveled
 				if minOrMaxValueInColumnResult[0] != True:
-					errorMessage = "ERROR in addVariableToUnraveled() - for array variable " + variableName + ", could not calculate the max end addr before going back to update the array header row in unraveled with it"
+					errorMessage = "ERROR in addVariableToUnraveled() - for array variable " + variableName + ", could not calculate the max end addr before going back to update the array header row #"+STR(rowNumberOfArrayHeaderRowWithBlankEndAddr)+" in unraveled with it. Currently the unraveled has "+STR(len(unraveledSupplied))+" rows"
 					errorRoutine(errorMessage)
 					return False
 				else:
