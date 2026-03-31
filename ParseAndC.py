@@ -879,6 +879,7 @@
 # 2026-03-25 - Fixed the GUI redesign
 # 2026-03-26 - Added the capability to print only the LE or BE values
 # 2026-03-30 - Fixed the RegEx bug
+# 2026-03-31 - Fixed the INFORMAT HEX printing bug. Also cleaned up Demo.
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -922,8 +923,7 @@ dummyVariableNamePrefix = "DummyVar#"
 dummyUnnamedBitfieldNamePrefix = "dummyUnnamedBitfieldVar#"
 dummyUnnamedBitfieldCount = 0
 preProcessorSymbol = '#'
-#nextRegExpString = "____NEXT_REG_EXP____"
-nextRegExpString = "NEXT"
+nextRegExpString = "__NEXT__"
 
 CHAR_SIZE = 1
 SHORT_SIZE = 2
@@ -3509,9 +3509,54 @@ textDateRE],
 '   } var[2];   \n',
 ' \n'
 ],
-textDateRE]
+textDateRE],
 
 
+#2
+[['//Killer feature\n',
+'                       \n',
+'char junk1[28];   \n',
+'int buffAddrStart; //<informat>HEX(8)</informat>  \n',
+'char junk2[27];   \n',
+'int buffAddrEnd; //<informat>HEX(8)</informat>  \n',
+' \n'
+],
+textDataHex2],
+
+
+
+#3
+[['//Killer feature\n',
+'                       \n',
+'char junk[] = ".*(?=(0[xX])?\\s*([0-9a-fA-F][0-9a-fA-F]\\s*_?\\s*){3}([0-9a-fA-F][0-9a-fA-F])\\s*)"; /* <INFORMAT>REGEX</INFORMAT> */\n',
+'int buffAddrStart; /* <INFORMAT>HEX(8)</INFORMAT> <FORMAT>HEX</FORMAT>*/  \n',
+' \n'
+],
+textDataHex2],
+
+
+
+#4
+[['//Killer feature\n',
+'                       \n',
+'char junk[] = ".*(?=__NEXT__)"; /* <INFORMAT>REGEX</INFORMAT> */ \n',
+'int buffAddrStart; /* <INFORMAT>HEX(8)</INFORMAT> <FORMAT>HEX</FORMAT>*/  \n',
+' \n'
+],
+textDataHex2],
+
+
+
+#4
+[['//Killer feature\n',
+'                       \n',
+'char junk1[] = ".*?(?=__NEXT__)"; /* <INFORMAT>REGEX</INFORMAT> */ \n',
+'int buffAddrStart; /* <INFORMAT>HEX(8)</INFORMAT> <FORMAT>HEX</FORMAT>*/  \n',
+'char junk2[] = ".*?(?=__NEXT__)"; /* <INFORMAT>REGEX</INFORMAT> */ \n',
+'int buffAddrEnd; /* <INFORMAT>HEX(8)</INFORMAT> <FORMAT>HEX</FORMAT>*/  \n',
+' \n'
+],
+textDataHex2]
 
 ]
 ],
@@ -16331,25 +16376,26 @@ def readRegExp(variableId, offset=None, parameters=[], onlyNeedRegExPattern=Fals
 			errorMessage = "ERROR in readRegExp() - invalid variableId ="+STR(variableId)
 			errorRoutine(errorMessage)
 			return False
-		variableDescription = variableDeclarations[variableId][4]
-		hasRegExInformat = True if ("INFORMAT" in getDictKeyList(variableDescription) and 'REGULAR_EXPRESSION' in variableDescription["INFORMAT"]) else False
-		rePattern = variableDescription["origInitializationValue"][0] if hasRegExInformat else variableDescription["initializationValue"]
+			
+	variableDescription = variableDeclarations[variableId][4]
+	hasRegExInformat = True if ("INFORMAT" in getDictKeyList(variableDescription) and 'REGULAR_EXPRESSION' in variableDescription["INFORMAT"]) else False
+	rePattern = variableDescription["origInitializationValue"][0] if hasRegExInformat else variableDescription["initializationValue"]
 
-		PRINT("Trying to check the validity of the matching pattern",rePattern)
-	#	rePattern = ".*There"
-		if (rePattern[0]=='"' and rePattern[-1]=='"') or (rePattern[0]=="'" and rePattern[-1]=="'"):	# Remove the quotes
-			rePatternFinal = rePattern[1:-1]
-		else:
-			rePatternFinal = rePattern
-		PRINT("rePatternFinal = <"+rePatternFinal+">")
-		try:
-			re.compile(rePatternFinal)
-		except re.error:
-			errorMessage = "Error in readRegExp(): The regular expression pattern \""+rePatternFinal+"\" is not valid."
-			errorRoutine(errorMessage)
-			return 0
-	else:	# Map
-		return
+	PRINT("Trying to check the validity of the matching pattern",rePattern)
+	if (rePattern[0]=='"' and rePattern[-1]=='"') or (rePattern[0]=="'" and rePattern[-1]=="'"):	# Remove the quotes
+		rePatternFinal = rePattern[1:-1]
+	else:
+		rePatternFinal = rePattern
+	PRINT("rePatternFinal = <"+rePatternFinal+">")
+	try:
+		re.compile(rePatternFinal)
+	except re.error:
+		errorMessage = "Error in readRegExp(): The regular expression pattern \""+rePatternFinal+"\" is not valid."
+		errorRoutine(errorMessage)
+		return 0
+	if executionStage == "Map":
+		if onlyNeedRegExPattern:
+			return [None, None, None, rePatternFinal]
 	
 	
 def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[], onlyNeedRegExPattern=False):
@@ -16557,11 +16603,15 @@ def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[], onlyNe
 		else:
 			try:
 				value = int(compressedTextBytes,base)
+				if DISPLAY_INTEGRAL_VALUES_IN_HEX:
+					value = HEX(value)
+
 			except ValueError:
 				errorMessage = "ERROR in convertFromHexDecOctBin() - cannot convert the "+desc+" <"+compressedTextBytes+"> to "+desc
 				errorRoutine(errorMessage)
 				return False
 
+		
 		PRINT("Returning valueLE =", value, ", valueBE = ",value)
 		return [offset + bytesConsumed, value, value, rePattern]
 
@@ -19089,6 +19139,39 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 				X = re.match(rePatternToCheck,rePattern)
 				if X:
 					PRINT("rePattern <"+rePattern+"> matches <"+rePatternToCheck+">")
+					if variableId >= len(variableDeclarations)-1:
+						PRINT("\n\nvariableDeclarations =\n\n",variableDeclarations)
+						errorMessage = "ERROR in addVariableToUnraveled() - Cannot use special RegEx pattern %s inside %s as current variable(id %s, name %s) is the last one"%(nextRegExpString, STR(rePattern), STR(variableId), variableName)
+						errorRoutine(errorMessage)
+						return False
+					if "INFORMAT" not in getDictKeyList(variableDeclarations[variableId+1][4]):
+						errorMessage = "ERROR in addVariableToUnraveled() - Cannot use special RegEx pattern %s inside %s as the next variable doesn't have any RegEx"%(nextRegExpString, STR(rePattern))
+						errorRoutine(errorMessage)
+						return False
+					
+					applyInformatResult = applyInformat(variableId+1, offset, variableDeclarations[variableId+1][4]["INFORMAT"], True)
+					
+					PRINT("\n\napplyInformatResult =",applyInformatResult)
+					
+					if applyInformatResult == False:
+						errorMessage = "ERROR in addVariableToUnraveled() - Cannot use special RegEx pattern %s inside %s because cannot extract the RegExp of the next variable"%(nextRegExpString, STR(rePattern))
+						errorRoutine(errorMessage)
+						return False
+	
+					nextVarRegExpPatten = applyInformatResult[3]
+					PRINT("nextVarRegExpPatten =",nextVarRegExpPatten)
+					
+					rePatternToCheckNew = r'(.*\(\?\=)('+str(nextRegExpString)+r')(\).*)'
+					PRINT("rePatternToCheckNew =",rePatternToCheckNew)
+					Y = re.match(rePatternToCheckNew,rePattern)
+					if Y:
+						PRINT("rePattern <"+rePattern+"> matches <"+rePatternToCheckNew+">")
+						newPattern = Y.group(1)+nextVarRegExpPatten+Y.group(3)
+						PRINT("Overwriting rePattern <"+rePattern+"> with newPattern <"+newPattern+">")
+						rePattern = newPattern
+					else:
+						EXIT("ERROR: rePattern <"+rePattern+"> does not match <"+rePatternToCheckNew+">")
+					
 				else:
 					PRINT("rePattern <"+rePattern+"> doesn't match <"+rePatternToCheck+">")
 				
@@ -19642,18 +19725,6 @@ def addVariableToUnraveled(level, variableIdOrDescriptionOrEntry, prefix, offset
 					variableEndOffsetExclusive = nextOffset
 					valueLE = applyInformatResult[1]
 					valueBE = applyInformatResult[2]
-					'''
-					readNbytesNumberFromTextDataFileResult = readNbytesNumberFromTextDataFile(offset, variableId)
-					if readNbytesNumberFromTextDataFileResult == False:
-						errorMessage = "Error in addVariableToUnraveled(): Cannot enum literals for variableId "+STR(variableId)+", valueLE="+STR(valueLE)
-						errorRoutine(errorMessage)
-						return False
-					numBytesToRead = readNbytesNumberFromTextDataFileResult[0]
-					
-					variableEndOffsetExclusive = offset+numBytesToRead
-					valueLE = readNbytesNumberFromTextDataFileResult[1]
-					valueBE = readNbytesNumberFromTextDataFileResult[2]
-					'''
 					PRINT("\n\nFor variable",variableName, "in addVariableToUnraveled(), offset =", offset, ", variableEndOffsetExclusive =",variableEndOffsetExclusive,", valueLE =",valueLE,", valueBE =",valueBE)
 					unraveledSupplied[-1][4] = variableEndOffsetExclusive
 			
@@ -22345,14 +22416,18 @@ def prettyPrintUnraveled(displayAncestry=False):
 		doNotPrintTheseManyLastColumns = 0		# Basically, the two columns containing formatted values
 		if PRINT_LE_ONLY:
 			omitColumnNumbers = [6,8]	# These are the BE and formatted BE values
-		if PRINT_BE_ONLY:
+		elif PRINT_BE_ONLY:
 			omitColumnNumbers = [5,7]	# These are the LE and formatted LE values
+		else:
+			omitColumnNumbers = []		# Everything will be printed
 	else:
 		PRINT("Contains no C enum or user-defined formatting - no formatted valued will be displayed")
 		if PRINT_LE_ONLY:
 			omitColumnNumbers = [6,7,8]	# These are the BE and formatted LE/BE values
-		if PRINT_BE_ONLY:
+		elif PRINT_BE_ONLY:
 			omitColumnNumbers = [5,7,8]	# These are the LE and formatted LE/BE values
+		else:
+			omitColumnNumbers = [7,8]	# These are the formatted LE/BE values
 
 	for N in range(len(unraveled)):
 		printArrayHeaderOnly = False
@@ -29002,10 +29077,11 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
+			self.toggleHexDec()
 			infoMessage = "Now the int variable correctly captured the full 10 TEXT bytes.\n\n"	\
 							+"Now the question is, what will happen if we do NOT specify how many Hex TEXT bytes to look for?\n\nPress Enter to see."
 			infoRoutine(infoMessage)
-
+			
 			self.clearDemo()
 
 			self.openCodeFile([self.demoIndex,2])
@@ -29016,6 +29092,7 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
+			self.toggleHexDec()
 			infoMessage = "Observe that both buffAddrStart and buffAddrEnd are now read correctly.\n\n"	
 			infoRoutine(infoMessage)
 
@@ -29033,6 +29110,7 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
+			self.toggleHexDec()
 			infoMessage = "Looks great, right?.\n\n "	
 			infoRoutine(infoMessage)
 
@@ -29127,7 +29205,7 @@ class MainWindow:
 
 			self.openCodeFile([self.demoIndex,3])
 			self.openDataFile([self.demoIndex,3])
-			infoMessage = "Here, we try to read two dates with a single struct. \n\nUnfortunately, those two different dates are not of same size."	
+			infoMessage = "Here, we try to read two dates with a single struct. \n\nThey are both MM/DD/YYYY format. \n\nUnfortunately, those two different dates are not of same size."	
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
@@ -29146,7 +29224,7 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-			self.showUnraveledRowNumInTreeView(9)
+			self.showUnraveledRowNumInTreeView(11)
 			infoMessage = "Now you see that a single declaration can capture a varying-sized date. \n\nhit Enter to see how."	
 			infoRoutine(infoMessage)
 			
@@ -29194,15 +29272,82 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
-#			self.showUnraveledRowNumInTreeView(108)
+			self.showUnraveledRowNumInTreeView(110)
 
-			infoMessage = "Looks pretty nice, right?"	
+			infoMessage = "Looks pretty nice, right? \n\nBut the truth is that we got lucky to know that this junk char array will always end with a newline.\n\n"	\
+							+"What if a junk array does NOT end with a newline but rather with a field that itself can only be captured using yet another Regular Expression?"
+			infoRoutine(infoMessage)
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,2])
+			self.openDataFile([self.demoIndex,2])
+			self.interpret()
+			self.mapStructureToData()
+			self.toggleHexDec()
+			
+			infoMessage = "Let's revisit this old data. We wanted to read these two HEX memory addresses.\n"	\
+							+"\nThe problem is that, if there is junk between those two data items, we need need to know exactly how many bytes it is wide, so that "	\
+							+"we know how to assign it to a junk buffer. This is very painful."
+			infoRoutine(infoMessage)
+
+			infoMessage = "An alternative is to use the power of RegEx (especially the Lookahead feature).\n\n"	\
+							+"Using this feature, one can write a RegEx matching pattern that will lookahead for a HEX(8) pattern, and once found, will stop matching just before that." \
+							+"Let's see how easy or complicated it might look."
 			infoRoutine(infoMessage)
 			
-			infoMessage = "However, now we have a new problem. \n\nWe are obviously interested only in the timestamp and nothing else. \n"	\
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,3])
+			self.openDataFile([self.demoIndex,3])
+			self.interpret()
+			self.mapStructureToData()
+			
+			infoMessage = "This is extremely painful. And remember, this is the RegEx for very simple patterns like HEX(8). \n\n"	\
+							+"Imagine creating a RegEx pattern that will capture a DATE or TIMESTAMP!!\n"	
+			infoRoutine(infoMessage)
+			
+			infoMessage = "Also, there is the other danger that our custom RegEx may not be really in sync with what the next variable is really going to capture. \n\n"	\
+							+"We need to guarantee that the lookahead pattern for the current variable's RegEx absolutely matches the next variable's RegEx pattern. \n\n"	\
+							+"There is really no way to ensure this, except the following.\n\nHit Enter to see the killer feature.\n"	
+			infoRoutine(infoMessage)
+			
+
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,4])
+			self.openDataFile([self.demoIndex,4])
+			self.interpret()
+			self.mapStructureToData()
+			
+			infoMessage = "Instead of typing in the actual RegEx that you HOPE that will match the next variable's RegEx, you just use the keyword __NEXT__ .  \n\n"	\
+							+"That's it!!\n\nIt will automatically look ahead the next variable's INFORMAT, and stop matching just short of that.\n\nIsn't that cool?"
+			infoRoutine(infoMessage)
+			
+			infoMessage = "But what if the data itself contains the string __NEXT__?\n\n"	\
+							+"Remember that in that case, you can always configure it to use a "	\
+							+"different string for keyword. It's fully configurable via the global variable nextRegExpString.\n\n"	\
+							+"If you want to use a different keyword, simply alter the following line in the program: \n\n\n\n"		\
+							+"nextRegExpString = \"__NEXT__\""
+			infoRoutine(infoMessage)
+			
+			infoMessage = "However, we observe that right now we are capturing the LAST HEX(8) rather than the FIRST HEX(8). \n\n"	\
+							+"This is expected behavior since by default RegEx is greedy, i.e. it matches maximum possible chars. \n\n" \
+							+"We can easily change the behavior by using the \"?\" modifier.\n\nHit enter to see how."
+			infoRoutine(infoMessage)
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,5])
+			self.openDataFile([self.demoIndex,5])
+			self.interpret()
+			self.mapStructureToData()
+							
+			infoMessage = "Now we see that we are properly capturing both dates, using the same __NEXT__ keyword.\n\nIsn't this great?"
+			infoRoutine(infoMessage)
+			
+			infoMessage = "However, now we have a new problem. \n\nWe are obviously interested only in the real data (like Address, date, timestamp) and nothing else. \n"	\
 							+"\nSo, we have been able to put that inside some char-array aptly named \"junk\".\n\nUnfortunately, ParseAndC has no way to understand that "\
 							+"junk is really junk (nobody cares about its values). \n\nTherefore, on the console, every element of this junk array gets printed."	\
-							+"\n\nThis can easily overwhelm the output. \n\nThe solution is obvious. We do not want to print variables we do not care."
+							+"\n\nThis can easily overwhelm the output. \n\nThe solution is obvious. We do not want to print variables we do not care. This we will see in the next feature."
 			infoRoutine(infoMessage)
 
 			self.endFeatureDemoMessage()
