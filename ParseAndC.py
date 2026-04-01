@@ -880,6 +880,7 @@
 # 2026-03-26 - Added the capability to print only the LE or BE values
 # 2026-03-30 - Fixed the RegEx bug
 # 2026-03-31 - Fixed the INFORMAT HEX printing bug. Also cleaned up Demo.
+# 2026-03-31 - Added Demo for date difference.
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -1899,6 +1900,10 @@ textDateNL2 =   "0x31302F32332F3230323520202020"+NL+"392F382F3230323520202020202
 
 textDateNL3 =  "0x31322D4E6F762D32303230202020"+NL+"426C616820626C616820626C6168"+NL+"546869732077617320746F74616C"+NL+"556E6E65636573736172792E2E2E"+NL	\
 				+"4465632031302C32303230202020"+NL
+
+#start timestamp is 2026-12-30 12:00:50
+#end timestamp is 2027-1-3 7:10:10
+textDates = "0x73746172742074696D657374616D7020697320323032362D31322D3330203132"+"3A30303A3530"+NL+"656E642074696D657374616D7020697320323032372D312D"+"3320373A31303A3130"+NL
 
 textDateRE =   "0x31302F33312F323032352D30333A31373A32392E3637352030313E6978775B30"+"5D20494E46206472697665725F6163695F64656275673A20435120434D443A20"		\
 				+"6F70636F6465203078303030312C20666C616773203078323030302C20646174"+"616C656E203078303030302C2072657476616C20307830303030"+NL+"312F32"		\
@@ -3539,24 +3544,107 @@ textDataHex2],
 #4
 [['//Killer feature\n',
 '                       \n',
-'char junk[] = ".*(?=__NEXT__)"; /* <INFORMAT>REGEX</INFORMAT> */ \n',
-'int buffAddrStart; /* <INFORMAT>HEX(8)</INFORMAT> <FORMAT>HEX</FORMAT>*/  \n',
+'char junk[] = ".*(?=__NEXT__)"; /* \n',
+'    <INFORMAT>REGEX</INFORMAT> \n',
+'*/ \n',
+'\n',
+'int buffAddrStart; /* \n',
+'<INFORMAT>HEX(8)</INFORMAT> \n',
+'  <FORMAT>HEX   </FORMAT>*/  \n',
 ' \n'
 ],
 textDataHex2],
 
 
 
-#4
+#5
 [['//Killer feature\n',
 '                       \n',
-'char junk1[] = ".*?(?=__NEXT__)"; /* <INFORMAT>REGEX</INFORMAT> */ \n',
-'int buffAddrStart; /* <INFORMAT>HEX(8)</INFORMAT> <FORMAT>HEX</FORMAT>*/  \n',
-'char junk2[] = ".*?(?=__NEXT__)"; /* <INFORMAT>REGEX</INFORMAT> */ \n',
-'int buffAddrEnd; /* <INFORMAT>HEX(8)</INFORMAT> <FORMAT>HEX</FORMAT>*/  \n',
+'char junk1[] = ".*?(?=__NEXT__)"; /* \n',
+' <INFORMAT>REGEX</INFORMAT> \n',
+'*/ \n',
+'int buffAddrStart; /* \n',
+'<INFORMAT>HEX(8)</INFORMAT> \n',
+'  <FORMAT>HEX   </FORMAT>    \n',
+'*/  \n',
+'char junk2[] = ".*?(?=__NEXT__)"; /* \n',
+'<INFORMAT>REGEX</INFORMAT> \n',
+'*/ \n',
+'int buffAddrEnd; /* \n',
+'<INFORMAT>HEX(8)</INFORMAT> \n',
+'  <FORMAT>HEX   </FORMAT>    \n',
+'*/  \n',
 ' \n'
 ],
-textDataHex2]
+textDataHex2],
+
+
+#6
+[['//Find out how long it is running\n',
+'                       \n',
+'char junk1[]="(.|\\n)*?(?=__NEXT__)"; /* \n',
+' \n',
+'    <INFORMAT>RE</INFORMAT> \n',
+' \n',
+'*/ \n',
+' \n',
+'int startTS; /* \n',
+' \n',
+'<INFORMAT>datetime("YYYY-MM-DD hh:mm:ss")</INFORMAT> \n',
+'<FORMAT>datetime("YYYY-MM-DD hh:mm:ss")</FORMAT> \n',
+' \n',
+'*/ \n',
+' \n',
+'char junk2[]="(.|\\n)*?(?=__NEXT__)"; /* \n',
+' \n',
+'<INFORMAT>RE</INFORMAT> \n',
+' \n',
+'*/ \n',
+' \n',
+'int endTS; /* \n',
+' \n',
+'<INFORMAT>datetime("YYYY-MM-DD hh:mm:ss")</INFORMAT> \n',
+'<FORMAT>datetime("YYYY-MM-DD hh:mm:ss")</FORMAT> \n',
+' \n',
+'*/\n',
+' \n'
+],
+textDates],
+
+
+#7
+[['//Find out how long it is running\n',
+'                       \n',
+'char junk1[]="(.|\\n)*?(?=__NEXT__)"; /* \n',
+' \n',
+'    <INFORMAT>RE</INFORMAT> \n',
+' \n',
+'*/ \n',
+' \n',
+'int startTS; /* \n',
+' \n',
+'<INFORMAT>datetime("YYYY-MM-DD hh:mm:ss")</INFORMAT> \n',
+'<FORMAT>datetime("YYYY-MM-DD hh:mm:ss")</FORMAT> \n',
+' \n',
+'*/ \n',
+' \n',
+'char junk2[]="(.|\\n)*?(?=__NEXT__)"; /* \n',
+' \n',
+'<INFORMAT>RE</INFORMAT> \n',
+' \n',
+'*/ \n',
+' \n',
+'int endTS; /* \n',
+' \n',
+'<INFORMAT>datetime("YYYY-MM-DD hh:mm:ss")</INFORMAT> \n',
+'<FORMAT>postprocess(endTS-startTS)</FORMAT> \n',
+'<FORMAT>seconds</FORMAT> \n',
+' \n',
+'*/\n',
+' \n'
+],
+textDates]
+
 
 ]
 ],
@@ -3569,15 +3657,15 @@ textDataHex2]
 [['//Printing TimeStamp only \n',
 '                             \n',
 'int i; /* <informat>datetime("MM/dd/YYYY-hh:mm:ss") </informat> \n',
-'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
-'       */   \n',
+'<format> unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
+'*/   \n',
 '    \n',
 'char junk[] = ".*\\n"; /* <INFORMAT>REGEX</INFORMAT>\n',
-'                          <format> DO_NOT_PRINT </format> */\n',
+'<format> DO_NOT_PRINT </format> */\n',
 '\n',
 'int j; /* <informat>datetime(MM/dd/YYYY-hh:mm:ss) </informat> \n',
-'          <format>unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
-'       */'
+'<format> unixdatetime("DD MMM, YYYY-hh:mm:ss") </format> \n',
+'*/'
 ],
 textDateRE],
 
@@ -17119,8 +17207,18 @@ def readDateTime(variableId, offset=None, parameters=[], onlyNeedRegExPattern=Fa
 					else:
 						PRINT("data[",i,"] is NOT numeric - last value of realLength =",realLength)
 						break
+				if realLength == 0:
+					errorMessage = "ERROR in readDateTime() - expected numberic string for "+STR(t)+" but got "+STR(data)+" instead"
+					errorRoutine(errorMessage)
+					return False
+					
 				realData = data[:realLength]
-				dateTime[t]=int(realData)
+				try:
+					dateTime[t]=int(realData)
+				except ValueError:
+					errorMessage = "ERROR in readDateTime() - expected numberic string for "+STR(t)+" but got "+STR(realData)+" instead"
+					errorRoutine(errorMessage)
+					return False
 			else:
 				if t != data:
 					PRINT("Current state of dateTime =",dateTime)
@@ -26906,8 +27004,13 @@ class MainWindow:
 			infoMessage = "Remember, once the Demo of a feature starts, you have to wait to let it finish (during that time, all you are allowed to do is to press Enter "	\
 							 +"(or click OK) on the various popup messages. Only after the current feature's Demo is completed, you get the control back where you can do "	\
 							 +"whatever on the screen. \n\nOnce you are done playing, you can jump to another feature, forward or backward, or re-demo the current feature "	\
-							 +"by clicking one of the 3 buttons below."	\
-							 + "\n\nIf you have not used this tool before, it is advised to go through ALL demo features sequencetially."
+							 +"by clicking one of the 3 buttons below."	
+			infoRoutine(infoMessage)
+							 
+			infoMessage =  "If you have not used this tool before, it is advised to go through ALL demo features sequencetially. \n\n"	\
+							 +"At the minimum, please go through the very next feature \"Introduction to this tool\" that will give a barebone idea.\n\n"	\
+							 +"After you are done with \"Introduction to this tool\", feel free to fast forward through various features by clicking on the \">>\" button.\n\n"	\
+							 +"The lastest added features of ParseAndC 5.0 version are at the end."
 			infoRoutine(infoMessage)
 			infoMessage = "To help you guide through the demo, the tool automatically makes the button GREEN where it wants you to click." 	\
 						+"\n\nRemember, just keep hitting the ENTER, and it will take you through everything."
@@ -29066,12 +29169,31 @@ class MainWindow:
 			infoMessage = "As expected, the int variable failed to capture the full 10 TEXT bytes and assumed that it was binary.\n\n"	\
 							+"This is NOT the correct parsing of results."
 			infoRoutine(infoMessage)
+			infoMessage = "So, we need to tell some way to the tool that this is NOT the ordinary binary data, it is special TEXT data that needs to be read in a special way.\n\n"	\
+							+"The question is - how do we include this information without violating the C syntax?\n\n "		\
+							+"If we dare to change the C syntax, we will immediately alienate the C developer community.\n\n"	\
+							+"This is indeed a very hard problem, and we solved it in a rather novel way.\n\nHit Enter to see how."
+			infoRoutine(infoMessage)
 
 			self.clearDemo()
+			infoMessage = "We decided that we will pass on this special instruction (of how to read in the data) via the C comments.\n\n"	\
+							+"Usually the PreProcessor throws away the comments, but ParseAndC doesn't.\n\n "		\
+							+"It parses the comments for instructions for how to read in and write out the data.\n\n"	\
+							+"We call those:\n\nINFORMAT (input format, how the data should be read in), \n\nand\n\n"		\
+							+"FORMAT (output format, how the data will be displayed).\n\n\n"	\
+							+"For example, <INFORMAT> HEX(8) </INFORMAT> tells the compiler that it should try to find 8 HEX digits from the input TEXT file.\n\n"	\
+							+"Similary, <FORMAT> HEX </FORMAT> tells the compiler that after it has read in the data, it should display it in HEX."
+			infoRoutine(infoMessage)
+
+			infoMessage = "We already demoed the different FORMAT options in previous demo features (viz. Formatted output, Format BCD, Format BASE64, Format PRINTF, "	\
+							+"Format ENUM, Format PREPROCESS). \n\nFeel free to rewind and take a relook if you are unfamiliar with display FORMATs\n\n"	\
+							+"Just remember that INFORMAT is only valid for TEXT input files (NOT binary), and there can be only 1 INFORMAT. \n\n"	\
+							+"However, FORMAT is valid for both TEXT and BINARY files, and there could be multiple FORMATs."
+			infoRoutine(infoMessage)
 
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
-			infoMessage = "That's where we introduce the concept of INFORMAT. It tells the tool which format the data is in, and how it should be read in. \n\n"	\
+			infoMessage = "Here we see a code that uses INFORMATs. It tells the tool which format the data is in, and how it should be read in. \n\n"	\
 							+"All INFORMATs pertain to TEXT files only. They do not apply to binary. \n\nHere, we tell that the variable is expecting a value "		\
 							+"consisting of 8 HEX digits in TEXT.\n\nPress Enter to see how "
 			infoRoutine(infoMessage)
@@ -29131,7 +29253,7 @@ class MainWindow:
 			self.mapStructureToData()
 			infoMessage = "Looks great, right?"	
 			infoRoutine(infoMessage)
-			infoMessage = "Now, INFORAMTs don't have to be HEX only. \n\nWe can use INFORMATs of HEX, BIN (for Binary), OCT (for Octal) and DEC (for Decimal)."	
+			infoMessage = "Now, INFORMATs don't have to be HEX only. \n\nWe can use INFORMATs of HEX, BIN (for Binary), OCT (for Octal) and DEC (for Decimal)."	
 			infoRoutine(infoMessage)
 
 			self.clearDemo()
@@ -29225,7 +29347,7 @@ class MainWindow:
 			self.mapStructureToData()
 			self.showUnraveledRowNumInTreeView(2)
 			self.showUnraveledRowNumInTreeView(11)
-			infoMessage = "Now you see that a single declaration can capture a varying-sized date. \n\nhit Enter to see how."	
+			infoMessage = "Now you see that a single declaration can capture a varying-sized date. \n\nHit Enter to see how."	
 			infoRoutine(infoMessage)
 			
 
@@ -29236,9 +29358,8 @@ class MainWindow:
 			self.clearDemo()
 			
 			infoMessage = "In the previous demo feature we watched how we can handle dates. \n\nCreating built-in handling for dates make sense since handling "	\
-							+"timestamps is complicated. \n\nHowever, the users often would want to harness the power of Regular Expressions "	\
-							+"to match \n"	\
-							+"Hit enter to see the result. \n\n"	
+							+"timestamps is complicated. \n\nHowever, the users often would want to harness the power of Regular Expressions to match patterns."	\
+							+"\n\nHit enter to see the result."	
 			infoRoutine(infoMessage)
 
 			self.openDataFile([self.demoIndex,0])
@@ -29291,8 +29412,8 @@ class MainWindow:
 			infoRoutine(infoMessage)
 
 			infoMessage = "An alternative is to use the power of RegEx (especially the Lookahead feature).\n\n"	\
-							+"Using this feature, one can write a RegEx matching pattern that will lookahead for a HEX(8) pattern, and once found, will stop matching just before that." \
-							+"Let's see how easy or complicated it might look."
+							+"Using this feature, one can write a RegEx matching pattern that will lookahead for a HEX(8) pattern, and once found, will stop matching just before that. " \
+							+"\n\nLet's see how easy or complicated it might look."
 			infoRoutine(infoMessage)
 			
 			self.clearDemo()
@@ -29341,10 +29462,51 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 							
-			infoMessage = "Now we see that we are properly capturing both dates, using the same __NEXT__ keyword.\n\nIsn't this great?"
+			infoMessage = "Now we see that we are properly capturing both HEX memory addresses, using the same __NEXT__ keyword.\n\nIsn't this great?"
 			infoRoutine(infoMessage)
 			
-			infoMessage = "However, now we have a new problem. \n\nWe are obviously interested only in the real data (like Address, date, timestamp) and nothing else. \n"	\
+
+			self.clearDemo()
+
+			self.openDataFile([self.demoIndex,6])
+			
+			infoMessage = "Let's take a real-life example of where this might come real handy. \n\n"	\
+							+"Suppose we want to find out how long a tool is running. Its log file has both the start and end timestamps"
+			infoRoutine(infoMessage)
+			
+			self.openCodeFile([self.demoIndex,6])
+					
+			infoMessage = "Here, we have two different timestamp fields: startTS and endTS.\n\n"	\
+							+"We have used the __NEXT__ feature to be able to appropriately capture both the timestamps. \n\n"	\
+							+"Also observe that we are using the appropriate FORMAT statements to display it. This is because INFORMAT is capturing the "	\
+							+"TimeStamp data into a single integer representing the #seconds since 1/1/1970. We also need a way to display it."
+			infoRoutine(infoMessage)
+			
+			self.interpret()
+			self.mapStructureToData()
+
+			infoMessage = "Now, see that we have correctly read both the TimeStamp values.\n\nUnfortunately, we also need to calculate their difference "	 \
+							+"so that we know how long this tool is running. Taking the time difference between two timestamps is not easy."
+			infoRoutine(infoMessage)
+
+			self.clearDemo()
+
+			self.openCodeFile([self.demoIndex,7])
+			self.openDataFile([self.demoIndex,7])
+			
+			infoMessage = "That's where the real power of this tool comes in. \n\nObserve that after we read in the endTS, there are two new FORMAT statements:\n\n"	\
+							+"<FORMAT>postprocess(endTS-startTS)</FORMAT>\n\n<FORMAT>seconds</FORMAT>\n\n"	\
+							+"The first FORMAT statement simply calculates the difference between the two TimeStamps, which was easy since both were seconds.\n\n"	\
+							+"The second FORMAT statement displays the calculated difference (in seconds) into a custom display format.\n\nHit enter to see the result."
+			infoRoutine(infoMessage)
+
+			self.interpret()
+			self.mapStructureToData()
+			
+			infoMessage = "It was very concise and elegent, wouldn't you say?"	
+			infoRoutine(infoMessage)
+			
+			infoMessage = "However, now we have a new problem with the clutter in the console. \n\nWe are obviously interested only in the real data (like Address, date, timestamp) and nothing else. \n"	\
 							+"\nSo, we have been able to put that inside some char-array aptly named \"junk\".\n\nUnfortunately, ParseAndC has no way to understand that "\
 							+"junk is really junk (nobody cares about its values). \n\nTherefore, on the console, every element of this junk array gets printed."	\
 							+"\n\nThis can easily overwhelm the output. \n\nThe solution is obvious. We do not want to print variables we do not care. This we will see in the next feature."
