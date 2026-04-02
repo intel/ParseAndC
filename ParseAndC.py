@@ -881,6 +881,7 @@
 # 2026-03-30 - Fixed the RegEx bug
 # 2026-03-31 - Fixed the INFORMAT HEX printing bug. Also cleaned up Demo.
 # 2026-03-31 - Added Demo for date difference.
+# 2026-04-01 - Fixed the bug in Date handing for INFORMAT
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -16607,7 +16608,7 @@ def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[], onlyNe
 			rePattern += r'(0[bB])?\s*([01]+\s*[_,]?\s*)*[01]\s*'
 
 
-	MUST_PRINT ("From offset",offset,", trying to match rePattern =",rePattern)
+	PRINT ("From offset",offset,", trying to match rePattern =",rePattern)
 	
 	if onlyNeedRegExPattern:	# We only need to know the generated RE pattern, nothing else
 		return [ None, None, None, rePattern]
@@ -16854,6 +16855,7 @@ def insertWhitespace2TokenizeLines(stringWithWhitespaces, stringWithWhitespacesT
 # Input is a human readable date  [YYYY/YY, MM, DD, hh, mm, ss, ms]. Returns the number of seconds since 1/1/1970 (could be negative)
 ###########################################################################################################################
 def convert2UnixTimestamp(YYYY,MM,DD,hh=0,mm=0,ss=0, ms=0):
+	PRINT("\n\n\n","=="*50,"\nconvert2UnixTimestamp(YYYY=",YYYY,",MM=",MM,",DD=",DD,",hh=",hh,",mm=",mm,",ss=",ss,",ms=",ms)
 	if not checkIfIntegral(YYYY) or not checkIfIntegral(MM) or not checkIfIntegral(DD) or not checkIfIntegral(hh) or not checkIfIntegral(mm) or not checkIfIntegral(ss) or not checkIfIntegral(ms):
 		errorMessage = "ERROR in convert2UnixTimestamp() - non-integral value supplied for YYYY("+STR(YYYY)+"), MM("+STR(MM)+"), DD("+STR(DD)+"), hh("+STR(hh)+"), mm("+STR(mm)+"), ss("+STR(ss)+")"
 		errorRoutine(errorMessage)
@@ -16893,7 +16895,8 @@ def convert2UnixTimestamp(YYYY,MM,DD,hh=0,mm=0,ss=0, ms=0):
 	days += DD-1
 	secsSince1970 += days * 24*60*60
 	secsSince1970 += hh*60*60 + mm*60 + ss
-	
+
+	PRINT("secsSince1970 =",secsSince1970)
 	check = convertUnixTimestamp(secsSince1970)
 	if check[0] != YYYY or check[1] != MM or check[2]!=DD or check[3]!=hh or check[4]!=mm or check[5]!=ss:
 		errorMessage = "ERROR in convert2UnixTimestamp() - the number of seconds past 1970 ("+STR(secsSince1970)+") for YYYY("+STR(YYYY)+"), MM("+STR(MM)+"), DD("+STR(DD)+"), hh("+STR(hh)+"), mm("+STR(mm)+"), ss("+STR(ss)+") does not match "+STR(check)
@@ -17080,7 +17083,7 @@ def tokenizeDateTimeFormatString(dateTimeFormatString):
 			dateTimeFormatStringTokenized[i] = "YYYY"
 		elif t == 'yy':
 			dateTimeFormatStringTokenized[i] = "YY"
-		elif t in ['mm','MM',"Mmm","MMM","mmm"]:
+		elif t in ['mm','MM',"Mmm","MMM","mmm","Month","MONTH"]:
 			mmTokenIndices.append(i)
 		elif t == 'dd':
 			dateTimeFormatStringTokenized[i] = "DD"
@@ -17158,23 +17161,41 @@ def readDateTime(variableId, offset=None, parameters=[], onlyNeedRegExPattern=Fa
 	dateTimeFormatStringTokenized = tokenizeDateTimeFormatString(dateTimeFormatString)
 	PRINT("datetime format string <"+dateTimeFormatString+"> is tokenized as", STR(dateTimeFormatStringTokenized))
 
+	# We want to tackle the special case that the parameter provided contains the MM/Mmm/MMM, but it also contains the string Month or MONTH
+	temp = dateTimeFormatStringTokenized
+	if "MM" in dateTimeFormatStringTokenized or "Mmm" in dateTimeFormatStringTokenized or "MMM" in dateTimeFormatStringTokenized:
+		for i in range(len(temp)):
+			if temp[i]=="Month":
+				temp[i] = "Qqqqq"
+			if temp[i]=="MONTH":
+				temp[i] = "QQQQQ"
 
 	REpattern = ""
-	for t in dateTimeFormatStringTokenized:
+	for t in temp:
 		if t == "YYYY":
-			REpattern += "\\d{4}"
+			REpattern += "([012]\\d{3})"
 		elif t == "YY":
 			REpattern += "\\d{2}"
-		elif t in ["MM","DD","hh","mm","ss"]:
-			REpattern += "\\d{1,2}"
+		elif t == "MM":
+			REpattern += "(0?[1-9]|1[0-2])"
+		elif t == "DD":
+			REpattern += "(0?[1-9]|[12][0-9]|3[01])"
+		elif t == "hh":
+			REpattern += "(0?[0-9]|1[0-9]|2[0-3])"
+		elif t in ["mm","ss"]:
+			REpattern += "(0?[0-9]|[1-5][0-9])"
 		elif t == "Mmm":
 			REpattern += "(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
-		elif t == "Mmm":
+		elif t == "MMM":
 			REpattern += "(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)"
 		elif t == "Month":
 			REpattern += "(January|February|March|April|May|June|July|August|September|October|November|December)"
 		elif t == "MONTH":
 			REpattern += "(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)"
+		elif t == "Qqqqq":
+			REpattern += "Month"
+		elif t == "QQQQQ":
+			REpattern += "MONTH"
 		else:
 			for c in t:
 				REpattern += escapeREmetacharacters(c)	#If the token contains RE metacharacters accidentally, we need to  ensure that from happening
@@ -17186,16 +17207,18 @@ def readDateTime(variableId, offset=None, parameters=[], onlyNeedRegExPattern=Fa
 	if executionStage == "Map":
 		
 		# This is the dictionary we plan to populate
-		dateTime = {"YYYY":False,"MM":False,"DD":False,"hh":False,"mm":False,"ss":False, "ms":False}
-		
+		dateTime = {"YYYY":None,"MM":None,"DD":None,"hh":None,"mm":None,"ss":None, "ms":None}
+		PRINT("dateTimeFormatStringTokenized =",dateTimeFormatStringTokenized)
 		
 		currOffset = offset
 		for t in dateTimeFormatStringTokenized:
-			PRINT("\n\nNow looking for token",t,"of length",len(t),"bytes from currOffset=",currOffset)
 			
-			data = readNBytesText(currOffset,len(t))
+			len_t = 9 if t in ["Month","MONTH"] else len(t)
+			PRINT("\n\nNow looking for token",t,"of length",len_t,"bytes from currOffset=",currOffset)
 			
-			PRINT("\nFor token",t,"of length",len(t),"we got",len(data), "bytes =",STR(data),",type(data)=",type(data),"\n\n")
+			data = readNBytesText(currOffset,len_t)
+			
+			PRINT("\nFor token",t,"of length",len_t,"we got",len(data), "bytes =",STR(data),",type(data)=",type(data),"\n\n")
 			if t in getDictKeyList(dateTime):
 				#It's possible that we have variable-sized field, like "9" instead of "09" for date or month. We need to account for that
 				realLength = 0
@@ -17219,6 +17242,37 @@ def readDateTime(variableId, offset=None, parameters=[], onlyNeedRegExPattern=Fa
 					errorMessage = "ERROR in readDateTime() - expected numberic string for "+STR(t)+" but got "+STR(realData)+" instead"
 					errorRoutine(errorMessage)
 					return False
+			elif t in ["Mmm","MMM"]:
+				
+				if t == "Mmm":
+					MonthList = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+				else:
+					MonthList = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"]
+					
+				if data in MonthList:
+					realData = data
+					dateTime["MM"] = MonthList.index(data)+1
+				else:
+					errorMessage = "ERROR in readDateTime() - expected "+STR(t)+" but got "+STR(data)+" instead"
+					errorRoutine(errorMessage)
+					return False
+					
+			elif t in ["Month","MONTH"]:
+				if t == "Month":
+					MonthList = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+					match = re.match(r'January|February|March|April|May|June|July|August|September|October|November|December',data)
+				elif t == "MONTH":
+					MonthList = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"]
+					match = re.match(r'JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER',data)
+					
+				if match.group(0) in MonthList:
+					realData = match.group(0)
+					dateTime["MM"] = MonthList.index(realData)+1
+				else:
+					errorMessage = "ERROR in readDateTime() - expected "+STR(t)+" but got "+STR(data)+" instead"
+					errorRoutine(errorMessage)
+					return False
+				
 			else:
 				if t != data:
 					PRINT("Current state of dateTime =",dateTime)
@@ -17234,21 +17288,21 @@ def readDateTime(variableId, offset=None, parameters=[], onlyNeedRegExPattern=Fa
 		
 		# We cannot store this as multi-part, and must store as a single integer. So we simply convert it to Unix timestamp.
 		# We must have the year at the minimum
-		if dateTime["YYYY"] != False: 
-			if dateTime["MM"] == False:
+		if dateTime["YYYY"] != None: 
+			if dateTime["MM"] == None:
 				dateTime["MM"] = 1
 				dateTime["DD"] = 1
-			elif dateTime["DD"] == False:
+			elif dateTime["DD"] == None:
 				dateTime["DD"] = 1
 				
-			if dateTime["hh"] == False:
+			if dateTime["hh"] == None:
 				dateTime["hh"] = 0
 				dateTime["mm"] = 0
 				dateTime["ss"] = 0
-			elif dateTime["mm"] == False:
+			elif dateTime["mm"] == None:
 				dateTime["mm"] = 0
 				dateTime["ss"] = 0
-			elif dateTime["ss"] == False:
+			elif dateTime["ss"] == None:
 				dateTime["ss"] = 0
 		
 		unixTS = convert2UnixTimestamp(dateTime["YYYY"],dateTime["MM"],dateTime["DD"],dateTime["hh"],dateTime["mm"],dateTime["ss"])
@@ -17322,6 +17376,14 @@ def displayDATETIME(endianness, variableId, unraveledRowNum, rawData, parameters
 			Months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 			Mmm = Months[dateTimeFields[1]-1]
 			dateTimeOutputString += Mmm
+		elif dateTimeFormatStringTokenized[i] == "MONTH":
+			MONTHS = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"]
+			MMM = MONTHS[dateTimeFields[1]-1]
+			dateTimeOutputString += MMM
+		elif dateTimeFormatStringTokenized[i] == "Month":
+			MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+			MMM = MONTHS[dateTimeFields[1]-1]
+			dateTimeOutputString += MMM
 		elif dateTimeFormatStringTokenized[i].upper() == "DD":
 			DD = "%02d"%(dateTimeFields[2])
 			dateTimeOutputString += DD
