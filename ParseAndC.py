@@ -882,6 +882,7 @@
 # 2026-03-31 - Fixed the INFORMAT HEX printing bug. Also cleaned up Demo.
 # 2026-03-31 - Added Demo for date difference.
 # 2026-04-01 - Fixed the bug in Date handing for INFORMAT
+# 2026-04-03 - Fixed the Demo highlighting problem
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -919,6 +920,7 @@ VERIFICATION_WARNING_COUNT_MAX = 1000000000000000000000000000	# It will show max
 TEXT_DATAFILE = False		# The data file is text, not binary
 PRINT_LE_ONLY = False
 PRINT_BE_ONLY = False
+MUST_TREAT_TEXTIFIED_HEX_DATA_FILE_AS_BINARY = False	# We can treat textified Hex data via INFORMAT. However, if you want them to treat as binary file, must use the --FORCE_BINARY option
 
 anonymousStructPrefix = "Anonymous#"
 dummyVariableNamePrefix = "DummyVar#"
@@ -1868,7 +1870,20 @@ CStrings =	   "0x467269656E64732C00526F6D616E732C00636F756E7472796D656E2C006C656
 				+"0D0A466F720042727574757300697300616E00686F6E6F757261626C65006D61"+"6E3B0D0A536F00617265007468657900616C6C2C00616C6C00686F6E6F757261"		\
 				+"626C65006D656EE280930D0A436F6D65004900746F00737065616B00696E0043"+"6165736172E28099730066756E6572616C2E0D0A486500776173006D79006672"
 
-textifiedHexdata = "0x46 0x7269 0x65 6E6473 2C"
+#textifiedHexdata = "0x46 0x7269 0x65 6E6473 2C"
+textifiedHexdata = "0xDEAD_BEEF 0xDE    0xADBE 0xEF"
+textifiedHexdataOrig = "0x3078444541445F424545462030784445203078414442452020202030784546"
+
+textifiedHexdataBig = "0x7A3B9C2F, 0xDEAD_BEEF 0x1234_ABCD 0x9876543F, 0xCAFEBABE 0x12345678 ,0xABCDEF01 0x8765_4321 0xFEDCBA98 0x13579BDF 0x2468_ACE0 "	\
+				+"0xFFFFFFFF 0x0000_0000 0x5A5A_5A5A, 0xA5A5A5A5 0x12AB34CD 0x56EF7890 0xDEF01234 0x56789ABC 0xC0FFEE00 0xBAADF00D 0x8BADF00D 0x0BADC0DE "	\
+				+"0xFACEFEED 0xDEADC0DE 0x1337C0DE 0xBEEFCAFE 0xF00DFACE 0xC0DEC0DE 0xFEEDFACE"
+textifiedHexdataBigOrig = "0x307837413342394332462C203078444541445F42454546203078313233345F41"+"42434420307839383736353433462C2030784341464542414245203078313233"	\
+				+"3435363738202C30784142434445463031203078383736355F34333231203078"+"46454443424139382030783133353739424446203078323436385F4143453020"	\
+				+"30784646464646464646203078303030305F30303030203078354135415F3541"+"35412C2030784135413541354135203078313241423334434420307835364546"	\
+				+"3738393020307844454630313233342030783536373839414243203078433046"+"4645453030203078424141444630304420307838424144463030442030783042"	\
+				+"4144433044452030784641434546454544203078444541444330444520307831"+"3333374330444520307842454546434146452030784630304446414345203078"	\
+				+"43304445433044452030784645454446414345"
+
 
 BCDencodedData = "0x12345671063426473456789A6346847E"
 
@@ -1885,6 +1900,7 @@ textDataHex2 ="0x427566666572206D656D6F72792061646472657373207374617274203078464
 
 textData1 = "0x307841424344313233342030784142434462656566204869"+NL
 #textData1 = "0xABCD1234 0xABCDbeef Hi.."
+
 
 textDataRaw =  "0x54686520666C6F617420726570726573656E746174696F6E206F66203132332E"+"34352069732030783432463645363636"
 
@@ -2034,6 +2050,12 @@ generalData]
 '          char var_char[2];\n',
 '        };\n'],
 generalData],
+[['struct S{\n',
+'          int var_int;\n',
+'          short var_short;\n',
+'          char var_char[2];\n',
+'        };\n'],
+textifiedHexdataOrig],
 [['struct S{\n',
 '          int var_int;\n',
 '          short var_short;\n',
@@ -3311,7 +3333,24 @@ networkHdrs]
 ["Parsing Text Files",
 [
 
+
 #0
+[['//Start address of a buffer in memory\n',
+'char junk[28];   \n',
+'int buffAddrStart; \n'
+' \n'
+],
+textifiedHexdataBigOrig],
+
+#1
+[['//Start address of a buffer in memory\n',
+'char junk[28];   \n',
+'int buffAddrStart; \n'
+' \n'
+],
+textifiedHexdataBig],
+
+#2
 [['//Start address of a buffer in memory\n',
 'char junk[28];   \n',
 'int buffAddrStart; \n'
@@ -3319,7 +3358,7 @@ networkHdrs]
 ],
 textDataHex],
 
-#1
+#3
 [['//Start address of a buffer in memory\n',
 'char junk[28];   \n',
 'int buffAddrStart; //<informat>HEX(8)</informat>  \n',
@@ -3327,7 +3366,7 @@ textDataHex],
 ],
 textDataHex],
 
-#2
+#4
 [['//Start/End addresses of a buffer in memory\n',
 'char junk1[28];   \n',
 'int buffAddrStart; //<informat>HEX(8)</informat>  \n',
@@ -3337,7 +3376,7 @@ textDataHex],
 ],
 textDataHex],
 
-#3
+#5
 [['//\n',
 'char junk1[28];   \n',
 'int buffAddrStart; //<informat>HEX(8)</informat>  \n',
@@ -3347,7 +3386,7 @@ textDataHex],
 ],
 textDataHex2],
 
-#4
+#6
 [['// Here the Hex bytes are NOT the value, \n',
 '// but rather raw bytes  \n',
 '    \n',
@@ -3357,7 +3396,7 @@ textDataHex2],
 ],
 textDataRaw],
 
-#5
+#7
 [['// All different INFORMATs\n',
 '    \n',
 'char junk1[4];   \n',
@@ -3471,8 +3510,8 @@ textDateNL2],
 '  \n',
 'struct Date { \n',
 '   int i;    /*\n',
-'  <informat>datetime("MM/DD/YYYY")</informat> \n',
-'  <  format>datetime("MM/DD/YYYY")</  format> \n',
+'  <informat>datetime("MM/DD/YYYY" )</informat>\n',
+'  <  format>datetime("DD MMM YYYY")</format  >\n',
 '  */  \n',
 '   char newLine['+str(4+NLwidth)+']; \n',
 '  } DateVar[2]; \n',
@@ -3592,7 +3631,7 @@ textDataHex2],
 'int startTS; /* \n',
 ' \n',
 '<INFORMAT>datetime("YYYY-MM-DD hh:mm:ss")</INFORMAT> \n',
-'<FORMAT>datetime("YYYY-MM-DD hh:mm:ss")</FORMAT> \n',
+'<FORMAT>datetime("MM/DD/YYYY hh:mm:ss")</FORMAT> \n',
 ' \n',
 '*/ \n',
 ' \n',
@@ -3605,7 +3644,7 @@ textDataHex2],
 'int endTS; /* \n',
 ' \n',
 '<INFORMAT>datetime("YYYY-MM-DD hh:mm:ss")</INFORMAT> \n',
-'<FORMAT>datetime("YYYY-MM-DD hh:mm:ss")</FORMAT> \n',
+'<FORMAT>datetime("MM/DD/YYYY hh:mm:ss")</FORMAT> \n',
 ' \n',
 '*/\n',
 ' \n'
@@ -3625,7 +3664,7 @@ textDates],
 'int startTS; /* \n',
 ' \n',
 '<INFORMAT>datetime("YYYY-MM-DD hh:mm:ss")</INFORMAT> \n',
-'<FORMAT>datetime("YYYY-MM-DD hh:mm:ss")</FORMAT> \n',
+'<FORMAT>datetime("MM/DD/YYYY hh:mm:ss")</FORMAT> \n',
 ' \n',
 '*/ \n',
 ' \n',
@@ -4336,11 +4375,12 @@ def printHelp():
 	OUTPUT("-x, --hex                 Prints the integral values in Hex (default is Decimal)")
 	OUTPUT("-le, --le                 Prints only values in Little-Endian mode only")
 	OUTPUT("-be, --be                 Prints only values in Big-Endian mode only")
+	OUTPUT("-fb, --force_binary       Forces the input text file convert to a binary file with exactly the same HEX char sequence")
 
 def parseCommandLineArguments():
 	global BATCHMODE, DISPLAY_INTEGRAL_VALUES_IN_HEX, PRINT_UNDEF_WARNING, PRINT_ENUM_LITERALS, codeFileName, dataLocationOffset, inputVariables, VERIFICATION_WARNING_COUNT_MAX
 	global PRINT_DEBUG_MSG, MAP_TYPEDEFS_TOO, COMPILER_PADDING_ON, STRUCT_END_PADDING_ON, INCLUDE_FILE_PATHS, dummyVariableNamePrefix, EMULATE_GCC_COMPILATION_ENVIRONMENT, SNAPSHOT_FILE_NAME
-	global PRINT_LE_ONLY, PRINT_BE_ONLY
+	global PRINT_LE_ONLY, PRINT_BE_ONLY, MUST_TREAT_TEXTIFIED_HEX_DATA_FILE_AS_BINARY
 	PRINT ("sys.argv = ",sys.argv)
 	
 	DATAFILENAME = None
@@ -4572,6 +4612,9 @@ def parseCommandLineArguments():
 			N += 1
 		elif sys.argv[N].lower() in ("-be", "--be", "-be_only","--be_only","-print_be_only","--print_be_only"):
 			PRINT_BE_ONLY = True
+			N += 1
+		elif sys.argv[N].lower() in ("-fb", "--fb", "-binary","--binary","-forcebinary","--forcebinary","-force_binary","--force_binary"):
+			MUST_TREAT_TEXTIFIED_HEX_DATA_FILE_AS_BINARY = True
 			N += 1
 		else:
 			PRINT ("N = ",N,"len(sys.argv)-1 =",len(sys.argv)-1)
@@ -22268,6 +22311,7 @@ def charIsValidHex(c):
 		return False
 		
 # This check if the input file is really binary, or rather text representation of Hex chars. If the latter, it fills out a binary array corresponding to it.
+# If the data is NOT textfied HEX, then the hexCharArray and binaryArray are never populated
 def inputFileIsHexText():
 	
 #	PRINT=OUTPUT
@@ -22275,6 +22319,8 @@ def inputFileIsHexText():
 	global binaryArray, hexCharArray, inputIsHexChar, dataFileSizeInBytes
 	
 	inputIsHexChar = False
+	hexCharArray = []
+	binaryArray = "" if PYTHON2x else bytearray() if PYTHON3x else []
 	
 	# There are two formats for the dataFileName.
 	# - Integral/list - this means it is not really an actual filename, but an index that tells which dataset is to be loaded (happens during Demo)
@@ -22305,67 +22351,41 @@ def inputFileIsHexText():
 					return False
 	else:
 		EXIT("Coding bug in inputFileIsHexText() - illegal format of dataFileName "+STR(dataFileName)+" does not exist!!")
+
+	if not (MUST_TREAT_TEXTIFIED_HEX_DATA_FILE_AS_BINARY or IN_DEMO):
+		PRINT("NOT going to convert the possible textified HEX into binary.")
+		return
 	
-	hexCharCount = 0
-	spaceCount = 0
-	hex0xPrefixCount = 0
-	nonHexCharCount = 0
-	hexCharArray = []
-	binaryArray      = "" if PYTHON2x else bytearray() if PYTHON3x else []
-	countItNextTime = False
-
-
-	for n in range(len(data)):
-		PRINT ("data[",n,"] =",data[n],"type(data[n]) =",type(data[n]))
-		if re.match("[,\\s]+",data[n:n+1]) and (n<len(data)-1) and re.match("[,\\s]+",data[n+1:n+2]):
-			continue
-		elif data[n] == '0' and n<len(data)-1 and data[n+1] == 'x':	# Make sure you do not count the 0 in 0x as part of a valid Hex byte
-			PRINT( "Prefix found")
-			continue
-		#elif countItNextTime == False and self.charIsValidHex(data[n]) and (n<len(data)-1) and self.charIsValidHex(data[n+1]):
-		elif countItNextTime == False and charIsValidHex(data[n]) and (n<len(data)-1) and charIsValidHex(data[n+1]):
-			countItNextTime = True
-			continue
-		elif re.match("[,\\s]+",data[n:n+1]):
-			spaceCount += 1
-		#elif countItNextTime == True and self.charIsValidHex(data[n]) and (n>0) and self.charIsValidHex(data[n-1]):
-		elif countItNextTime == True and charIsValidHex(data[n]) and (n>0) and charIsValidHex(data[n-1]):
-			hexCharCount += 1
-			hexCharArray.append(data[n-1:n+1])
-			byte0 = ord(data[n-1]) - ord('0') if ('0' <= data[n-1] <= '9') else 10 + ord(data[n-1]) - ord('a') if ('a' <= data[n-1] <= 'f') else 10 + ord(data[n-1]) - ord('A') if ('A' <= data[n-1] <= 'F') else 0
-			byte1 = ord(data[n  ]) - ord('0') if ('0' <= data[n  ] <= '9') else 10 + ord(data[n  ]) - ord('a') if ('a' <= data[n  ] <= 'f') else 10 + ord(data[n  ]) - ord('A') if ('A' <= data[n  ] <= 'F') else 0
-			if PYTHON2x:
-				binaryArray += chr(byte0*16+byte1) 
-			elif PYTHON3x:
-				binaryArray.append(byte0*16+byte1)
-			else:
-				sys.exit()
-				
-			countItNextTime = False
-		#elif data[n] == 'x' and n>0 and data[n-1] == '0' and (n<len(data)-3) and self.charIsValidHex(data[n+1]) and self.charIsValidHex(data[n+2]):
-		elif data[n] == 'x' and n>0 and data[n-1] == '0' and (n<len(data)-3) and charIsValidHex(data[n+1]) and charIsValidHex(data[n+2]):
-			hex0xPrefixCount += 1
-		else:
-			hexCharArray = []
-			binaryArray = ""
+	textData = ""
+	for byteToPrint in data:
+		textData += chr(ORD(byteToPrint))
+	PRINT("Original textData = <"+textData+">")
+	match = re.match(r'^((0[xX])?\s*[0-9a-fA-F][0-9a-fA-F]\s*[_,]?\s*)*(0[xX])?\s*[0-9a-fA-F][0-9a-fA-F]\s*$',textData)
+	PRINT("match = ",match)
 			
-			PRINT ("\n"*3,"REAL Binary file, NOT Textified hex","\n"*3,)
-			return False
-			nonHexCharCount += 1
+	if match is None:
+		PRINT("Input is NOT RegEx matched to be textfied HEX")
+		return False
 
-	PRINT ( "hexCharCount =", hexCharCount)
-	PRINT ( "spaceCount =", spaceCount)
-	PRINT ( "hex0xPrefixCount =", hex0xPrefixCount)
-	PRINT ( "nonHexCharCount =", nonHexCharCount)
-	PRINT ( len(hexCharArray),"-size hexCharArray =", hexCharArray)
-	PRINT ( len(binaryArray),"-size binaryArray =", binaryArray)
-	
-	PRINT("Setting inputIsHexChar to True")
+	PRINT("Input is RegEx matched to be textfied HEX")
+	data = re.sub(r'[^0-9a-fA-F]',"",textData.replace("0x","").replace("0X",""))
+	PRINT("Modified data = <"+data+">")
+	if len(data)%2!=0:
+		EXIT("Coding bug in inputFileIsHexText - HEX nibbles must come in pairs")
 
-	inputIsHexChar = True
+	for i in range(integerDivision(len(data),2)):
+		hexCharArray.append(data[2*i:2*(i+1)])
+		byte0 = ord(data[2*i  ]) - ord('0') if ('0' <= data[2*i  ] <= '9') else 10 + ord(data[2*i  ]) - ord('a') if ('a' <= data[2*i  ] <= 'f') else 10 + ord(data[2*i  ]) - ord('A') if ('A' <= data[2*i  ] <= 'F') else 0
+		byte1 = ord(data[2*i+1]) - ord('0') if ('0' <= data[2*i+1] <= '9') else 10 + ord(data[2*i+1]) - ord('a') if ('a' <= data[2*i+1] <= 'f') else 10 + ord(data[2*i+1]) - ord('A') if ('A' <= data[2*i+1] <= 'F') else 0
+		if PYTHON2x:
+			binaryArray += chr(byte0*16+byte1) 
+		elif PYTHON3x:
+			binaryArray.append(byte0*16+byte1)
+		else:
+			sys.exit()
 	dataFileSizeInBytes = len(binaryArray)
 	return True
-
+	
 ################################################################################################################
 # Read N number of numeric bytes from a certain offset. Returns [next unconsumed offset, valueLE, valueBE]
 ################################################################################################################
@@ -24602,6 +24622,7 @@ class MainWindow:
 		
 		self.originalCodeText.tag_configure("bluebg", background="blue", foreground="white")
 		self.originalCodeText.tag_configure("yellowbg", background="yellow")
+		self.originalCodeText.tag_configure("pinkbg", background="lightpink")
 		self.interpretedCodeText.tag_configure("bluebg", background="blue")
 		self.interpretedCodeText.tag_configure("yellowbg", background=HIGHLIGHT_COLOR)
 
@@ -27347,28 +27368,39 @@ class MainWindow:
 						+"in the Data Windows are meaningless and LOST. It does not change the original datafile anyway, since it is a strictly Read-Only tool."
 			infoRoutine(infoMessage)
 
+			self.clearDemo()
+			self.openCodeFile([self.demoIndex,1])
+			self.openDataFile([self.demoIndex,1])
 			infoMessage = "Next, we are going to handle a special case where the input datastream is a TEXT file (rather than BINARY), but the characters in that text file "	\
 						+"seems to be Hex representation of binary data. \n\nIn such cases, this tool converts the Hex characters in that text file to binary."
 			infoRoutine(infoMessage)
 			infoMessage = "Let's take an example. Support the Datastream is a text file which contains the following TEXT:\n\n"	\
-						+"\"0x46 0x7269 0x65 6E6473 2C\""	\
-						+"\n\nWhen we load that data file, we will get a warning message (next window) that this tool is internally converting that text to binary."
+						+"\"0xDEAD_BEEF 0xDE 0xADBE    0xEF\""	\
+						+"\n\nObserve that there might be intermittent spaces, prefixes (like \"0x\") and underscores."	\
+						+"\n\nUnfortunately, what we wanted was a BINARY file with this HEX char sequence, but instead we ended up with a TEXT file "	\
+						+"(which will have a different HEX char sequence).\n\n"
 			infoRoutine(infoMessage)
-			
+			infoMessage = "What we actually want is to magically transform that TEXT datastream into a Binary datastream with the same sequence of HEX chars.\n\n"	\
+						+"If you want that, just use the command-line options of \"--fb\" or \"--force_binary\"."	\
+						+"\n\nWhen we load that data file, we will get a warning message (next window) that this tool is internally converting that text to binary."	
+			infoRoutine(infoMessage)
 			self.clearDemo()
-			self.openCodeFile([self.demoIndex,1])
-			self.openDataFile([self.demoIndex,1])
+			self.openCodeFile([self.demoIndex,2])
+			self.openDataFile([self.demoIndex,2])
 			self.interpret()
 			self.mapStructureToData()
 			# Since this message below is suppressed in the Demo mode, we are hardcoding it
 			warningMessage = "It appears that the input file is not a binary but rather a text file containing Hex representation of of binary data. Treating it accordingly."
 			warningRoutine(warningMessage)
+			infoMessage = "Now we observe that all HEX chars have been coverted to their corresponding binary.\n\n"	\
+						+"Now the Binary data window shows the 0xDEADBEEF 0xDEADBEEF, which is exactly what we wanted. It has stripped away all spaces, undercores etc.."	
+			infoRoutine(infoMessage)
 			infoMessage = "This feature is extremely useful. Many a times when we run a test, we get back response on the command line in Hex format."	\
 						+"\n\nThis is especially true for Hardware testing, where we query a device using a command, and the device responds back in Hex."	\
 						+"\n\nWith this tool, we no longer need to manually understand its binary representation - this tool does it automatically."	
 			infoRoutine(infoMessage)
 			infoMessage = "And the best part is that it is pretty flexible - it can handle spaces etc. stuff in between the textified Hex data, "	\
-						+"and not every time you need to preix it with a \"0x\" (doing it just once is enough)."	
+						+"and not every time you need to prefix it with a \"0x\" (doing it just once is enough)."	
 			infoRoutine(infoMessage)
 			infoMessage = "Since this tool also runs in the batch mode (just from a terminal), it is indeed possible to use this tool in your shell scripts. "	
 			infoRoutine(infoMessage)
@@ -29215,11 +29247,48 @@ class MainWindow:
 		elif self.demoIndex == 41:		# Text Data file
 			
 			self.clearDemo()
-			self.openDataFile([self.demoIndex,0])
-			infoMessage = "Often, we need to parse not binary files but text files. "	\
-							+"Kernel log files (and many other log files) are examples of that.  \n\n"	
+
+			infoMessage = "Often, we need to parse not binary files but TEXT files. \n\n"	\
+							+"Kernel log files (and many other log files) are examples of that.  \n\n"	\
+							+"Now, if that text file ONLY contains HEX characters, we can possibly deduce that this is actually a binary file whose each binary byte "	\
+							+"has simply been printed as two TEXT bytes (basically, each TEXT byte corresponds to a HEX nibble (4-bit).\n\n"	\
+							+"Hit Enter to see an example."
 			infoRoutine(infoMessage)
-			self.openCodeFile([self.demoIndex,0])
+			self.openDataFile([self.demoIndex,0])
+			infoMessage = "ParseAndC actually has a command-line option (-fb or --force_binary) that converts this text file into a binary file "	\
+							+"with exactly the same HEX char sequences. \n\nHit Enter to see what would happen if we used that --force_binary option."	
+			infoRoutine(infoMessage)
+			# Since this message below is suppressed in the Demo mode, we are hardcoding it
+			warningMessage = "It appears that the input file is not a binary but rather a text file containing Hex representation of of binary data. Treating it accordingly."
+			warningRoutine(warningMessage)
+			
+			self.clearDemo()
+
+			self.openDataFile([self.demoIndex,1])
+			infoMessage = "Now we observe that all HEX chars have been coverted to their corresponding binary.\n\n"	\
+						+"Now the Binary data window shows the 0x7A3B9C2F, 0xDEADBEEF, etc. which is exactly what we wanted. It has stripped away all spaces, undercores etc.."	
+			infoRoutine(infoMessage)
+			
+			infoMessage = "In other words, ParseAndC can handle \n\n1) Binary file, \n2) Textfied Binary file with HEX chars only.\n\n"			\
+						+"But how will it handle when it will have to parse a TEXT file that contains both HEX char and non-HEX chars?\n\n"		\
+						+"For example, suppose the following is there in a TEXT file.\n\n\n"	\
+						+"The readback from the device is:\n\n"	\
+						+"0x7A3B9C2F, 0xDEAD_BEEF 0x1234_ABCD \n0x9876543F, 0xCAFEBABE 0x12345678,\n0xABCDEF01 0x8765_4321 0xFEDCBA98 \n\n"	\
+						+"\nHow is ParseAndC going to treat the input TEXT file?"
+			infoRoutine(infoMessage)
+
+			infoMessage = "The answer is obvious. We need to tell ParseAndC that some chars in this text has a different input format, and ParseAndC must "		\
+						+"apply special rules for those characters.\n\n"	\
+						+"Hit enter to see a real-life example."
+			infoRoutine(infoMessage)
+			
+			self.clearDemo()
+			
+			self.openDataFile([self.demoIndex,2])
+			infoMessage = "Here is a log file that prints the start address and the end address of some buffer in memory.  "	\
+							+"Kernel log files (and many other log files) often have these kind of statements.  \n\n"	
+			infoRoutine(infoMessage)
+			self.openCodeFile([self.demoIndex,2])
 			infoMessage = "Now, it gets tricky regarding how to parse that value. In this case, the memory start and end addresses are printed in Hex.\n\n "	\
 							+"For example, even if we know that the Memory addresses are 32-bit (4 bytes), when printed in a text file, they occupy much more "	\
 							+"than 4 bytes. Here, because it is printed in hex, each nibble (4 bits) occupy a full 1 byte in TEXT, doubling it in size.\n\n"	\
@@ -29229,7 +29298,9 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			infoMessage = "As expected, the int variable failed to capture the full 10 TEXT bytes and assumed that it was binary.\n\n"	\
-							+"This is NOT the correct parsing of results."
+							+"This is NOT the correct parsing of results."	\
+							+"In C, when you read in a binary file into a variable (or a struct), the datatype of the variable tells exactly how to read in the binary data."	\
+							+"\n\nUnfortunately, here we are deadling with TEXT files, and the original datatype of the variable is immaterial (mostly).\n\n"	
 			infoRoutine(infoMessage)
 			infoMessage = "So, we need to tell some way to the tool that this is NOT the ordinary binary data, it is special TEXT data that needs to be read in a special way.\n\n"	\
 							+"The question is - how do we include this information without violating the C syntax?\n\n "		\
@@ -29248,16 +29319,17 @@ class MainWindow:
 			infoRoutine(infoMessage)
 
 			infoMessage = "We already demoed the different FORMAT options in previous demo features (viz. Formatted output, Format BCD, Format BASE64, Format PRINTF, "	\
-							+"Format ENUM, Format PREPROCESS). \n\nFeel free to rewind and take a relook if you are unfamiliar with display FORMATs\n\n"	\
+							+"Format ENUM, Format PREPROCESS). \n\nFeel free to rewind and take a relook if you are unfamiliar with display FORMATs.\n\n"	\
 							+"Just remember that INFORMAT is only valid for TEXT input files (NOT binary), and there can be only 1 INFORMAT. \n\n"	\
 							+"However, FORMAT is valid for both TEXT and BINARY files, and there could be multiple FORMATs."
 			infoRoutine(infoMessage)
 
-			self.openCodeFile([self.demoIndex,1])
-			self.openDataFile([self.demoIndex,1])
-			infoMessage = "Here we see a code that uses INFORMATs. It tells the tool which format the data is in, and how it should be read in. \n\n"	\
+			self.openCodeFile([self.demoIndex,3])
+			self.openDataFile([self.demoIndex,3])
+			self.originalCodeText.tag_add("yellowbg", "3.21", "3.48")	
+			infoMessage = "Here we see a code that uses INFORMATs (see highlighted). It tells the tool which format the data is in, and how it should be read in. \n\n"	\
 							+"All INFORMATs pertain to TEXT files only. They do not apply to binary. \n\nHere, we tell that the variable is expecting a value "		\
-							+"consisting of 8 HEX digits in TEXT.\n\nPress Enter to see how "
+							+"consisting of 8 HEX digits in TEXT.\n\nPress Enter to see how."
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
@@ -29265,11 +29337,14 @@ class MainWindow:
 			infoMessage = "Now the int variable correctly captured the full 10 TEXT bytes.\n\n"	\
 							+"Now the question is, what will happen if we do NOT specify how many Hex TEXT bytes to look for?\n\nPress Enter to see."
 			infoRoutine(infoMessage)
+			self.originalCodeText.tag_remove("yellowbg", "3.21", "3.48")		
 			
 			self.clearDemo()
 
-			self.openCodeFile([self.demoIndex,2])
-			self.openDataFile([self.demoIndex,2])
+			self.openCodeFile([self.demoIndex,4])
+			self.openDataFile([self.demoIndex,4])
+			self.originalCodeText.tag_add("yellowbg", "3.21", "3.48")	
+			self.originalCodeText.tag_add("yellowbg", "5.19", "5.43")	
 			infoMessage = "Observe that while for buffAddrStart we did tell to read in 8 bytes of Hex TEXT bytes, for buffAddrEnd we did not specify the size. \n\n"	\
 							+"So it will try to get the largest HEX number anyway.\n\n "		\
 							+"Please note that if we give a smaller size (less than 8 for int), it will stop after reading that many bytes."
@@ -29279,15 +29354,19 @@ class MainWindow:
 			self.toggleHexDec()
 			infoMessage = "Observe that both buffAddrStart and buffAddrEnd are now read correctly.\n\n"	
 			infoRoutine(infoMessage)
+			self.originalCodeText.tag_remove("yellowbg", "3.21", "3.48")	
+			self.originalCodeText.tag_remove("yellowbg", "5.19", "5.43")	
 
 			self.clearDemo()
 			
-			self.openDataFile([self.demoIndex,3])
+			self.openDataFile([self.demoIndex,5])
 			infoMessage = "Now, because TEXT files can often be arbitrarily formatted, it's not necessary that every byte in a HEX value will be contiguously located.\n\n "	\
 							+"Bytes may be punctuated by space or even underscore (\"_\").  \n\n However, if you tell ParseAndC how many total TEXT bytes to capture, "	\
 							+"it will ignore those intermittent space and undrescores and consume only the numeric bytes.\n\nHit enter to see."
 			infoRoutine(infoMessage)
-			self.openCodeFile([self.demoIndex,3])
+			self.openCodeFile([self.demoIndex,5])
+			self.originalCodeText.tag_add("yellowbg", "3.21", "3.48")	
+			self.originalCodeText.tag_add("yellowbg", "5.19", "5.46")	
 			infoMessage = "Here, the buffer start address is punctuated by space while the end address has underscores.\n\n "	\
 							+"But since ParseAndC knows how many total TEXT bytes to capture, "	\
 							+"it will ignore those intermittent space and undrescores and consume only the numeric bytes.\n\nHit enter to see."
@@ -29297,16 +29376,19 @@ class MainWindow:
 			self.toggleHexDec()
 			infoMessage = "Looks great, right?.\n\n "	
 			infoRoutine(infoMessage)
+			self.originalCodeText.tag_remove("yellowbg", "3.21", "3.48")	
+			self.originalCodeText.tag_remove("yellowbg", "5.19", "5.46")	
 
 			self.clearDemo()
 			
-			self.openDataFile([self.demoIndex,4])
+			self.openDataFile([self.demoIndex,6])
 			infoMessage = "Now, Till this time we have presumed that the printed bytes we were seeing on a TEXT file were all \"values\".\n\n "				\
 							+"What if they were NOT actual values, but rather the computer representation of how the variable is stored?\n\n "				\
 							+"Basically, if you see a text string 0x42F6E666, it might represent a 32-bit floating point number with value of 123.45.\n\n"	\
 							+"How do you deal with such cases where those HEX/BIN bytes on the TEXT values are NOT values but rather raw bytes?"
 			infoRoutine(infoMessage)
-			self.openCodeFile([self.demoIndex,4])
+			self.openCodeFile([self.demoIndex,6])
+			self.originalCodeText.tag_add("yellowbg", "5.18", "5.47")	
 			infoMessage = "In ParseAndC, all you have to do is that instead of mentioninig the numeric size, just put in \"raw\".\n\n "									\
 							+"Then ParseAndC will understand that it is NOT actual values, but rather the computer representation of how the variable is stored.\n\n "	\
 							+"Hit Enter to see the result"
@@ -29317,13 +29399,14 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			infoMessage = "Now, INFORMATs don't have to be HEX only. \n\nWe can use INFORMATs of HEX, BIN (for Binary), OCT (for Octal) and DEC (for Decimal)."	
 			infoRoutine(infoMessage)
+			self.originalCodeText.tag_remove("yellowbg", "5.18", "5.47")	
 
 			self.clearDemo()
 			
-			self.openDataFile([self.demoIndex,5])
-			self.openCodeFile([self.demoIndex,5])
+			self.openDataFile([self.demoIndex,7])
+			self.openCodeFile([self.demoIndex,7])
 			infoMessage = "Here we are using different INFORMATs for HEX (for Hexadecimal), BIN (for Binary), OCT (for Octal) and DEC (for Decimal) values.\n\n "				\
-							+"Hit Enter to see the result"
+							+"Hit Enter to see the result."
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
@@ -29403,6 +29486,8 @@ class MainWindow:
 
 			self.openCodeFile([self.demoIndex,4])
 			self.openDataFile([self.demoIndex,4])
+			self.originalCodeText.tag_add("yellowbg", "5.2", "5.48")	
+			self.originalCodeText.tag_add("pinkbg"  , "6.2", "6.48")	
 			infoMessage = "Here, we to read two dates with a single struct that uses a single INFORMAT of date. \n\nNote that we are also using display FORMATs to display the captured date."	
 			infoRoutine(infoMessage)
 			self.interpret()
@@ -29411,6 +29496,8 @@ class MainWindow:
 			self.showUnraveledRowNumInTreeView(11)
 			infoMessage = "Now you see that a single declaration can capture a varying-sized date. \n\nHit Enter to see how."	
 			infoRoutine(infoMessage)
+			self.originalCodeText.tag_remove("yellowbg", "5.2", "5.48")	
+			self.originalCodeText.tag_remove("pinkbg"  , "6.2", "6.48")	
 			
 
 			self.endFeatureDemoMessage()
@@ -29430,6 +29517,7 @@ class MainWindow:
 							+"But the problem is, how exactly do we specify the regular expression?\n\nRemember, we cannot break the C syntax!"	
 			infoRoutine(infoMessage)
 			self.openCodeFile([self.demoIndex,0])
+			self.originalCodeText.tag_add("yellowbg", "3.35", "3.63")	
 			infoMessage = "Here we use the usual C array initialization to mention the RegEx pattern.\n\n"	\
 							+"And via the INFORMAT Regular Expression, we tell that it is no regular initialization. \n\n"		\
 							+"Hit enter to see the result. \n\n"	
@@ -29442,11 +29530,15 @@ class MainWindow:
 
 			infoMessage = "Let's make this a bit interesting. Suppose we want to capture the timestamp at the beginning of every line. \n\nHow do we do that?"	
 			infoRoutine(infoMessage)
+			self.originalCodeText.tag_remove("yellowbg", "3.35", "3.63")	
 			
 			self.clearDemo()
 
 			self.openCodeFile([self.demoIndex,1])
 			self.openDataFile([self.demoIndex,1])
+			self.originalCodeText.tag_add("yellowbg", "5.8", "5.61")	
+			self.originalCodeText.tag_add("pinkbg" , "6.10", "6.59")	
+			self.originalCodeText.tag_add("yellowbg", "8.29", "8.71")	
 			infoMessage = "Here we read in the timestamp into an integer variable called timestamp (following the Unix convention of converting a Timestamp into " 	\
 							+"a number representing how many seconds have passed since 1/1/1970). \n\nThen we capture the rest of the line into the char array "	\
 							+"appropriately named \"junk\".\n\n"	\
@@ -29460,6 +29552,10 @@ class MainWindow:
 			infoMessage = "Looks pretty nice, right? \n\nBut the truth is that we got lucky to know that this junk char array will always end with a newline.\n\n"	\
 							+"What if a junk array does NOT end with a newline but rather with a field that itself can only be captured using yet another Regular Expression?"
 			infoRoutine(infoMessage)
+			self.originalCodeText.tag_remove("yellowbg", "5.8", "5.61")
+			self.originalCodeText.tag_remove("pinkbg" , "6.10", "6.59")
+			self.originalCodeText.tag_remove("yellowbg", "8.29", "8.71")	
+			
 			self.clearDemo()
 
 			self.openCodeFile([self.demoIndex,2])
@@ -29467,6 +29563,8 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 			self.toggleHexDec()
+			self.originalCodeText.tag_add("yellowbg", "4.21", "4.48")	
+			self.originalCodeText.tag_add("yellowbg", "6.19", "6.46")	
 			
 			infoMessage = "Let's revisit this old data. We wanted to read these two HEX memory addresses.\n"	\
 							+"\nThe problem is that, if there is junk between those two data items, we need need to know exactly how many bytes it is wide, so that "	\
@@ -29477,6 +29575,8 @@ class MainWindow:
 							+"Using this feature, one can write a RegEx matching pattern that will lookahead for a HEX(8) pattern, and once found, will stop matching just before that. " \
 							+"\n\nLet's see how easy or complicated it might look."
 			infoRoutine(infoMessage)
+			self.originalCodeText.tag_remove("yellowbg", "4.21", "4.48")	
+			self.originalCodeText.tag_remove("yellowbg", "6.19", "6.46")	
 			
 			self.clearDemo()
 
@@ -29484,6 +29584,9 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,3])
 			self.interpret()
 			self.mapStructureToData()
+			self.originalCodeText.tag_add("yellowbg", "3.100", "3.127")	
+			self.originalCodeText.tag_add("yellowbg", "4.22", "4.49")
+			self.originalCodeText.tag_add("pinkbg", "4.50", "4.70")	
 			
 			infoMessage = "This is extremely painful. And remember, this is the RegEx for very simple patterns like HEX(8). \n\n"	\
 							+"Imagine creating a RegEx pattern that will capture a DATE or TIMESTAMP!!\n"	
@@ -29494,6 +29597,9 @@ class MainWindow:
 							+"There is really no way to ensure this, except the following.\n\nHit Enter to see the killer feature.\n"	
 			infoRoutine(infoMessage)
 			
+			self.originalCodeText.tag_remove("yellowbg", "3.100", "3.127")
+			self.originalCodeText.tag_remove("yellowbg", "4.22", "4.49")	
+			self.originalCodeText.tag_remove("pinkbg", "4.50", "4.70")	
 
 			self.clearDemo()
 
@@ -29501,6 +29607,11 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,4])
 			self.interpret()
 			self.mapStructureToData()
+
+			self.originalCodeText.tag_add("bluebg", "3.20", "3.28")	
+			self.originalCodeText.tag_add("yellowbg", "4.4", "4.30")	
+			self.originalCodeText.tag_add("yellowbg", "8.0", "8.27")	
+			self.originalCodeText.tag_add("pinkbg", "9.2", "9.25")	
 			
 			infoMessage = "Instead of typing in the actual RegEx that you HOPE that will match the next variable's RegEx, you just use the keyword __NEXT__ .  \n\n"	\
 							+"That's it!!\n\nIt will automatically look ahead the next variable's INFORMAT, and stop matching just short of that.\n\nIsn't that cool?"
@@ -29517,16 +29628,41 @@ class MainWindow:
 							+"This is expected behavior since by default RegEx is greedy, i.e. it matches maximum possible chars. \n\n" \
 							+"We can easily change the behavior by using the \"?\" modifier.\n\nHit enter to see how."
 			infoRoutine(infoMessage)
+
+			self.originalCodeText.tag_remove("bluebg", "3.20", "3.28")		
+			self.originalCodeText.tag_remove("yellowbg", "4.4", "4.30")	
+			self.originalCodeText.tag_remove("yellowbg", "8.0", "4.27")	
+			self.originalCodeText.tag_remove("pinkbg", "9.2", "9.25")	
+
+			
 			self.clearDemo()
 
 			self.openCodeFile([self.demoIndex,5])
 			self.openDataFile([self.demoIndex,5])
 			self.interpret()
 			self.mapStructureToData()
+
+			self.originalCodeText.tag_add("bluebg", "3.22", "3.30")	
+			self.originalCodeText.tag_add("yellowbg", "4.1", "4.27")	
+			self.originalCodeText.tag_add("yellowbg", "7.0", "7.27")	
+			self.originalCodeText.tag_add("pinkbg", "8.2", "8.25")	
+			self.originalCodeText.tag_add("bluebg", "10.22", "10.30")	
+			self.originalCodeText.tag_add("yellowbg", "11.0", "11.26")	
+			self.originalCodeText.tag_add("yellowbg", "14.0", "14.27")	
+			self.originalCodeText.tag_add("pinkbg", "15.2", "15.25")	
+
 							
 			infoMessage = "Now we see that we are properly capturing both HEX memory addresses, using the same __NEXT__ keyword.\n\nIsn't this great?"
 			infoRoutine(infoMessage)
 			
+			self.originalCodeText.tag_remove("bluebg", "3.22", "3.30")
+			self.originalCodeText.tag_remove("yellowbg", "4.1", "4.27")	
+			self.originalCodeText.tag_remove("yellowbg", "7.0", "7.27")	
+			self.originalCodeText.tag_remove("pinkbg", "8.2", "8.25")	
+			self.originalCodeText.tag_remove("bluebg", "10.22", "10.30")	
+			self.originalCodeText.tag_remove("yellowbg", "11.0", "11.26")	
+			self.originalCodeText.tag_remove("yellowbg", "14.0", "14.27")	
+			self.originalCodeText.tag_remove("pinkbg", "15.2", "15.25")	
 
 			self.clearDemo()
 
@@ -29537,6 +29673,16 @@ class MainWindow:
 			infoRoutine(infoMessage)
 			
 			self.openCodeFile([self.demoIndex,6])
+
+			self.originalCodeText.tag_add("bluebg", "3.25", "3.33")	
+			self.originalCodeText.tag_add("yellowbg", "5.4", "5.27")	
+			self.originalCodeText.tag_add("yellowbg", "11.0", "11.52")	
+			self.originalCodeText.tag_add("pinkbg", "12.0", "12.48")	
+			
+			self.originalCodeText.tag_add("bluebg", "16.25", "16.33")	
+			self.originalCodeText.tag_add("yellowbg", "18.0", "18.26")	
+			self.originalCodeText.tag_add("yellowbg", "24.0", "24.52")	
+			self.originalCodeText.tag_add("pinkbg", "25.0", "25.48")	
 					
 			infoMessage = "Here, we have two different timestamp fields: startTS and endTS.\n\n"	\
 							+"We have used the __NEXT__ feature to be able to appropriately capture both the timestamps. \n\n"	\
@@ -29551,10 +29697,33 @@ class MainWindow:
 							+"so that we know how long this tool is running. Taking the time difference between two timestamps is not easy."
 			infoRoutine(infoMessage)
 
+			self.originalCodeText.tag_remove("bluebg", "3.25", "3.33")	
+			self.originalCodeText.tag_remove("yellowbg", "5.4", "5.27")	
+			self.originalCodeText.tag_remove("yellowbg", "11.0", "11.52")	
+			self.originalCodeText.tag_remove("pinkbg", "12.0", "12.48")
+			
+			self.originalCodeText.tag_remove("bluebg", "16.25", "16.33")	
+			self.originalCodeText.tag_remove("yellowbg", "18.0", "18.26")	
+			self.originalCodeText.tag_remove("yellowbg", "24.0", "24.52")	
+			self.originalCodeText.tag_remove("pinkbg", "25.0", "25.48")
+
+
 			self.clearDemo()
 
 			self.openCodeFile([self.demoIndex,7])
 			self.openDataFile([self.demoIndex,7])
+
+			self.originalCodeText.tag_add("bluebg", "3.25", "3.33")	
+			self.originalCodeText.tag_add("yellowbg", "5.4", "5.27")	
+			self.originalCodeText.tag_add("yellowbg", "11.0", "11.52")	
+			self.originalCodeText.tag_add("pinkbg", "12.0", "12.48")
+			
+			self.originalCodeText.tag_add("bluebg", "16.25", "16.33")	
+			self.originalCodeText.tag_add("yellowbg", "18.0", "18.25")	
+			self.originalCodeText.tag_add("yellowbg", "24.0", "24.52")	
+			self.originalCodeText.tag_add("pinkbg", "25.0", "25.44")	
+			self.originalCodeText.tag_add("pinkbg", "26.0", "26.24")	
+
 			
 			infoMessage = "That's where the real power of this tool comes in. \n\nObserve that after we read in the endTS, there are two new FORMAT statements:\n\n"	\
 							+"<FORMAT>postprocess(endTS-startTS)</FORMAT>\n\n<FORMAT>seconds</FORMAT>\n\n"	\
@@ -29573,6 +29742,17 @@ class MainWindow:
 							+"junk is really junk (nobody cares about its values). \n\nTherefore, on the console, every element of this junk array gets printed."	\
 							+"\n\nThis can easily overwhelm the output. \n\nThe solution is obvious. We do not want to print variables we do not care. This we will see in the next feature."
 			infoRoutine(infoMessage)
+			
+			self.originalCodeText.tag_remove("bluebg", "3.25", "3.33")
+			self.originalCodeText.tag_remove("yellowbg", "5.4", "5.27")	
+			self.originalCodeText.tag_remove("yellowbg", "11.0", "11.52")	
+			self.originalCodeText.tag_remove("pinkbg", "12.0", "12.48")
+			
+			self.originalCodeText.tag_remove("bluebg", "16.25", "16.33")	
+			self.originalCodeText.tag_remove("yellowbg", "18.0", "18.25")
+			self.originalCodeText.tag_remove("yellowbg", "24.0", "24.52")	
+			self.originalCodeText.tag_remove("pinkbg", "25.0", "25.44")
+			self.originalCodeText.tag_remove("pinkbg", "26.0", "26.24")
 
 			self.endFeatureDemoMessage()
 			
@@ -29583,6 +29763,14 @@ class MainWindow:
 
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
+			
+			self.originalCodeText.tag_add("yellowbg", "3.10", "3.63")	
+			self.originalCodeText.tag_add("pinkbg", "4.0", "4.56")	
+			self.originalCodeText.tag_add("yellowbg", "7.25", "7.53")
+			self.originalCodeText.tag_add("pinkbg", "8.0", "8.31")	
+			self.originalCodeText.tag_add("yellowbg", "10.10", "10.63")	
+			self.originalCodeText.tag_add("pinkbg", "11.0", "11.56")
+			
 			infoMessage = "Remember that we have a new problem of ParseAndC printing everything on the console. \n\nWe are obviously interested only in the timestamp and nothing else. \n"	\
 							+"\nSo, we have been able to put that inside some char-array aptly named \"junk\".\n\nUnfortunately, ParseAndC has no way to understand that "\
 							+"junk is really junk (nobody cares about its values. \n\nTherefore, on the console, every element of this junk array gets printed."	\
@@ -29604,6 +29792,14 @@ class MainWindow:
 			infoMessage = "Now, we learned how we can skip whole variables.\n\nHoever, sometimes for array variables, we don't want to skip the whole array."	\
 						+ "We only want to print certain elements we care about, and ideally we would want to print only those."
 			infoRoutine(infoMessage)
+
+			self.originalCodeText.tag_remove("yellowbg", "3.10", "3.63")
+			self.originalCodeText.tag_remove("pinkbg", "4.0", "4.56")	
+			self.originalCodeText.tag_remove("yellowbg", "7.25", "7.53")
+			self.originalCodeText.tag_remove("pinkbg", "8.0", "8.31")	
+			self.originalCodeText.tag_remove("yellowbg", "10.10", "10.63")	
+			self.originalCodeText.tag_remove("pinkbg", "11.0", "11.56")
+
 			
 			self.clearDemo()
 
@@ -29623,6 +29819,9 @@ class MainWindow:
 
 			self.openCodeFile([self.demoIndex,2])
 			self.openDataFile([self.demoIndex,2])
+
+			self.originalCodeText.tag_add("pinkbg", "2.22", "2.73")	
+			
 			infoMessage = "However, suppose we only care about c[5] and do not want to print any other element of that array. \n\n"	\
 							+"We can achieve that by using the display format PRINT_ARRAY_ELEMENTS_ONLY([5]) \n\n"	\
 							+"Hit enter to see the result."	
@@ -29633,12 +29832,17 @@ class MainWindow:
 							+"Everything else in that array is no longer printed.\n\n"	\
 							+"Hit enter to see the result."	
 			infoRoutine(infoMessage)
+
+			self.originalCodeText.tag_remove("pinkbg", "2.22", "2.73")	
 			
 			
 			self.clearDemo()
 
 			self.openCodeFile([self.demoIndex,3])
 			self.openDataFile([self.demoIndex,3])
+			
+			self.originalCodeText.tag_add("pinkbg", "2.22", "2.78")	
+			
 			infoMessage = "Sometimes, we want to print not just a single element but rather a range. \n\n"	\
 							+"We can achieve that by using the display format PRINT_ARRAY_ELEMENTS_ONLY([5]:[7]) \n\n"	\
 							+"Hit enter to see the result."	
@@ -29649,6 +29853,9 @@ class MainWindow:
 							+"Everything else in that array is no longer printed.\n\n"	\
 							+"Hit enter to see the result."	
 			infoRoutine(infoMessage)
+
+			self.originalCodeText.tag_remove("pinkbg", "2.22", "2.78")	
+
 			
 			self.endFeatureDemoMessage()
 
@@ -29660,6 +29867,14 @@ class MainWindow:
 
 			self.openCodeFile([self.demoIndex,0])
 			self.openDataFile([self.demoIndex,0])
+			
+			self.originalCodeText.tag_add("yellowbg", "3.10", "3.63")
+			self.originalCodeText.tag_add("pinkbg", "4.10", "4.65")
+			self.originalCodeText.tag_add("yellowbg", "7.24", "7.53")
+			self.originalCodeText.tag_add("pinkbg", "8.26", "8.60")
+			self.originalCodeText.tag_add("yellowbg", "10.10", "10.61")
+			self.originalCodeText.tag_add("pinkbg", "11.10", "11.65")
+			
 			infoMessage = "One of the biggest problems in any GUI-based application is the scarcity of screen real estate. \n\n"	\
 							+"We have 4 screens (Original Code, Interpreted Code, HEX Data, ASCII Data) competing for the same screen width. \n\n"	\
 							+"Sometimes code has lines that are too wide, or has comments that cause the line to wrap around. Wrapping around "		\
@@ -29699,6 +29914,7 @@ class MainWindow:
 						+"Unfortunately, by default the tool prints everything on the Console. Ideally, it should not wrap for the sake of readability. \n\n"	\
 						+"If a line wraps, that creates a big clutter on the Console.\n\n"
 			infoRoutine(infoMessage)
+			
 			infoMessage = "Often the main culprit for this line-wrapping is having to print both the Little-Endian and Big-Endian values, and their formatted counterparts.\n\n"	\
 						+"However, Lot of people do not care about seeing both the Little-Endian and Big-Endian values for their variables.\n\n"		\
 						+"They want to see either the Little-Endian values, OR the Big-Endian values. Not BOTH.\n\n"	
@@ -29706,6 +29922,13 @@ class MainWindow:
 			infoMessage = "In ParseAndC 5.0, you can actually specify it while invoking the tool itself.\n\n"	\
 						+"Just use the command-line parameters \"--LE\" (or \"--BE\") to print only the Little-Endian (or the Big-Endian) values on the console. \n\n"
 			infoRoutine(infoMessage)
+
+			self.originalCodeText.tag_remove("yellowbg", "3.10", "3.63")	
+			self.originalCodeText.tag_remove("pinkbg", "4.10", "4.65")	
+			self.originalCodeText.tag_remove("yellowbg", "7.24", "7.53")	
+			self.originalCodeText.tag_remove("pinkbg", "8.26", "8.60")
+			self.originalCodeText.tag_remove("yellowbg", "10.10", "10.61")	
+			self.originalCodeText.tag_remove("pinkbg", "11.10", "11.65")	
 
 			self.clearDemo()
 
@@ -29715,10 +29938,13 @@ class MainWindow:
 			self.interpret()
 			self.mapStructureToData()
 
+			self.originalCodeText.tag_add("pinkbg", "2.9", "2.31")	
+
 			infoMessage = "Here is a simple example of how an integer is displayed on the Console.\n\n"	\
 						+"Please take a look at the Console to see that it has printed BOTH the Little-Endian and the Big-Endian values. \n\n"
 			infoRoutine(infoMessage)
 			
+			self.originalCodeText.tag_remove("pinkbg", "2.9", "2.31")	
 
 			self.clearDemo()
 
@@ -29728,10 +29954,15 @@ class MainWindow:
 			PRINT_LE_ONLY = True
 			self.interpret()
 			self.mapStructureToData()
+
+			self.originalCodeText.tag_add("pinkbg", "2.9", "2.31")
+
 			
 			infoMessage = "Now suppose we used the \"--LE\" command-line option.\n\n"	\
 						+"Please take a look at the Console to see that it has printed ONLY the Little-Endian values (NO Big-Endian values). \n\n"
 			infoRoutine(infoMessage)
+
+			self.originalCodeText.tag_remove("pinkbg", "2.9", "2.31")
 			
 			self.clearDemo()
 
@@ -29742,12 +29973,15 @@ class MainWindow:
 			PRINT_BE_ONLY = True
 			self.interpret()
 			self.mapStructureToData()
+
+			self.originalCodeText.tag_add("pinkbg", "2.9", "2.31")	
 			
 			infoMessage = "Now suppose we used the \"--BE\" command-line option.\n\n"	\
 						+"Please take a look at the Console to see that it has printed ONLY the Big-Endian values (NO Little-Endian values). \n\n"
 			infoRoutine(infoMessage)
 			PRINT_BE_ONLY = False
 			
+			self.originalCodeText.tag_remove("pinkbg", "2.9", "2.31")	
 			
 			self.endFeatureDemoMessage()
 
