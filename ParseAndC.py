@@ -883,6 +883,8 @@
 # 2026-03-31 - Added Demo for date difference.
 # 2026-04-01 - Fixed the bug in Date handing for INFORMAT
 # 2026-04-03 - Fixed the Demo highlighting problem
+# 2026-04-04 - Fixed the ms bug in reading/displaying timestamp
+
 
 ##################################################################################################################################
 ##################################################################################################################################
@@ -1904,7 +1906,7 @@ textData1 = "0x307841424344313233342030784142434462656566204869"+NL
 
 textDataRaw =  "0x54686520666C6F617420726570726573656E746174696F6E206F66203132332E"+"34352069732030783432463645363636"
 
-textDataHexDecOctBin = "0x486578204445414442454546204465632031323334353637204F637420313233"+"343536372042696E203130313030303131"
+textDataHexDecOctBinReal = "0x486578204445414442454546204465632031323334353637204F637420313233"+"343536372042696E203130313030303131205265616C202D312E323330343565"+"2D3233"
 
 #12-Nov-2020   \n
 #Dec 10,2020   \n
@@ -3407,9 +3409,11 @@ textDataRaw],
 'int OctVar; //<informat>Oct</informat>  \n',
 'char junk4[4];   \n',
 'int BinVar; //<informat>bin</informat>  \n',
+'char junk5[5];   \n',
+'float realVar; //<informat>Real</informat>  \n',
 ' \n'
 ],
-textDataHexDecOctBin]
+textDataHexDecOctBinReal]
 
 
 ]
@@ -3573,9 +3577,14 @@ textDataHex2],
 #3
 [['//Killer feature\n',
 '                       \n',
-'char junk[] = ".*(?=(0[xX])?\\s*([0-9a-fA-F][0-9a-fA-F]\\s*_?\\s*){3}([0-9a-fA-F][0-9a-fA-F])\\s*)"; /* <INFORMAT>REGEX</INFORMAT> */\n',
-'int buffAddrStart; /* <INFORMAT>HEX(8)</INFORMAT> <FORMAT>HEX</FORMAT>*/  \n',
-' \n'
+'char junk[] = ".*(?=(0[xX])?\\s*([0-9a-fA-F][0-9a-fA-F]\\s*_?\\s*){3}([0-9a-fA-F][0-9a-fA-F])\\s*)"; /* \n',
+'<INFORMAT>REGEXP</INFORMAT>\n',
+' */\n',
+'\n',
+'int buffAddrStart; /* \n',
+'<INFORMAT>HEX(8)</INFORMAT>\n',
+'<FORMAT>HEX</FORMAT>\n',
+'*/\n'
 ],
 textDataHex2],
 
@@ -5835,7 +5844,7 @@ def evaluateArithmeticExpression(inputAST, endianness=DEFAULT_ENDIANNESS):
 			return [True, int(enumFieldValues[inputList])]
 			
 		elif inputList[0] not in ['"',"'"] and inputList[-1] not in ['"',"'"]:
-			# The inputList is NEITHER a valid numberic constant NOR a quoted string - it must be a variable name, whose value can only be known during the runtime.
+			# The inputList is NEITHER a valid numeric constant NOR a quoted string - it must be a variable name, whose value can only be known during the runtime.
 			# If this happens during the Interpret stage, there is no unraveled and thus no way to verify if the condition is True or False
 			runtimeVariableName = outputTextArithmeticExpressionFromAST(inputList)
 			if not lastActionWasInterpret and not lastActionWasMap:
@@ -8344,7 +8353,7 @@ def outputTextArithmeticExpressionFromAST (arithmeticExpressionAST):
 
 ############################################################################################################################
 # This function takes in an input STRING, and does the following. If the string is numeric, it returns the numeric value.
-# On the other hand, if the string is non-numberic, it tokenizes it and returns its tokenized list
+# On the other hand, if the string is non-numeric, it tokenizes it and returns its tokenized list
 ############################################################################################################################
 def getNumericValueOrTokenizedString (inputString):
 	if checkIfNumber(inputString):	# If by mistake we passed in a numeric, send that back instead of a False, since False in Python equates to 0
@@ -16722,8 +16731,8 @@ def convertFromHexDecOctBin(desc, variableId, offset=None, parameters=[], onlyNe
 	if not rawBytes:
 		
 		base = 16 if desc == "Hex" else 10 if desc == "Dec" else 8 if desc == "Oct" else 2 if desc == "Bin" else 0
-		if base == 0:
-			EXIT("Bugggggggg")
+		if base == 0 and desc != "Real":
+			EXIT("Bugggggggggggg")
 
 		if desc == "Real":
 			try:
@@ -16897,9 +16906,9 @@ def insertWhitespace2TokenizeLines(stringWithWhitespaces, stringWithWhitespacesT
 ###########################################################################################################################
 # Input is a human readable date  [YYYY/YY, MM, DD, hh, mm, ss, ms]. Returns the number of seconds since 1/1/1970 (could be negative)
 ###########################################################################################################################
-def convert2UnixTimestamp(YYYY,MM,DD,hh=0,mm=0,ss=0, ms=0):
+def convert2UnixTimestamp(YYYY,MM,DD,hh=0,mm=0,ss=0, ms=None):
 	PRINT("\n\n\n","=="*50,"\nconvert2UnixTimestamp(YYYY=",YYYY,",MM=",MM,",DD=",DD,",hh=",hh,",mm=",mm,",ss=",ss,",ms=",ms)
-	if not checkIfIntegral(YYYY) or not checkIfIntegral(MM) or not checkIfIntegral(DD) or not checkIfIntegral(hh) or not checkIfIntegral(mm) or not checkIfIntegral(ss) or not checkIfIntegral(ms):
+	if not checkIfIntegral(YYYY) or not checkIfIntegral(MM) or not checkIfIntegral(DD) or not checkIfIntegral(hh) or not checkIfIntegral(mm) or not checkIfIntegral(ss) or not (ms == None or (checkIfIntegral(ms) and (0<=ms<=999))):
 		errorMessage = "ERROR in convert2UnixTimestamp() - non-integral value supplied for YYYY("+STR(YYYY)+"), MM("+STR(MM)+"), DD("+STR(DD)+"), hh("+STR(hh)+"), mm("+STR(mm)+"), ss("+STR(ss)+")"
 		errorRoutine(errorMessage)
 		return False
@@ -16938,11 +16947,13 @@ def convert2UnixTimestamp(YYYY,MM,DD,hh=0,mm=0,ss=0, ms=0):
 	days += DD-1
 	secsSince1970 += days * 24*60*60
 	secsSince1970 += hh*60*60 + mm*60 + ss
+	if ms:
+		secsSince1970 += ms/1000
 
 	PRINT("secsSince1970 =",secsSince1970)
 	check = convertUnixTimestamp(secsSince1970)
-	if check[0] != YYYY or check[1] != MM or check[2]!=DD or check[3]!=hh or check[4]!=mm or check[5]!=ss:
-		errorMessage = "ERROR in convert2UnixTimestamp() - the number of seconds past 1970 ("+STR(secsSince1970)+") for YYYY("+STR(YYYY)+"), MM("+STR(MM)+"), DD("+STR(DD)+"), hh("+STR(hh)+"), mm("+STR(mm)+"), ss("+STR(ss)+") does not match "+STR(check)
+	if check[0] != YYYY or check[1] != MM or check[2]!=DD or check[3]!=hh or check[4]!=mm or check[5]!=ss or check[6]!=ms:
+		errorMessage = "ERROR in convert2UnixTimestamp() - the number of seconds past 1970 ("+STR(secsSince1970)+") for YYYY("+STR(YYYY)+"), MM("+STR(MM)+"), DD("+STR(DD)+"), hh("+STR(hh)+"), mm("+STR(mm)+"), ss("+STR(ss)+"), ms("+STR(ms)+") does not match "+STR(check)
 		errorRoutine(errorMessage)
 		return False
 	else:
@@ -16952,10 +16963,20 @@ def convert2UnixTimestamp(YYYY,MM,DD,hh=0,mm=0,ss=0, ms=0):
 
 
 ####################################################################################################################
-# Input is the number of seconds since 1/1/1970 (could be negative). Returns [YYYY,MM,DD,hh,mm,ss]
+# Input is the number of seconds since 1/1/1970 (could be negative). Returns [YYYY,MM,DD,hh,mm,ss,ms]
 ####################################################################################################################
 def convertUnixTimestamp(rawData):
-	if not checkIfIntegral(rawData):
+	if checkIfIntegral(rawData):
+		ms = None
+		PRINT("No ms supplied")
+	elif isinstance(rawData, float):
+		ms = round((rawData - int(rawData))*1000)	# Don't use int() instead of round() - will be off by one
+		ms = -ms if rawData < 0 else ms	# Remember that the rawData can be negative (before 1970)
+		PRINT("supplied ms =", ms)
+		if not (0<= ms <1000):
+			return False
+		rawData = int(rawData)
+	else:	
 		return False
 	months = [["Jan",31],["Feb", 28],["Mar", 31],["Apr", 30],["May", 31],["Jun", 30],["Jul", 31],["Aug", 31],["Sep", 30],["Oct", 31],["Nov", 30],["Dec", 31]]
 	secsInDay = 24*60*60
@@ -17017,8 +17038,9 @@ def convertUnixTimestamp(rawData):
 		pass
 	else:
 		EXIT("Illegal timestamp value of %d-%02d-%02d %02d:%02d:%02d"%(yearIndex, monthIndex+1, dayIndex+1, hourIndex, minuteIndex, secondIndex))
-	dateString = "%d-%02d-%02d %02d:%02d:%02d"%(yearIndex, monthIndex+1, dayIndex+1, hourIndex, minuteIndex, secondIndex)
-	return [yearIndex, monthIndex+1, dayIndex+1, hourIndex, minuteIndex, secondIndex]
+	dateString = "%d-%02d-%02d %02d:%02d:%02d"%(yearIndex, monthIndex+1, dayIndex+1, hourIndex, minuteIndex, secondIndex)+("" if ms is None else ".%03d"%(ms))
+	PRINT("dateString =",dateString)
+	return [yearIndex, monthIndex+1, dayIndex+1, hourIndex, minuteIndex, secondIndex, ms]
 
 ###########################################################################################################################################################
 # This function takes a date time format string, and tokenizes it. Basically, it extracts where all the tokens like year month day etc. reside.
@@ -17045,7 +17067,7 @@ def tokenizeDateTimeFormatString(dateTimeFormatString):
 	dateTimeFormatStringTokenized = insertWhitespace2TokenizeLinesResult
 	
 	#Now verify that all the tokens for year/month/day/hour/min/secs are there
-	foundTokens = { "YYYY": False, "MM": False, "DD": False, "hh": False, "mm": False, "ss": False}
+	foundTokens = { "YYYY": False, "MM": False, "DD": False, "hh": False, "mm": False, "ss": False, "ms": False}
 	i = 0
 	while True:
 		if i>=len(dateTimeFormatStringTokenized):
@@ -17060,6 +17082,8 @@ def tokenizeDateTimeFormatString(dateTimeFormatString):
 			foundTokens ["HH"] = True
 		elif dateTimeFormatStringTokenized[i] in ["mm"]:
 			foundTokens ["mm"] = True
+		elif dateTimeFormatStringTokenized[i] in ["ms"]:
+			foundTokens ["ms"] = True
 		elif dateTimeFormatStringTokenized[i] in ["SS","ss"]:
 			foundTokens ["ss"] = True
 		i+=1
@@ -17227,6 +17251,8 @@ def readDateTime(variableId, offset=None, parameters=[], onlyNeedRegExPattern=Fa
 			REpattern += "(0?[0-9]|1[0-9]|2[0-3])"
 		elif t in ["mm","ss"]:
 			REpattern += "(0?[0-9]|[1-5][0-9])"
+		elif t == "ms":
+			REpattern += "(\\d{3})"
 		elif t == "Mmm":
 			REpattern += "(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
 		elif t == "MMM":
@@ -17256,7 +17282,7 @@ def readDateTime(variableId, offset=None, parameters=[], onlyNeedRegExPattern=Fa
 		currOffset = offset
 		for t in dateTimeFormatStringTokenized:
 			
-			len_t = 9 if t in ["Month","MONTH"] else len(t)
+			len_t = min(len("September"), dataFileSizeInBytes-currOffset) if t in ["Month","MONTH"] else 3 if t=="ms" else len(t)		# September is longest month name
 			PRINT("\n\nNow looking for token",t,"of length",len_t,"bytes from currOffset=",currOffset)
 			
 			data = readNBytesText(currOffset,len_t)
@@ -17274,7 +17300,7 @@ def readDateTime(variableId, offset=None, parameters=[], onlyNeedRegExPattern=Fa
 						PRINT("data[",i,"] is NOT numeric - last value of realLength =",realLength)
 						break
 				if realLength == 0:
-					errorMessage = "ERROR in readDateTime() - expected numberic string for "+STR(t)+" but got "+STR(data)+" instead"
+					errorMessage = "ERROR in readDateTime() - expected numeric string for "+STR(t)+" but got "+STR(data)+" instead"
 					errorRoutine(errorMessage)
 					return False
 					
@@ -17282,7 +17308,7 @@ def readDateTime(variableId, offset=None, parameters=[], onlyNeedRegExPattern=Fa
 				try:
 					dateTime[t]=int(realData)
 				except ValueError:
-					errorMessage = "ERROR in readDateTime() - expected numberic string for "+STR(t)+" but got "+STR(realData)+" instead"
+					errorMessage = "ERROR in readDateTime() - expected numeric string for "+STR(t)+" but got "+STR(realData)+" instead"
 					errorRoutine(errorMessage)
 					return False
 			elif t in ["Mmm","MMM"]:
@@ -17348,7 +17374,7 @@ def readDateTime(variableId, offset=None, parameters=[], onlyNeedRegExPattern=Fa
 			elif dateTime["ss"] == None:
 				dateTime["ss"] = 0
 		
-		unixTS = convert2UnixTimestamp(dateTime["YYYY"],dateTime["MM"],dateTime["DD"],dateTime["hh"],dateTime["mm"],dateTime["ss"])
+		unixTS = convert2UnixTimestamp(dateTime["YYYY"],dateTime["MM"],dateTime["DD"],dateTime["hh"],dateTime["mm"],dateTime["ss"],dateTime["ms"])
 		PRINT("Converted unixTS =",unixTS)
 		return [currOffset, unixTS, unixTS]
 
@@ -17394,7 +17420,7 @@ def displayDATETIME(endianness, variableId, unraveledRowNum, rawData, parameters
 				
 	dateTimeFormatStringTokenized = tokenizeDateTimeFormatString(dateTimeFormatString)
 	
-	dateTimeFields = convertUnixTimestamp(rawData)	# Return value is a list of [YYYY,MM,DD,HH,mm,ss]
+	dateTimeFields = convertUnixTimestamp(rawData)	# Return value is a list of [YYYY,MM,DD,HH,mm,ss,ms]
 	PRINT("datetime format string <"+dateTimeFormatString+"> is tokenized as", STR(dateTimeFormatStringTokenized))
 	
 
@@ -17439,6 +17465,12 @@ def displayDATETIME(endianness, variableId, unraveledRowNum, rawData, parameters
 		elif dateTimeFormatStringTokenized[i].upper() == "SS":
 			SS = "%02d"%(dateTimeFields[5])
 			dateTimeOutputString += SS
+		elif dateTimeFormatStringTokenized[i].upper() == "MS":
+			if dateTimeFields[6] is None:
+				MS = "000"
+			else:
+				MS = "%02d"%(dateTimeFields[6])
+			dateTimeOutputString += MS
 		else:	
 			dateTimeOutputString += STR(dateTimeFormatStringTokenized[i])
 			PRINT("After adding "+STR(i)+"-th item <"+dateTimeOutputString[i]+">, dateTimeOutputString = <"+dateTimeOutputString+">")
@@ -29405,13 +29437,27 @@ class MainWindow:
 			
 			self.openDataFile([self.demoIndex,7])
 			self.openCodeFile([self.demoIndex,7])
-			infoMessage = "Here we are using different INFORMATs for HEX (for Hexadecimal), BIN (for Binary), OCT (for Octal) and DEC (for Decimal) values.\n\n "				\
+
+			self.originalCodeText.tag_add("yellowbg", "4.14", "4.40")	
+			self.originalCodeText.tag_add("yellowbg", "6.14", "6.38")	
+			self.originalCodeText.tag_add("yellowbg", "8.14", "8.38")	
+			self.originalCodeText.tag_add("yellowbg", "10.14", "10.38")	
+			self.originalCodeText.tag_add("yellowbg", "12.17", "12.42")	
+			
+			infoMessage = "Here we are using different INFORMATs for HEX (for Hexadecimal), BIN (for Binary), OCT (for Octal) and DEC (for Decimal) values.\n\n "		\
+							+"For floating-point, or \"real\" numbers, we use the REAL informat.\n\n"	\
 							+"Hit Enter to see the result."
 			infoRoutine(infoMessage)
 			self.interpret()
 			self.mapStructureToData()
 			infoMessage = "All those values here have been read in accordingly.\n\n "	
 			infoRoutine(infoMessage)
+			
+			self.originalCodeText.tag_remove("yellowbg", "4.14", "4.40")	
+			self.originalCodeText.tag_remove("yellowbg", "6.14", "6.38")	
+			self.originalCodeText.tag_remove("yellowbg", "8.14", "8.38")	
+			self.originalCodeText.tag_remove("yellowbg", "10.14", "10.38")	
+			self.originalCodeText.tag_remove("yellowbg", "12.17", "12.42")	
 			
 			self.endFeatureDemoMessage()
 			
@@ -29584,9 +29630,9 @@ class MainWindow:
 			self.openDataFile([self.demoIndex,3])
 			self.interpret()
 			self.mapStructureToData()
-			self.originalCodeText.tag_add("yellowbg", "3.100", "3.127")	
-			self.originalCodeText.tag_add("yellowbg", "4.22", "4.49")
-			self.originalCodeText.tag_add("pinkbg", "4.50", "4.70")	
+			self.originalCodeText.tag_add("yellowbg", "4.0", "4.27")	
+			self.originalCodeText.tag_add("yellowbg", "8.0", "8.27")
+			self.originalCodeText.tag_add("pinkbg", "9.0", "9.20")	
 			
 			infoMessage = "This is extremely painful. And remember, this is the RegEx for very simple patterns like HEX(8). \n\n"	\
 							+"Imagine creating a RegEx pattern that will capture a DATE or TIMESTAMP!!\n"	
@@ -29597,9 +29643,9 @@ class MainWindow:
 							+"There is really no way to ensure this, except the following.\n\nHit Enter to see the killer feature.\n"	
 			infoRoutine(infoMessage)
 			
-			self.originalCodeText.tag_remove("yellowbg", "3.100", "3.127")
-			self.originalCodeText.tag_remove("yellowbg", "4.22", "4.49")	
-			self.originalCodeText.tag_remove("pinkbg", "4.50", "4.70")	
+			self.originalCodeText.tag_remove("yellowbg", "4.0", "4.27")
+			self.originalCodeText.tag_remove("yellowbg", "8.0", "8.27")
+			self.originalCodeText.tag_remove("pinkbg", "9.0", "9.20")
 
 			self.clearDemo()
 
