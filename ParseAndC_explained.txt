@@ -1,0 +1,885 @@
+This whole document has been created in Question-Answer format to help the user understand the motive behind the tool and its full power.
+
+================================
+Question: 
+================================
+
+What is this ParseAndC tool and what does it achieve?
+
+Answer:
+
+ParseAndC was originally conceived to help the White-Hat security researchers and reverse engineers, but it has evolved over the years to support ANY parsing needs (security- or non-security, White-Hat or Black-Hat). This is a single tool that is able to parse any datastream (binary or text) as long as you know its data format (given by one or more C structure and/or global variable). It is open-sourced at https://github.com/intel/ParseAndC and is cross-platform (Windows/Mac/Linux), and runs even just with a shell (without GUI). It is a single Python file of less than 2MB size and requires ZERO setup. It requires no internet connection, and to prevent it from SW supply chain attacks it doesn’t import anything, to the point that it implements its own C compiler.
+
+This tool does not find security vulnerabilities by itself, but it does help security researchers to hack products in order to find security vulnerabilities (just like IDA Pro does not automatically find security bugs, but helps hackers to find them). ParseAndC is a parsing and Reverse Engineering tool that lays out the parsed data values in a very legible format that helps testers or security researchers to understand the behavior of a program or any other data. There have been teams at Intel who tried for months writing parsers for analyzing complex protocols, and ParseAndC helped to write it within days.
+
+ParseAndC 1.0 was presented at DEF CON 2021 and Black Hat 2021 and later. Since then, the tool has come a long way and added many, many more capabilities that makes it a one-stop-shop for parsing ANY kind of file.
+
+================================
+Question: 
+================================
+
+Wait a second – the user of the ParseAndC tool is supposed to supply the Data Format as well, not just the data to be parsed? Why is that? And since you mentioned IDA Pro, when I use IDA Pro for analyzing a program, I never need to supply any so-called “data format” for the program I want to analyze. 
+
+Answer:
+
+The Reason IDA Pro doesn’t require you to give the executable’s format is because computer executables already follow a well-defined format, and IDA Pro was built utilizing that information. However, ParseAndC is not designed for any particular kind of data – it is applicable for ANY and ALL kinds of data. That is the upside. However, the downside is that because it does not know what kind of data it is dealing with, you will have to provide the data format as well. If you give it incorrect data format, your results will be incorrect as well.
+
+We have all kinds of specialized tools in the world that are tailored for analyzing specific kinds of data. For example, IDA Pro analyzes executables, Wireshark analyzes network traffic, CANalyzer analyzes the data on the car’s CAN bus, etc. ParseAndC can do it all, as long as you give it the proper data format. In fact, if you run the demo, you will be able to see how ParseAndC analyzes the Network traffic.
+
+While being able to analyze ANY kind of data is a strong upside, there are other downsides as well. When you build an application for dealing with a specific kind of data, you can add custom visualizations highlighting artifacts that are specific to that kind of data (for example, if you are analyzing network data, you can show how a TCP session got established). However, because ParseAndC caters to ALL kinds of data, it can only give the most generic kind of data visualization.
+
+Another analogy would be the following. Suppose you are running a machine shop and you need to produce screws, nuts, bolts, and washers. You can procure one machine that produces screws, another machine that produces nuts, and so on. Or, instead of buying all those individual machines, you can just procure a single 3D printer, and you can give it the appropriate digital 3D model file for the item you want to print (for example, if you want to print screws, you need to supply the appropriate digital 3D model file for screws). Your 3D printer may not be as fast as a dedicated screw-producing machine, but now you just need to buy one single tool (the 3D printer) versus buying all the individual tools. 
+
+In other words, ParseAndC is the proverbial Jack of all trades but master of none.
+
+================================
+Question: 
+================================
+
+OK, I think I got the idea. Before you start telling me all the capabilities of ParseAndC, can you give me a real-life example of how the ParseAndC tool might have been used in a security hackathon that would be extremely hard to achieve otherwise?
+
+Answer:
+
+Sure. When we run security tests, often we are looking for certain fields in the datastream under test to have certain values. We write our testing code in such a way that if the parsed variables have indeed the right values, we would say that the test passed (if any of the values do not match, we say the test failed, or we found a bug). 
+
+In ParseAndC, we repurpose the “initialization” aspect of C variable declaration to achieve this. In C, if we see a statement like int a = 0; it means that the compiler creates a memory area for representing the variable named “a”, and initializes that memory area with zero. In ParseAndC, when we see a statement like int a = 0; it means that we expect the integer variable “a” to have the value of zero in the parsed data; if it has ANY other value, ParseAndC will raise an alarm. This is how you write a security test in ParseAndC – you initialize (annotate) every variable with their expected value.
+
+Another example of how this initialization feature of ParseAndC comes handy is as follows. ParseAndC expects the user to provide the data offset from which it will start the parsing process (if none provided, the default data offset is 0). However, suppose you are looking for a certain 1KB-sized area inside a 1MB datastream, and you have no clue exactly where within the 1MB this 1KB-sized block resides. ParseAndC has the powerful feature of being able to parse the data even with an unknown offset, as long as you know some key values of certain variables.
+
+For example, an executable in ELF format would have an elf_identifier structure which will start with a magic_number field, which is supposed to have a 0x7F454C46 value. In ParseAndC, you can have a dimension-less array which will simply “consume” bytes until you hit the target condition (magic_number is 0x7F454C46).
+
+char filler [  ];       /* ParseAndC will try all possible array dimensions until the next 
+                           initialization statement magic_number = 0x7F454C46 is satisfied */
+struct e_ident {
+     unsigned int magic_number = 0x7F454C46;
+	unsigned char EI_CLASS;
+	unsigned char EI_DATA;	
+	unsigned char EI_VERSION;
+	unsigned char EI_OSABI;
+	unsigned char EI_ABIVERSION;
+	unsigned char EI_PAD[7];	
+ } elf_identifier;
+
+And before you jump in and say – well, that could have been easily achieved by a simple search of the 0x7F454C46 value in the datastream, consider the case that the variable with the initialization condition could have been a bitfield variable, and in that case it would be impossible to find that value by doing a “regular” search.
+
+================================
+Question: 
+================================
+
+That sounds cool. How does the ParseAndC tool really look like?
+
+Answer:
+
+Well, you can just download the tool (a single ParseAndC.py file from the website https://github.com/intel/ParseAndC) and click on the “Run Demo” button to see its capabilities. The demo is designed in such a way that it will take you through ALL the features of this tool, and all you require to do is to simply keep hitting the Enter key. However, the downside of going through the full demo is that for a person unfamiliar with this tool, it will probably take 2 hours for the Demo to cover all the features.
+
+So, assuming you want to read this document first, here it goes.
+ 
+Below is the picture of how the tool works. On the top right window we have a datastream that we want to parse (in Hex and ASCII formats). On the top left window we have the format of the data. We can either specify the data format as a bunch of variable declarations, and/or we can put those variables under a C struct (the difference between the two methods is that when you put variables under a C struct, alignment and padding rules apply). This is a read-only tool, so users can be assured that they are not accidentally editing either the data format or the data.
+
+==================================================================================================================================================
+||[Open Code] Original Code [Interpret]   ||   Interpreted code [Map] [Data offset]  ||  [Open Data]     HEX Data Window   || ASCII Data Window  ||
+||===============================================================================================================================================||
+||                                        ||                                         || 0x0000 | 43 5F 50 52 23 FF 00 0B E8  |C_PROFILE........e ||
+||  struct S {                            ||                                         || 0x0010 | 23 82 45 EE 28 AB CD EF 00  |#RE................||
+||            int var_int;    //integer   ||                                         || 0x0020 |                             |                   ||
+||            short var_short;  //short   ||                                         || 0x0030 |                             |                   ||
+||            char char1, char2; //chars  ||                                         || 0x0040 |                             |                   ||
+||           } structVar;                 ||                                         || 0x0050 |                             |                   ||
+||                                        ||                                         || 0x0060 |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         || 0x01E0 |                             |                   ||
+||                                        ||                                         || 0x01F0 |                             |                   ||
+||===============================================================================================================================================||
+||Description:                                                                       ||  Start Address:     Little-Endian Value:        Length:  ||
+||                                                                                   ||  End Address  :     Big-Endian Value   :                 ||
+||===============================================================================================================================================||
+|| [+/-] Expand/Collapse:     Variable name         |         Data Type |  Addr Start  | Addr End | Raw HEX bytes | Value (LE)   | Value (BE)    ||
+||                                                  |                   |              |          |               |              |               ||
+||                                                  |                   |              |          |               |              |               ||
+||                                                  |                   |              |          |               |              |               ||
+||                                                  |                   |              |          |               |              |               ||
+===================================================================================================================================================
+
+
+Once the Code (data format) is loaded, just click on the [Interpret] button on top left. This causes the Compiler to Preprocess/Interpret the data format given via variable and struct declarations. It deals with all the Macros, resolves all the #define statements, deals with all #if #then #else #endif statements, and figures out the true type of each variable. Finding the true type is often not easy since in C we can derive new types via typedef statements, and it can go on recursively (typedef over typedef). It throws error if there are any deviation from C syntax. It also processes the comments - in regular C the preprocessor just throws away all the comments, but in ParseAndC we glean certain key additional information from the comments. After compilation, it loads the preprocessed Code into the "Interpreted Code" window.
+
+The end result is that, the compiler calculates the offset, length and type for each variable. Now it's ready to put this format on top of the data.
+
+
+==================================================================================================================================================
+||[Open Code] Original Code [Interpret]   ||   Interpreted code [Map] [Data offset]  ||  [Open Data]     HEX Data Window   || ASCII Data Window  ||
+||===============================================================================================================================================||
+||                                        ||                                         || 0x0000 | 43 5F 50 52 23 FF 00 0B E8  |C_PROFILE........e ||
+||  struct S {                            ||  struct S {                             || 0x0010 | 23 82 45 EE 28 AB CD EF 00  |#RE................||
+||            int var_int;    //integer   ||            int var_int;                 || 0x0020 |                             |                   ||
+||            short var_short;  //short   ||            short var_short;             || 0x0030 |                             |                   ||
+||            char char1, char2; //chars  ||            char char1, char2;           || 0x0040 |                             |                   ||
+||           } structVar;                 ||           } structVar;                  || 0x0050 |                             |                   ||
+||                                        ||                                         || 0x0060 |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         || 0x01E0 |                             |                   ||
+||                                        ||                                         || 0x01F0 |                             |                   ||
+||===============================================================================================================================================||
+||Description:                                                                       ||  Start Address:     Little-Endian Value:        Length:  ||
+||                                                                                   ||  End Address  :     Big-Endian Value   :                 ||
+||===============================================================================================================================================||
+|| [+/-] Expand/Collapse:     Variable name         |         Data Type |  Addr Start  | Addr End | Raw HEX bytes | Value (LE)   | Value (BE)    ||
+||                                                  |                   |              |          |               |              |               ||
+||                                                  |                   |              |          |               |              |               ||
+||                                                  |                   |              |          |               |              |               ||
+||                                                  |                   |              |          |               |              |               ||
+===================================================================================================================================================
+
+After you have Interpreted the Code (the Data format), and assuming you also have loaded the Data in the Data Windows, now it is time to "Map" this compiled data format on top of the data. You achieve that by clicking on the "Map" button in the middle (right on top of the "interpreted Code" window). When you do that, ParseAndC will parse the Data according to this data format. By default it parses the data from the data offset of 0, but you can change it by entering the offset in the "Data Offset" field. You can give the data offset in any human-readable form, including KB, MB etc.
+
+Once you press the “Map” button, ParseAndC then color-codes all the variable names and the mapped data using the same color so that you can easily figure out which variable now holds which data (different variables will have different color). Obviously, we cannot display the colored data here, but at least we can see what the Bottom window will look like.
+
+The diagram below illustrates what happens after you have clicked on the “Map” button.
+
+
+==================================================================================================================================================
+||[Open Code] Original Code [Interpret]   ||   Interpreted code [Map] [Data offset]  ||  [Open Data]     HEX Data Window   || ASCII Data Window  ||
+||===============================================================================================================================================||
+||                                        ||                                         || 0x0000 | 43 5F 50 52 4F 49 4C 45 65  |C_PROFILE........e ||
+||  struct S {                            ||  struct S {                             || 0x0010 | 23 52 45 EE 28 AB CD EF 00  |#RE................||
+||            int var_int;    //integer   ||            int var_int;                 || 0x0020 |                             |                   ||
+||            short var_short;  //short   ||            short var_short;             || 0x0030 |                             |                   ||
+||            char char1, char2; //chars  ||            char char1, char2;           || 0x0040 |                             |                   ||
+||           } structVar;                 ||           } structVar;                  || 0x0050 |                             |                   ||
+||                                        ||                                         || 0x0060 |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||   ...  |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         ||        |                             |                   ||
+||                                        ||                                         || 0x01E0 |                             |                   ||
+||                                        ||                                         || 0x01F0 |                             |                   ||
+||===============================================================================================================================================||
+||Description:                                                                       ||  Start Address:     Little-Endian Value:        Length:  ||
+||                                                                                   ||  End Address  :     Big-Endian Value   :                 ||
+||===============================================================================================================================================||
+||[-]structVar is of type struct                    |         S         |      0x0     |   0x7    |               |              |               ||
+||       structVar.var_int                          |         int       |      0x0     |   0x3    |  <435F5052>   |  1380998979  | 1130319954    ||
+||       structVar.var_short                        |         short     |      0x4     |   0x5    |      <4F49>   |     18767    |    20297      ||
+||       structVar.char1                            |         char      |      0x6     |   0x6    |        <4C>   |        76    |       76      ||
+||       structVar.char2                            |         char      |      0x7     |   0x7    |        <45>   |        69    |       69      ||
+==================================================================================================================================================|
+ 
+
+In the Bottom window, it gives a nice listing of each variable name, its data type, its data offsets (address start/end), raw Hex representation, and its value in Little-Endian and Big-Endian. The Bottom window has a tree-like structure, which means you can expand (by clicking on "+") or collapse (by clicking on "-") structures into their member variables. Similarly, you can also expand arrays into their individual elements, or collapse an expanded array into back just to its header.
+
+Note that it also copied the source structure into the middle window, and color-coded all the variable names and their corresponding data bytes (in the Hex and ASCII windows) accordingly so that you know which variable corresponds to exactly which data byte(s). 
+
+And if there are just way too many colors and you are having difficulty doing the visual color mapping, just take your cursor on top of any colored variable (in the top middle window) or on top of any colored byte in the Data window (HEX or ASCII), it will immediately highlight the corresponding variables and data items, and tell you all the details. 
+
+However, we also understand that many people do not care about all this GUI stuff and just want a listing of all the variable values one after another, as displayed in the Bottom window in the tool. However, the Bottom window in the tool can only display a small number of variables (about 7 rows), while a struct can have as many member variables, or an array dimension can be massive. Sure, one can click on the Struct/Array header and expand its members/elements and then scroll through the Bottom window, but it’s painful. So, in order to display the details for ALL member variables and array elements, we also give a properly indented listing on the console where this program was invoked from.
+
+================================================================================================================================================================
+M A P P I N G    O F    T H E   L A Y O U T     O N T O    T H E     D A T A
+================================================================================================================================================================
+
+=============                 =========   ==========   ========   =============   ==========   ==========
+Variable Name                 Data Type   Addr Start   Addr End   Raw Hex Bytes   Value (LE)   Value (BE)
+=============                 =========   ==========   ========   =============   ==========   ==========
+structVar is of type struct   S                  0x0        0x7
+    structVar.var_int         int                0x0        0x3      <435F5052>   1380998979   1130319954
+    structVar.var_short       short              0x4        0x5          <4F49>        18767        20297
+    structVar.char1           char               0x6        0x6            <4C>           76           76
+    structVar.char2           char               0x7        0x7            <45>           69           69
+ 
+Lastly, some people might simply want to have this data in a spreadsheet format. For them, every time you run this tool, the same output you see gets captured in a snapshot.csv file in the same directory.
+ 
+We also note that sometimes you may not be interested to print all the values of these variables. For example, suppose the “real” data you want to parse is only from the offset of 1KB and you have zero interest in the data before that. So, if we mapped the first 1KB of data into a char junk[1024] array, we really do not want to print 1024 lines in the console to display the value of each array element. We will describe later how we can achieve this.
+
+
+================================
+Question: 
+================================
+
+
+The tool output looks really neat. But what is point of using this tool versus writing a parser program, which can also generate similar outputs?
+
+Answer:
+
+To write a correct parser program (say in C), one needs to do two things right. 
+
+1) The data format for the incoming data must be correct (otherwise GIGO)
+2) For each field in the incoming data format, after reading its value, it must be printed correctly, using a separate and appropriate printf() statement. Furthermore, C structs and arrays must be correctly unraveled to print individual member variables and elements.
+
+ParseAndC (or any C parsing program for that matter) cannot do anything about the first requirement, but it eliminates the second requirement. Thus, a great advantage of using this tool is that you would no longer need to write full-fledged parsing programs in C (or any other languages). This is a massive help since writing parsers is often very error prone.
+
+
+================================
+Question: 
+================================
+
+OK, maybe I am not fully understanding the problems associated with parsing. Explain to me like I am a 5YO. What exactly is parsing and why writing parsers is error-prone?
+
+Answer:
+
+Parsing is the process of reading the datastream and then printing the value of each field (or variable) in that datastream in a human-readable format. The reason for parsing is that humans and computers see and store data differently. For humans, the readability of the data is the most important aspect; while for computers, the compactness and clarity of the data is most important. As a result of this, most of the time computers store the data in a format that is illegible for humans (Two's complement for storing integers, mantissa-exponent for storing real numbers). For example, if we see 2 bytes in the computer memory storing the value 0xFE89 for a short integer, humans may not immediately understand that it means -375 unless they are able to perform hexadecimal calculations and bit flipping in their head. Similarly, if we see 4 bytes in the computer memory storing the value 0x3F800000 for a float, humans may not understand that it means the real number 4.3.
+
+So, there are functions that convert the data from computer domain to human domain, and vice versa. In C, the scanf() converts the human-domain data into computer-domain so that the computer can understand it properly. Similarly, the printf() converts the computer-domain data into human-domain so that the humans can understand it. So, if your datastream contains multiple variables, in your parsing program you will have to generate individual printf() statement for each of the variables. If your input data format (say a C struct) has member variables that themselves are struct, then you have to do it recursively. If your datastream contains an array variable, you would need to introduce a loop in your parser program that prints every element of that array individually. This can get pretty complicated, especially since C does not give any built-in library function that would do it automatically.
+ 
+Another problem with parsing is that in most cases you are NOT working with a single variable. If there are multiple variables (as is the case with a structure, which usually has several member variables), then merely printing the value of each member variable in a human-readable format is not enough - you need to know which value represents which variable. For example, if you have two separate integer variables named CountBoys and CountGirls, just doing printf("%d\n%d",CountBoys,CountGirls) is not enough - you want to do something like printf("CountBoys=%d\nCountGirls=%d",CountBoys,CountGirls) so that you know which printed value is associated with which variable. This is exactly where parser-writing starts becoming error-prone.
+
+
+================================
+Question: 
+================================
+
+Can you give a practical example of what kind of errors happen during a parser-writing?
+
+Answer:
+
+Absolutely. Suppose in a hospital we keep the newborn babies' name/height/weight using the following C struct:
+
+struct S {
+          char   Name[6];
+          short  Height;
+          float  Weight;
+ } H1;
+
+A correctly written parser code will have something like this in this format ("variable description = %variable_attribute", variableName):
+
+printf(“Name   = %s”, H1.Name );
+printf(“Height = %d”, H1.Height);
+printf(“Weight = %f”, H1.Weight);
+
+Unfortunately, no real-life coder is going to type each of these printf() lines manually. Realistically, they would type out the first line that prints the name, then copy-paste it twice and then modify the copied lines to change the three individual parts (variable description, variable attribute, variable name). This is a manual process and can lead to the following kind of error:
+
+printf(“Name   = %s”, H1.Name);
+printf(“Height = %d”, H1.Height);
+printf(“Weight = %d”, H1.Weight);	/* The coder forgot to change the variable attribute for Weight (a float) from %d to %f.  */
+
+The above code will get caught by compiler, since it will complain that you cannot print a float like an integer without casting it first. However, not all kinds of errors will be caught by compiler. For example, see the code below which is syntactically correct but wrong:
+
+printf(“Name   = %s”, H1.Name);
+printf(“Weight = %d”, H1.Height);	/* The coder mixed up the variable descriptions for Height and Weight */
+printf(“Height = %f”, H1.Weight);	/* This happened because Height and Weight differ by a single letter (H vs. W) */
+
+And this is the case of just a very simple struct. What if the input datastream is represented by multiple structs, and maybe with same variable names? In that case, you would need to code the variable description properly to display the struct hierarchy (A.B.C etc.). These can get a pain in the neck very quickly.
+
+
+================================
+Question: 
+================================
+
+OK, it is clear what kind of errors may happen during a parser-writing. However, that alone does not justify having to use a tool to parse properly. The process for writing the printf() statement for a single variable is rather simple - Just look at the variable declaration to know what kind of variable it is, and then write the corresponding printf() statement. Why is it considered complicated?
+
+Answer:
+
+You hit the nail right in the head if the production code were really THAT simple. Unfortunately, the real-life production code brings many complications. Some examples:
+
+- Complex variable declaration. It will take very experienced coders to understand what kind of variables these Weird and Weirder are:
+
+                      void **(*(*weird)[6])(char, int);
+                      int (*Weirder(const char code)) (int, int) ;
+
+- Derived type. C allows coders to derive new types, and one can derive new types using derived types. If you look below, it's not immediately clear what kind of variable typedefINT is.
+
+                      typedef int (*INT)[2](int);
+                      typedef INT newINT[3];
+
+                      struct S {
+                            newINT typedefINT;
+                      } H1;
+
+- Macro and #define variables. C preprocessors have all sorts of macros where the variable name itself may not be apparent until you resolve all the marcos. And remember that macro functions can be recursive, too. In the code below, there will actually be no variable version_major_minor, only version_1_5
+
+                      #define VERSION_MAJOR      1
+                      #define VERSION_MINOR      5
+                      #define version_major_minor   version_##VERSION_MAJOR##_## VERSION_MINOR
+
+- Preprocessor blocks. There can be many #if #elif #else #endif blocks in a production code, include struct definitions. Without knowing which all code blocks get executed, you do not know which all member variables will actually be part of the parent struct, so you cannot write a printf() statement for each member variable just like that. For example, it will be rather tedious to write a parser for the struct packetFormat below: 
+
+                      #define START_OFFSET 0xFFFF
+                      #define WIDTH (0xFF + 1)
+                      #define KEY_LEN  1024
+                      #define macro1(a) ((a)+(a)^10)
+                      #define OFFVAL macro1(KEY_LEN)
+                      #define END_OFFSET (START_OFFSET + WIDTH - OFFVAL)
+
+                       struct packetFormat {
+
+                       #if END_OFFSET <= 0x0FF
+                      	   long longVar;
+                       #elif END_OFFSET <= 0x4FF
+                      	   int intVar;
+                       #elif END_OFFSET <= 0x8FF
+                      	   short shortVar;
+                       #elif END_OFFSET <= 0xCFF
+                      	   char charVar;
+                       #else
+                      	   float floatVar;
+                       #endif
+
+                        };
+
+In fact, properly processing just even struct definitions is insanely complex - it's essentially as hard as writing a compiler. So that's what I did, wrote the C compiler (at least the front-end).
+
+
+================================
+Question: 
+================================
+
+OK, it's becoming apparent why we need this tool. But, there are many other cases where you want to write a parsing program manually, where simply declaring a C struct will not suffice. For example, suppose a Network packet is coming where the first field (packetSize, an integer) tells how many more bytes to expect in the rest of the network packet. We cannot create a struct in C where the array dimension is given by a previous variable whose value is only known at the runtime (not compile-time).
+
+Answer:
+
+It is absolutely true that C does not allow such dynamic array declaration (where is array dimension is coming from the runtime value of a previous variable). If we have a declaration like int intVar[arraySize] inside a struct then the term arraySize must be a compile-time static constant in C – if it’s not, the compiler would raise a flag. However, this tool DOES accept such declarations. In fact, not only just array dimensions, even the bitfield width can also be dynamically decoded. In other words, we keep the C syntax, but expand the C semantics. So, the following code snippets are perfectly valid in ParseAndC:
+
+struct VariableSizePacket {
+     unsigned int    packet_size;
+     char      pkt [ packet_size ];
+ };
+struct VariableSizeFlags {
+	unsigned int numFlags: 4 ;
+	unsigned int actualFlags: numFlags ;
+ };
+
+
+================================
+Question: 
+================================
+
+That’s indeed a very powerful feature of the tool. However, there is another final reason why Parsing programs win over C structs – dynamic runtime branching. Suppose we are reading an IPv4 packet. After decoding the IP packet we know the value of the protocol field, and depending on whether the protocol is TCP or UDP, we decode the rest of the packet as per the TCP packet format or the UDP packet format. The value of the protocol is not known at the compile-time and is only known at the runtime. Therefore, how is the C struct going to be able to handle both TCP and UDP packets?
+
+Answer:
+
+Once again, it’s indeed true that regular C structs cannot have branches that cannot be resolved at the compile time. However, for ParseAndC, such branching is permitted. In fact, the following code snippet would be allowed for ParseAndC where the network packet is first decoding the value of IPv4_header.IPv4_protocol, and then depending on if it correspond to ICMP/UDP/TCP, it is decoding the rest of the packet accordingly:
+
+#define PROTOCOL_NUM_ICMP	1
+#define PROTOCOL_NUM_IPV4	4
+#define PROTOCOL_NUM_TCP	6
+#define PROTOCOL_NUM_UDP	17
+#define PROTOCOL_NUM_IPV6	41
+__attribute__((packed)) struct NW_Pkt_Hdr{
+struct Ethernet_II_Header {
+	char ethernet_MAC_addr_dest[6];
+	char ethernet_MAC_addr_src[6];
+	unsigned short ether_type;
+} ethernet_II_header;
+#if ether_type == 0x0008	//IPv4 (only this is supported right now)
+struct IPv4_Header{
+  unsigned char  IPv4_header_length_word:4;  // 4-bit IPv4 version 4-bit header length (in 32-bit words)
+  unsigned char  IPv4_version:4;
+  unsigned char  IPv4_type_of_service;           
+  unsigned short IPv4_total_length;   
+  unsigned short IPv4_unique_identifier;
+  struct FlagsAndFragment{
+    unsigned short IPv4_fragment_offset:13;
+    unsigned short IPv4_more_fragments:1;
+    unsigned short IPv4_dont_fragment:1;
+    unsigned short IPv4_Reserved:1;
+  } flags_and_fragment_offset;
+  unsigned char  IPv4_time_to_live;           
+  unsigned char  IPv4_protocol;      // TCP(6), UDP(17), ICMP(1) etc
+  unsigned short IPv4_checksum;      
+  unsigned int   IPv4_src_addr;       
+  unsigned int   IPv4_dst_addr;      
+} IPv4_header;
+
+#if IPv4_header.IPv4_protocol==PROTOCOL_NUM_ICMP
+struct ICMP_Header{
+  unsigned char   ICMP_message_type;
+  unsigned char   ICMP_code;
+  unsigned short  ICMP_checksum;
+  unsigned short  ICMP_identifier;
+  unsigned short  ICMP_sequence;
+  unsigned char   ICMP_data[32];
+} ICMP_header;
+
+#elif IPv4_header.IPv4_protocol==PROTOCOL_NUM_UDP
+struct UDP_Header{
+  unsigned short UDP_src_port_number;
+  unsigned short UDP_dst_port_number;
+  unsigned short UDP_packet_length;
+  unsigned short UDP_checksum_optional;
+} UDP_header;
+
+#elif IPv4_header.IPv4_protocol==PROTOCOL_NUM_TCP
+
+// TCP packet header 
+#endif
+#endif
+
+================================
+Question: 
+================================
+
+OK, I see that this tool has the ability to make C structures almost as powerful as C programs. However, there are still one final reason why people write C parsing programs – to message the data to put it in a human-understandable (not just human-readable) form. For example, in Unix we keep the timestamp by counting the number of seconds since 1/1/1970. Suppose an integer timestamp variable contains the value of 1757398292. Just printing the native integral value makes little sense, but converting it to a human-understandable form (like 9/9/2025 6:11:32) makes it really easy to understand what the actual value of that timestamp is. We can do all such sorts of manipulations when we have the freedom to write full-fledged code in a parsing program. How can we have the similar kind of power and flexibility in just C structures (without violating the C syntax)?
+
+Answer:
+
+This is a great point. In fact, this is exactly the issue which one of the teams using ParseAndC raised. They wanted to modify the value for every parsed variable and display it in a human-understandable way. Worse, they wanted the ability where we can have a different custom display format for printing the value for each variable. For example, the table below has two columns. The first column shows the variables, and the second column tells the requirement of how to print it.
+
+---------------------------------------------------------------------------------------------
+| struct S {                        |                                                        |
+|          char   ProtocolName[8];  |    Print it like an ASCII string                       |
+|          int IPaddr;              |    Print A.B.C.D format, where A/B/C/D are each byte   |
+|          float  Weight;           |    Print it with 3 decimal places                      |
+|          char ring;               |    If ring==0 print “Kernel” else print “User”         |
+|          int memAddr;             |    Print it in Hex                                     |
+|          int mask;                |    Print it in binary                                  |
+|          int toolRunTimeSec;      |    Convert the #sec into HH:MM:SS format and print     |
+|          int unixTimeStamp;       |    Print corresponding YYYY-MM-DD hh:mm:ss             |
+|          int BCDval;              |    Decode it as Binary-Coded-Decimal and print         |
+| } ;	                            |                                                        |
+---------------------------------------------------------------------------------------------
+
+Now, your parser needs to meet this kind of printing need. It can obviously be done in a C parsing program. However, the goal of our ParseAndC tool was eliminate the need for writing parser programs. So, there were two key design questions to answer: 
+
+1. We see that there is really no limit (or constraint) on how the end-user may want to modify the parsed value before displaying it. It’s not just converting to Hex or Binary (or a fixed set of transformations). How can we have a formal notation to give the end-user the power to modify the parsed value EVERY possible way?
+
+2. Even if such a formal notation is established (of specifying how to modify each parsed value before displaying it), how do we supply that information for each variable in the data format without violating the C syntax?
+
+Let’s tackle the second question first. One easy solution would have been to ask the end-user to specify exactly how they wanted to print each variable (let’s call it Custom Display Format) in a separate file. Then, while displaying the parsed values, ParseAndC would refer to that extra file to see if there is a Custom Display Format for that variable, and if there is one, print the value accordingly.
+
+While this is a simple solution, it can lead to a myriad of problems. Now the end-user is tasked with supplying not only the Data format but also its Custom Display Format in two different files, and they must be in sync. Such a requirement is hard to impose on the end-users. Thus, we must abolish all these syncing requirements. However, that means, whenever we are declaring a variable, we must also declare it Custom Display Format at the same place. Something like this hypothetically:
+
+       int MemoryAddress1;                  // No Custom Display Format
+       int MemoryAddress2   FORMAT(HEX);    // has Custom Display Format
+ 
+This solution does eliminate the problem of having to supply an extra file with per-variable Custom Display Formats, but it creates an even bigger problem: we violate the C syntax. Which means, it will alienate the existing C programmers, which we never want to do.
+
+We solved this problem with a rather ingenious way – by repurposing the comments in C. As you are aware, in C code we can have comments anywhere, including on the variable declaration lines. Usually the C preprocessor throws away all such comments before compiling, but in ParseAndC we parse the comment to see if they contain any formatting instructions, delimited by the <FORMAT> Custom Display Format </FORMAT> (case insensitive)
+
+       int MemoryAddress1;   // No Custom Display Format
+       int MemoryAddress2;   //  <FORMAT> HEX  </FORMAT>    has Custom Display Format
+ 
+This solved our problem – now whenever we are declaring a variable, we are also telling in the same line how to print it – all without violating the C syntax.
+
+
+================================
+Question: 
+================================
+
+That’s really neat! So the second problem (of specifying the Custom Display Format without violating the C syntax) is solved. Now, what all Custom Display Formats does this tool support?
+
+Answer:
+
+The tool supports 4 sets of Custom Display Formats, going from very generic (and constrained) to very flexible: 1) Built-in formats, 2) PRINTF format, 3) ENUM format, and 4) POSTPROCESS format.
+
+The Built-in Custom Display Formats are most of the “common” ways of printing the data in
+
+• Built-in numeric formats (Hex, Dec, Oct, Bin, Pct)
+
+        int memAddr;  // print it as <FORMAT>HEX</FORMAT> like 0xDEADBEEF
+        char mask;  /* Its <FORMAT>Bin</FORMAT> is binary, like 0b11110000 */
+        float marks; // <FORMAT>Percent</FORMAT> means like 80.23%
+
+• Built-in elapsed time formats
+
+        int MS;  // <FORMAT>Milliseconds</FORMAT> like HH:MM:SS.mmm
+        int Sec;  // <FORMAT>seconds</FORMAT> like HH:MM:SS.mmm
+
+• Built-in timestamp formats
+
+        int unixTS;  // <FORMAT>unixdatetime(“date is mm/dd/yy”) </FORMAT>  
+        float Excel;  // <FORMAT>exceldatetime</FORMAT> default YYYY-MM-DD HH:MM:SS 
+
+Observe that some of the builtin formats (like unixdatetime and exceldatetime) can optionally take an argument which tells exactly how you want to display the timestamp. It will search for all the tokens related to datetime (like YYYY, YY, DD, MM, MMM, hh, mm, ss) in the argument string and replace the tokens with their corresponding values.
+
+We also have built-in support for certain encodings (Binary-Coded-Decimal and Base-64) which can be invoked by <FORMAT> BCD </FORMAT> or <FORMAT> BASE64 </FORMAT>. For Binary-Coded-Decimal (BCD), it optionally accepts an argument of which flavor of BCD the data is encoded in (the default is 8 4 2 1 (XS-0)).
+
+      8 4 2 1 (XS-0)       4 2 2 1 (II)      Paul O'Brien I (Watts)   6 3 −2 −1 (II)
+      7 4 2 1 5 4 2 1      Gray              5-cyclic                 8 4 −2 −1
+      Aiken (2 4 2 1)      5 2 2 1           Glixon Tompkins I        Lucal
+      Excess-3 (XS-3)      5 1 2 1           Ledley Lippel            Kautz I
+      Excess-6 (XS-6)      5 3 1 1 4 3 1 1   O'Brien II               Kautz II
+      Jump-at-2 (2 4 2 1)  White (5 2 1 1)   LARC Tompkins II         Susskind I
+      Jump-at-8 (2 4 2 1)  5 2 1 1 Klar      Excess-3 Gray            Susskind II
+      4 2 2 1 (I)          Magnetic tape     Petherick (RAE)          6 3 −2 −1 (I)	
+
+
+================================
+Question: 
+================================
+
+
+That’s cool, but I still like to be able to use arbitrary printf() statements, and I should be able to use if-then-else (all sorts of conditional logics) in my parsing program. Does ParseAndC have any way to give me that?
+
+Answer:
+
+Actually, the next set of Custom Display Formats (PRINTF and ENUM) are exactly what you asked for. They are just like the printf and enum in C, only more powerful.
+
+• Built-in PRINTF format just like regular C
+
+        int i;  // <FORMAT>PRINTF(“i = %x”,i) </FORMAT>
+        int j;  // <FORMAT> PRINTF(“i + j = %d”, i+j) </FORMAT> can use prev var i values
+
+• Format string can use Python-like string manipulation techniques
+
+        int k;  // <FORMAT> PRINTF(“i =“ + “%x”,i) </FORMAT> + means string concatenation
+        int m;  // <FORMAT>PRINTF(50*“=“ + “\n m = %x”,i) </FORMAT> * is string repetition
+
+Observe that the printf format string can now be very versatile, using the python-like string manipulation techniques. These are not available in regular C printf(). Also, you can use any variable inside your printf, not just the one which is getting declared.
+
+================================
+Question: 
+================================
+
+
+That’s great, but I see a problem with this PRINTF format. You had earlier mentioned that the very purpose of creating this tool was to avoid copy-paste errors that are invariably associated with printf() statements (where people forget to change the variable names etc.). Now if you are saying we might put a PRINTF format against each variable declaration, how do you know that the coder will not repeat the same mistake?
+
+Answer:
+
+That’s absolutely a fair criticism. In fact, let’s look at this struct below where the coder made the exactly same mistake, where they forgot to change the variable name from i1 to i2. And ParseAndC would not complain, because it does not know if the invocation of i1 on that line (where i2 was declared) was deliberate or not.
+
+       struct S {
+                   int i1;           // <FORMAT> PRINTF(“%02d”,i1) </FORMAT>
+                   int i2;           // <FORMAT> PRINTF(“%02d”,i1) </FORMAT>
+                   int i3;           // <FORMAT> PRINTF(“%02d”,i3) </FORMAT>
+       };
+
+To prevent this, instead of using the variable name explicitly, ParseAndC also allows to use a _X_ operator used in the format, whose value gets substituted at runtime with the value of the variable. So, using _X_, the previous data format would look like this:
+
+       struct S {
+                   int i1;           // <FORMAT> PRINTF(“%02d”, _X_) </FORMAT>
+                   int i2;           // <FORMAT> PRINTF(“%02d”, _X_) </FORMAT>
+                   int i3;           // <FORMAT> PRINTF(“%02d”, _X_) </FORMAT>
+       };
+
+In the above struct, the _X_ refers to i1 in the first line, i2 in the second line, and i3 in the third line. In other words, the coder can simply copy-paste the format code without having to worry about changing the variable names (and if there is already a variable named _X_, it will warn you and suggest that you use alternative variables like __X__ or ___X___ and so on).
+
+Lastly, when the PRINTF format in ParseAndC is used for an array variable, it tries to understand if the printf statement should be executed only ONCE (at the array level), or for every array element (at the element level). Basically, if we have an explicit reference to a specific array element in the PRINTF format statement, we execute it only once at the array level. Otherwise, it is executed for every array element.
+
+    struct S {
+        char IP[4]; /* <FORMAT> PRINTF(“%c. %c. %c. %c”, IP[0],IP[1],IP[2],IP[3]) </FORMAT> - is executed only once at the array level */
+        int i[4];   /* <FORMAT> PRINTF(“%02d”, _X_) </FORMAT> - is executed for each one of the 4 array elements. */
+    };
+
+To conclude, the PRINTF format in ParseAndC is immensely powerful. When used in conjunction with the format ENUM (which is essentially the syntactic sugar of switch case in C), you can pretty much do all sorts of comparisons and prints all sorts of values.
+
+
+================================
+Question: 
+================================
+
+Wait a second – since when the enum is a similar to the switch case in C? In C, the enum helps the coders, not the testers. An enum is used in C to convert a helpfully-named literal to an integer. But, if we print the integer, we will never get the corresponding enum literal back (which would have been helpful). Can you please explain what you mean?
+
+Answer:
+
+It is absolutely true that C enums help coders, not end-users
+
+        enum DAY {SUN, MON, TUE} day;   // Converts SUN to 0, MON to 1 etc. 
+        printf (“%d”,day);   // Will print the numeric value of day, not SUN/MON/TUE 
+
+If we want to print the original enum literal, we have to use the C switch case statement. However, it is not without danger, as seen below:
+
+       switch (day) {	
+            case SUN : printf (“SUN”); 	 // Need to manually type the literal name
+            case MON : printf (“M0N”);	 // Can mess up the literal name
+            ...
+
+For enum variables, ParseAndC automatically displays the enum literal strings corresponding to their values. In addition, we introduce the feature of dynamic ENUM, where even if the original variable was not an enum variable, you can dynamically form an enum to modify its value accordingly.
+
+        int day;  	  // <format> ENUM(“SUN”,”MON”,”TUE”) </format> 
+        char ring;        // <Format> enum(“Kernel”,”User”=3,”Err”=REST) </Format>
+
+In the above code, if the value of the variable ring is 0, it prints “kernel”, if it is 3, it prints “User” and prints “Err” for all other cases. Observe that the REST (or DEFAULT) keyword in FORMAT ENUM is just like the keyword “default” in switch-case in C. Another way it is more powerful than regular C enum is that in <format> ENUM(PrintValue = CompareValue) </format> both the CompareValue and PrintValue can be runtime expressions.
+
+
+================================
+Question: 
+================================
+
+OK, I get it. However, there is one last thing where I believe the C parsing program still rules. In an imperative programing language, we can write lines and lines of code, containing a sequence of assignments. How do we do something like that in ParseAndC?
+
+Answer:
+
+That is exactly what the <FORMAT> POSTPROCESS(“put your code here”) </FORMAT> is about. We call it postprocess to indicate that it is not changing the internal value of the parsed variable, it is simply changing what is going to be displayed. And the beauty of FORMAT in ParseAndC is that just like you can write lines and lines of sequential code (where the lvalue of a line serves as the rvalue of the subsequent line), you can “stack” FORMAT statement after format statement in ParseAndC, where the end-result of one FORMAT statement is fed as input to the next format statement.
+
+Let’s give an example with a real requirement. A tester wanted to simply display the same number of "=" chars for days in a month for a given unix timestamp TS. In a C program, it’s not easy to achieve it without using the builtin library functions in time.h. However, in ParseAndC, we can achieve this very elegantly:
+
+int TS; /* 
+           <FORMAT> UNIXDATETIME("MM") </FORMAT> 
+           <FORMAT> POSTPROCESS(int(_X_)) </FORMAT>
+           <FORMAT> ENUM(31=1,28,31,30,31,30,31,31,30,31,30,31) </FORMAT>
+           <FORMAT> PRINTF(_X_* "=") </FORMAT> 
+        */
+
+• The first format UNIXDATETIME extracts the month portion (a numeric string) of the unix timestamp.
+• The second format POSTPROCESS(int(_X_)) converts the numeric string into a number.
+• The third format ENUM reads that number (obviously between 1 and 12), and correspondingly outputs how many days are there in that month.
+• The fourth format PRINTF takes that number as an input and prints that many “=” symbols, using Python-like string-repetition properties.
+
+Thus, this kind of ability to perform sequential formats one after another makes the ParseAndC Turing-complete and as powerful as any C parsing programs.
+
+
+================================
+Question: 
+================================
+
+OK, that’s really cool, but what if I simply don’t care about the values of some data? For example, suppose there is a struct which contains a char array of 10000 characters, and printing the individual values for each of those 10K array elements will simply clutter the console. Is there any way to specify that “DO NOT PRINT THIS VARIABLE”?
+
+Answer:
+
+Actually, there is. This is a new feature for ParseAndC 5.0 Just use the FORMAT of DO_NOT_PRINT, and ParseAndC will skip printing the value for that variable. If it is an array, it will not print the values of any array element either.
+
+      struct  S {
+                 int packet_header_length;
+                 char header [packet_header_length];
+                 char packet [10000];      // <FORMAT> DO_NOT_PRINT </FORMAT>
+      };
+
+
+================================
+Question: 
+================================
+
+OK, what about suppose I have a BIG array of say 10K elements but I only want to see the value of only the element # 10? Or maybe from elements 30 through 50?
+
+Answer:
+
+ParseAndC also allows the PRINT_ARRAY_ELEMENTS_ONLY format that allows to print selective array elements. For example, in this example below ParseAndC only prints those respective array elements.
+
+       struct  S {
+                  int packet_header_length;
+                  char header [packet_header_length];
+                  char packet [10000];  // <FORMAT> PRINT_ARRAY_ELEMENTS_ONLY ([5]) </FORMAT>
+                  char A [10][20];      // <format> PRINT_ARRAY_ELEMENTS_ONLY ( [5][2]:[6][9] ) </format>
+       };
+
+
+================================
+Question: 
+================================
+
+This is fine, but I guess I will get tired of typing <FORMAT> DO_NOT_PRINT </FORMAT> for variables whose values I don’t care about. Suppose my struct will have a lot of variables/arrays which I don’t care about. Is there any way to NOT print their values without having to type <FORMAT> DO_NOT_PRINT </FORMAT> in the comments for every such declaration?
+
+Answer:
+
+Actually, there is a line in the ParseAndC program that initializes a global list:
+
+         JUNK_VARIABLE_NAMES = ["_junk_","_filler_"]
+
+The beauty of this is that, any variable name with such name will automatically be skipped from getting printed. Also, repetition of variable name is allowed within the same struct or global variable.
+
+        struct  S {
+                   int packet_header_length;
+                   char _junk_ [packet_header_length];    // Will not get printed
+                   int packet_type;
+                   char _junk_ [1000];    // Will not get printed. Also, same variable name used 
+                  };
+                   
+
+================================
+Question: 
+================================
+
+I see. I also observe that ParseAndC prints both the LE (Little-Endian) and BE (Big-Endian) values on the console, and sometime those value wrap over a line, causing the console output look rather ugly. Is there anyway I can omit printing both these BE and LE values and choosing only the one I like to print?
+
+Answer:
+
+Absolutely. Just pass on the command-line option of -BE or -LE while invoking ParseAndC and it will only print BE or LE values. This is a ParseAndC 5.0 feature.
+
+================================
+Question: 
+================================
+
+One last request regarding this line-wrapping. After I started adding all these FORMAT statements to my comment, my variable declaration statements started getting really long and wrapping over. I understand that there are 3 main windows (Original Code window, Interpreted Code window and HEX/ASCII Data window), but I really do not need to see BOTH the Original Code window and the Interpreted Code window simultaneously. Is there any way to “hide” one of them so that its width is given to the other one? That way, the line wrapping problem would get solved.
+
+Answer:
+
+Absolutely. In ParseAndC 5.0 feature, we have provided two checkboxes “Hide Original” and “Hide Interpreted” at the bottom of the tool. Clicking on the “Hide Original” will suddenly make the Interpreted Code window very wide. Similarly, clicking on the “Hide Interpreted” will suddenly make the Original Code window very wide.
+
+================================
+Question: 
+================================
+
+OK, looks like ParseAndC can indeed parse any and all kinds of Binary files, and then massage or manipulate the parsed data into any user-friendly format we want to display. But what about TEXT files? Can ParseAndC handle that, too?
+
+Answer:
+
+ParseAndC 5.0 can handle Text files, too. This is a new feature.
+
+Unlike binary files, text files come with their own parsing challenges. Unlike Binary where the encoding scheme is ironclad for every data type, there is no fixed format for encoding any data value in text. If you encounter the word “dead beef” in a text file, it could mean multiple things:
+
+1. It could simply be an English word “dead beef”
+2. It could be a hexadecimal number 0xDEADBEEF
+3. It could be the encoding of a C integer or float variable that takes 4 bytes (and even then, we don’t know if it is Little-Endian or Big-Endian). 
+
+Worse, numbers can have +/- or other 0x/0b/0o prefixes, and can be punctuated with commas, spaces, underscores, etc. In other words, unlike the Binary files where data encoding is very precise, it’s completely rule of the jungle when it comes to text files, and the parser must know the exact data format. For example, suppose the following line exists in a TEXT file “The birthday is 12-9-10”, and we need to extract the value of the birthday field. In order to do that, we need to know two things beforehand:
+
+1. The birthday field comes after the string “The birthday is ”.
+2. The birthday field format (say MM-DD-YY). If we do not know the exact format, we don’t know if it’s 9th December 2010, 12th September 2010, or 10th September 2012.
+
+In other words, when you are parsing Text files, you need to know the input format of that data and somehow communicate that to ParseAndC, all without violating the C syntax.
+
+================================
+Question: 
+================================
+
+OK, so what kind of data formats ParseAndC supports natively?
+
+Answer:
+
+For text files, ParseAndC supports the following input formats natively (n is optional):
+
+      • BIN(n) – interpret the next n binary bytes as Binary integer (“0b10101”)
+      • HEX(n) - interpret the next n hex bytes as Hexadecimal integer (e.g. “0XAB_08C7”)
+      • OCT(n) - interpret the next n octal bytes as Octal integer (e.g. “0o1234”)
+      • DEC(n) - interpret the next n decimal bytes as Decimal integer (e.g. “-1023”)
+      • REAL - interpret the next bytes as a real number (e.g. “-123.45 e23”)
+
+If no n is supplied, ParseAndC will simply attempt to match as many contiguous digits as possible, and stop when it hits a space (or any other type of characters).
+
+
+================================
+Question: 
+================================
+
+I see, but how exactly do you supply this input format for a variable? Do you plan to alter the C syntax for variable declaration? 
+
+Answer:
+
+We understand that altering C syntax would be considered blasphemous to the C developer community, hence we would never do it. Instead, we just supply this input format information within a case-insensitive <INFORMAT> input format </INFORMAT> string, and then place that string within the comment that starts with the same line where the variable gets declared. For example, suppose during the parsing of a TEXT file you want to say that the next variable is a 5-digit Decimal number. We can specify it like:
+
+ 	int i;  	  // <informat> Dec(5) </informat> 
+
+Recall that INFORMATs only apply to TEXT files. They do not at all apply to binary file. Thus, if you provide the INFORMAT for any variable, it is understood that the input file is a text file, and it is advisable to provide INFORMAT statement for each variable. Mixing binary and text is really not desirable.
+
+Another thing to note that when we supply INFORMATs, the data type in the variable declaration statement is really redundant because the INFORMAT captures the data size as well as data type (integer or float).
+
+
+================================
+Question: 
+================================
+
+Is that it? Just being able to read different kind of integral or floating-point values is nice, but on the other hand, using a C parser program we can do way complicated stuff like reading a timestamp from a text file.
+
+Answer:
+
+It’s absolutely true that timestamp is one of the key fields in a Text file, since it’s hard to imagine any kind of system log file without timestamps in it. And yes, correct parsing of date/timestamp is very important, and is a bit complicated to code unless you are using some kind of library function instead of implementing it yourself.
+
+ParseAndC 5.0 has the <INFORMAT> DATETIME (timestamp format) </INFORMAT> for TEXT files where you can give the timestamp format you expect next date/timestamp to be. It can be pretty much anything – “YYYY/MM/DD”, “MM/DD/YY”, “DD-Mmm-YYYY hh:mm:ss”, etc.  ParseAndC will read the date/timestamp and convert to a single integer representing the number of seconds since 1/1/1970 00:00:00 (the Unix timestamp convention). If it is negative, that indicates a date before 1970. And if the timestamp format contains milliseconds (e.g. “DD-Mmm-YYYY hh:mm:ss.ms”), then the extracted timestamp is not an integer but rather a real number whose integral part denotes the number of seconds since 1/1/1970 00:00:00 and the fractional part indicates the ms as a fraction of a second.
+
+
+================================
+Question: 
+================================
+
+OK, how does reducing the full date/timestamp to a single number solve anything? What’s the usage of it then? It’s not like humans can understand that number.
+
+Answer:
+
+The beauty of being able to extract all the individual components (year, month, date, hour, minutes, seconds, milliseconds) into a single number is that you can now manipulate that number, or use that number to do any calculations.
+
+For example, here we are using both an INFORMAT for reading in the date/timestamp, and then using a FORMAT to print it in a completely different format.
+
+          int datetimstamp; /* 
+                               <INFORMAT> DATETIME (“DD Mmm, YYYY hh:mm:ss”) </INFORMAT>
+                                <FORMAT>  DATETIME (“MM/DD/YYYY hh-mm-ss”)     </FORMAT>
+                            */
+
+And here is yet another usage. Suppose a log file contains two timestamps – the starTS represents the date/timestamp when the logging started, and the endTS represents the date/timestamp when the logging ended. And we are interested in knowing the difference between the two date/timestamps, to figure out how long this tool was running.
+
+          int startTS;      /* 
+                               <INFORMAT> DATETIME (“MM/DD/YYYY hh:mm:ss”) </INFORMAT>
+                                <FORMAT>  DATETIME (“MM/DD/YYYY hh-mm-ss”)   </FORMAT>
+                            */
+          ...
+          (Other variables)
+          ...
+          int endTS;      /* 
+                               <INFORMAT> DATETIME (“MM/DD/YYYY hh:mm:ss”) </INFORMAT>
+                                <FORMAT>  POSTPROCESS (endTS - startTS)      </FORMAT>
+                                <FORMAT>  SECONDS                            </FORMAT>
+                          */
+
+Using the INFORMAT DATETIME will read both the starTS and endTS as numbers (seconds since 1/1/1970), and then <FORMAT>POSTPROCESS (endTS - startTS) </FORMAT> will calculate their differences (in seconds), and finally <FORMAT> SECONDS </FORMAT> will display the difference (in seconds) into a human-readable form like 3 days 12:32:54.
+
+
+================================
+Question: 
+================================
+
+I see. So using ParseAndC one can read in numbers, dates, timestamp etc. very nicely. But, a Text file also contains a lot of....... texts. How do we read text? And many a times we need to read texts that are NOT exact matches but rather follow a pattern. In any scripting language it is easy to do this pattern matching using Regular Expression. Does ParseAndC support Regular Expressions?
+
+Answer:
+
+Yes, it does. In fact, it is one of the main features of ParseAndC 5.0. Not only it supports Regular Expressions, it actually implements all kinds of INFORMATs under the hood using Regular Expressions only.
+
+Now, the question is – how do we specify the RegEx matching patter? Remember that we do not want to alter the C syntax. So, we simply repurposed the C initialization for char array.
+
+Suppose we want to capture the following pattern in a text file: “Firstname Surname”.
+
+            char FirstnameSurname [ ] = "[A-Z][a-z]*\s+[A-Z][a-z]*";      /* <INFORMAT> REGEX </INFORMAT> */
+
+Observe that without the <INFORMAT> REGEX </INFORMAT>, ParseAndC will treat the char FirstnameSurname = “[A-Z][a-z]*\s+[A-Z][a-z]*” as a regular C initialization and expect the value of the FirstnameSurname variable to match the initialization value character by character, not as a Regular Expression pattern. However, when it sees that <INFORMAT> REGEX </INFORMAT>, it understands that that the “[A-Z][a-z]*\s+[A-Z][a-z]*” is a RegEx pattern it needs to match, and acts accordingly.
+
+
+================================
+Question: 
+================================
+
+That’s good to know that ParseAndC supports Regular Expressions. That would definitely open up its parsing massively. Is there anything else regarding Regular Expression that ParseAndC has that no other tool might have? Any “Killer Feature”, so to speak?
+
+Answer:
+
+ParseAndC does indeed have a Killer feature when it comes to Regular Expression.
+
+In Regular Expression, there is the concept of “Positive Lookahead” where you look ahead to see the occurrence of a subpattern that you match but don’t consume. For example, if you want to match everything upto the string “www”, you can simply use the regular expression “.*(?=www)”. However, it gets complicated when the lookahead pattern is not a simple one (like “www”) but rather a complex one (like a HEX number). Considering the fact that HEX numbers can be punctuated by spaces and underscores at double-nibble boundaries, the Regular Expression for matching until the occurrence of a Hex number of 8 text digits would be ".*(?=(0[xX])?\s*([0-9a-fA-F][0-9a-fA-F]\s*_?\s*){3}([0-9a-fA-F][0-9a-fA-F])\s*)". And this is for a simple match like a Hex number. Can you imagine how it will be for a more complicated matching pattern (like a date/timestamp)?
+
+So, we introduce the killer feature __NEXT__ in ParseAndC 5.0. When it is used within a positive lookahead inside a Regular Expression, ParseAndC finds the RegEx pattern of the very next declared variable, and replaces the __NEXT__ in the current variable’s RegEx expression lookahead with that.
+
+Without this killer feature:
+
+char junk [ ] = ".*(?=(0[xX])?\s*([0-9a-fA-F][0-9a-fA-F]\s*_?\s*){3}([0-9a-fA-F][0-9a-fA-F])\s*)";   /*  <INFORMAT> REGEX </INFORMAT>  <FORMAT> DO_NOT_PRINT </FORMAT>  */
+int Addr;      /*  <INFORMAT> HEX(8) </INFORMAT>   */
+
+With this killer feature:
+
+char junk [ ] = ".*(?=__NEXT__)";      /*  <INFORMAT> REGEX </INFORMAT>   <FORMAT> DO_NOT_PRINT </FORMAT>  */
+int Addr;                              /*  <INFORMAT> HEX(8)</INFORMAT>   */
+
+Observer how concise and elegant this killer feature is.
+
+================================
+Question: 
+================================
+
+Wow, that’s really great. I want to try this tool. Is there a demo?
+
+Answer:
+
+Of course. Just Google for “ParseAndC”, and you will hit its GitHub page https://github.com/intel/ParseAndC . There, download the single 1.7MB Python text file ParseAndC.py. You just need Python to run it. On any console, just type python3 ParseAndC.py and click on “Run Demo” button. Just keep hitting the Enter key and it will walk you through the whole demo, which will probably take you two hours. There are many other features I could not discuss here, but everything is covered in the demo.
+
+The tool is cross-platform. It works everywhere -  Python 2/3,  Windows / Unix / Mac. Also works on terminal shell (no GUI). 
+
+Send any feedback to ParseAndC@gmail.com .
+
